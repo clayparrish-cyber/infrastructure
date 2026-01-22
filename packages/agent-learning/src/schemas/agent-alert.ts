@@ -1,0 +1,1 @@
+// Placeholder for AgentAlert schema

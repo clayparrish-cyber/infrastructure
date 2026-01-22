@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Dashboard - Solo Projects</title>
+  <style>
+    :root {
+      --bg-base: #0a0a0a;
+      --bg-elevated: #141414;
+      --bg-surface: #1a1a1a;
+      --border: #2a2a2a;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.1);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --sidelineiq: #6366f1;
+      --dosie: #ec4899;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-elevated);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      margin-bottom: 2rem;
+    }
+
+    .sidebar-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .sidebar-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .project-list {
+      list-style: none;
+    }
+
+    .project-item {
+      padding: 0.75rem;
+      border-radius: 0.5rem;
+      margin-bottom: 0.25rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .project-item:hover {
+      background: var(--bg-surface);
+    }
+
+    .project-item.active {
+      background: var(--accent-glow);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .project-name {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .project-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .project-dot.all { background: var(--accent); }
+    .project-dot.sidelineiq { background: var(--sidelineiq); }
+    .project-dot.dosie { background: var(--dosie); }
+
+    .project-badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      padding: 0.125rem 0.375rem;
+      border-radius: 9999px;
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning);
+    }
+
+    .sidebar-section {
+      margin-top: 2rem;
+    }
+
+    .sidebar-section-title {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      padding-left: 0.75rem;
+    }
+
+    /* Main Content */
+    .main {
+      padding: 2rem;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      margin-bottom: 2rem;
+    }
+
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .page-subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+
+    .stat-card.warning {
+      border-color: rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.05);
+    }
+
+    .stat-card.danger {
+      border-color: rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-top: 0.25rem;
+    }
+
+    .stat-value.warning { color: var(--warning); }
+    .stat-value.danger { color: var(--danger); }
+
+    /* Project Sections */
+    .project-section {
+      margin-bottom: 2rem;
+    }
+
+    .project-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .project-header-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .project-header-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+    }
+
+    .project-stats {
+      display: flex;
+      gap: 1rem;
+      margin-left: auto;
+    }
+
+    .project-stat {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .project-stat strong {
+      color: var(--text-secondary);
+    }
+
+    /* Agent Groups */
+    .agent-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .agent-group-header {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .agent-icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.6;
+    }
+
+    /* Items */
+    .item-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .item {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      transition: border-color 0.15s;
+    }
+
+    .item:hover {
+      border-color: var(--text-muted);
+    }
+
+    .item.high-priority {
+      border-left: 3px solid var(--danger);
+    }
+
+    .item-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .item-title {
+      font-weight: 500;
+      font-size: 0.875rem;
+    }
+
+    .item-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .item-description {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      margin-top: 0.5rem;
+      line-height: 1.6;
+    }
+
+    .badge {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .badge.low { background: var(--bg-surface); color: var(--text-muted); }
+    .badge.medium { background: var(--bg-surface); color: var(--text-secondary); }
+    .badge.high { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+    .badge.urgent { background: rgba(239, 68, 68, 0.25); color: var(--danger); }
+    .badge.completed { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .badge.running { background: var(--accent-glow); color: var(--accent); }
+    .badge.failed { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+    .action-items {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .action-item {
+      margin-bottom: 0.75rem;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .action-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .action-item strong {
+      color: var(--text-primary);
+    }
+
+    .action-item ul {
+      margin: 0.5rem 0 0 1.25rem;
+      padding: 0;
+    }
+
+    .action-item li {
+      margin-bottom: 0.25rem;
+      color: var(--text-secondary);
+    }
+
+    .item-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
+    .btn {
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.375rem 0.75rem;
+      border-radius: 0.375rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-approve {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-approve:hover { background: rgba(16, 185, 129, 0.2); }
+
+    .btn-reject {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-reject:hover { background: rgba(239, 68, 68, 0.2); }
+
+    .btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    .btn-secondary:hover { background: var(--bg-elevated); }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      opacity: 0.5;
+    }
+
+    .empty-title {
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      background: var(--bg-elevated);
+      padding: 0.25rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1.5rem;
+      width: fit-content;
+    }
+
+    .tab {
+      font-size: 0.8125rem;
+      font-weight: 500;
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.15s;
+      border: none;
+      background: none;
+    }
+
+    .tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .tab.active {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+
+    /* Last updated */
+    .last-updated {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: right;
+      margin-top: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Agent Dashboard</div>
+        <div class="sidebar-subtitle">Solo Projects</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Projects</div>
+        <ul class="project-list" id="projectList">
+          <li class="project-item active" data-project="">
+            <span class="project-name">
+              <span class="project-dot all"></span>
+              All Projects
+            </span>
+            <span class="project-badge" id="allBadge">0</span>
+          </li>
+          <li class="project-item" data-project="SidelineIQ">
+            <span class="project-name">
+              <span class="project-dot sidelineiq"></span>
+              SidelineIQ
+            </span>
+            <span class="project-badge" id="sidelineiqBadge" style="display:none">0</span>
+          </li>
+          <li class="project-item" data-project="Dosie">
+            <span class="project-name">
+              <span class="project-dot dosie"></span>
+              Dosie
+            </span>
+            <span class="project-badge" id="dosieBadge" style="display:none">0</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">Quick Actions</div>
+        <ul class="project-list">
+          <li class="project-item" onclick="loadData()">
+            <span class="project-name">Refresh Data</span>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title" id="pageTitle">All Projects</h1>
+        <p class="page-subtitle" id="pageSubtitle">Agent activity across all solo projects</p>
+      </div>
+
+      <div class="stats-grid" id="stats">
+        <div class="stat-card" id="pendingCard">
+          <div class="stat-label">Pending Approvals</div>
+          <div class="stat-value" id="pendingCount">0</div>
+        </div>
+        <div class="stat-card" id="alertsCard">
+          <div class="stat-label">Active Alerts</div>
+          <div class="stat-value" id="alertsCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completed Today</div>
+          <div class="stat-value" id="completedCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Tasks</div>
+          <div class="stat-value" id="totalCount">0</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="recommendations">Recommendations</button>
+        <button class="tab" data-tab="alerts">Alerts</button>
+        <button class="tab" data-tab="activity">Activity</button>
+      </div>
+
+      <div id="content"></div>
+
+      <div class="last-updated" id="lastUpdated"></div>
+    </main>
+  </div>
+
+  <!-- Agent data loaded from JavaScript file (works with file:// protocol) -->
+  <script src="./data/data.js"></script>
+  <script>
+    let currentData = null;
+    let currentProject = '';
+    let currentTab = 'recommendations';
+
+    const AGENT_ICONS = {
+      CONTENT: '&#128221;',
+      ANALYTICS: '&#128200;',
+      RESEARCH: '&#128270;',
+      BRIEFING: '&#128240;',
+      DEVELOPMENT: '&#128187;',
+    };
+
+    function renderActionItems(recommendation) {
+      if (!recommendation || typeof recommendation !== 'object') return '';
+
+      let html = '';
+
+      // App Store positioning (Dosie)
+      if (recommendation.appStoreTitle) {
+        html += `<div class="action-item"><strong>App Store Title:</strong> ${recommendation.appStoreTitle}</div>`;
+      }
+      if (recommendation.appStoreSubtitle) {
+        html += `<div class="action-item"><strong>Subtitle:</strong> ${recommendation.appStoreSubtitle}</div>`;
+      }
+      if (recommendation.keyMessages && Array.isArray(recommendation.keyMessages)) {
+        html += `<div class="action-item"><strong>Key Messages for Description:</strong><ul>${recommendation.keyMessages.map(m => `<li>${m}</li>`).join('')}</ul></div>`;
+      }
+      if (recommendation.keywords && Array.isArray(recommendation.keywords)) {
+        html += `<div class="action-item"><strong>Keywords:</strong> ${recommendation.keywords.slice(0, 6).join(', ')}${recommendation.keywords.length > 6 ? '...' : ''}</div>`;
+      }
+      if (recommendation.competitorComparisons && Array.isArray(recommendation.competitorComparisons)) {
+        html += `<div class="action-item"><strong>Positioning vs Competitors:</strong><ul>${recommendation.competitorComparisons.map(c => `<li>${c}</li>`).join('')}</ul></div>`;
+      }
+
+      // Actionable recommendations (SidelineIQ)
+      if (recommendation.action) {
+        html += `<div class="action-item"><strong>Action:</strong> ${recommendation.action}</div>`;
+      }
+      if (recommendation.scope) {
+        html += `<div class="action-item"><strong>Scope:</strong> ${recommendation.scope}</div>`;
+      }
+      if (recommendation.whatApprovalMeans) {
+        html += `<div class="action-item" style="font-style:italic;color:var(--text-muted);font-size:0.8rem;">${recommendation.whatApprovalMeans}</div>`;
+      }
+
+      // Legacy content review patterns
+      if (recommendation.whatThisIs) {
+        html += `<div class="action-item" style="font-style:italic;color:var(--text-muted);font-size:0.8rem;">${recommendation.whatThisIs}</div>`;
+      }
+      if (recommendation.summary) {
+        html += `<div class="action-item"><strong>Summary:</strong> ${recommendation.summary}</div>`;
+      }
+      if (recommendation.tiers && typeof recommendation.tiers === 'object') {
+        html += `<div class="action-item"><strong>Tier Distribution:</strong><ul>${Object.entries(recommendation.tiers).map(([tier, count]) => `<li>${tier}: ${count} lessons</li>`).join('')}</ul></div>`;
+      }
+      if (recommendation.findings && Array.isArray(recommendation.findings)) {
+        html += `<div class="action-item"><strong>Findings:</strong><ul>${recommendation.findings.slice(0, 5).map(s => `<li>${s}</li>`).join('')}</ul>${recommendation.findings.length > 5 ? `<em>+${recommendation.findings.length - 5} more...</em>` : ''}</div>`;
+      }
+      if (recommendation.suggestions && Array.isArray(recommendation.suggestions)) {
+        html += `<div class="action-item"><strong>Suggestions:</strong><ul>${recommendation.suggestions.slice(0, 5).map(s => `<li>${s}</li>`).join('')}</ul>${recommendation.suggestions.length > 5 ? `<em>+${recommendation.suggestions.length - 5} more...</em>` : ''}</div>`;
+      }
+
+      // Legacy patterns
+      if (recommendation.primaryMessage) {
+        html += `<div class="action-item"><strong>Key Message:</strong> "${recommendation.primaryMessage}"</div>`;
+      }
+      if (recommendation.warnings && Array.isArray(recommendation.warnings)) {
+        html += `<div class="action-item"><strong>Issues to address:</strong><ul>${recommendation.warnings.slice(0, 5).map(w => `<li>${w}</li>`).join('')}</ul>${recommendation.warnings.length > 5 ? `<em>+${recommendation.warnings.length - 5} more...</em>` : ''}</div>`;
+      }
+
+      return html;
+    }
+
+    function renderTaskResult(resultJson) {
+      if (!resultJson) return '';
+      try {
+        const result = JSON.parse(resultJson);
+        let html = '';
+
+        // Positioning strategy (Dosie)
+        if (result.type === 'positioning_strategy') {
+          html += `<div class="action-item" style="font-style:italic;color:var(--text-muted);font-size:0.8rem;">Reference documentation - saved for App Store listing</div>`;
+          if (result.appStoreTitle) {
+            html += `<div class="action-item"><strong>App Store Title:</strong> ${result.appStoreTitle}</div>`;
+          }
+          if (result.appStoreSubtitle) {
+            html += `<div class="action-item"><strong>Subtitle:</strong> ${result.appStoreSubtitle}</div>`;
+          }
+          if (result.keyMessages && Array.isArray(result.keyMessages)) {
+            html += `<div class="action-item"><strong>Key Messages:</strong><ul>${result.keyMessages.map(m => `<li>${m}</li>`).join('')}</ul></div>`;
+          }
+          if (result.keywords && Array.isArray(result.keywords)) {
+            html += `<div class="action-item"><strong>Keywords:</strong> ${result.keywords.join(', ')}</div>`;
+          }
+        }
+
+        // Content audit summary
+        if (result.totalLessons) {
+          html += `<div class="action-item"><strong>Audit:</strong> ${result.totalLessons} lessons, ${result.totalExercises} exercises${result.warnings > 0 ? `, ${result.warnings} findings` : ''}</div>`;
+        }
+
+        return html;
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function loadData() {
+      // Data is loaded via script tag from data.js (works with file:// protocol)
+      if (typeof AGENT_DATA !== 'undefined') {
+        currentData = AGENT_DATA;
+
+        // Clean up localStorage queue for items that have been processed
+        const queued = JSON.parse(localStorage.getItem('queuedDecisions') || '{}');
+        let cleaned = false;
+        for (const recId of Object.keys(queued)) {
+          const rec = (currentData.recommendations || []).find(r => r.id === recId);
+          if (!rec || rec.humanDecision) {
+            delete queued[recId];
+            cleaned = true;
+          }
+        }
+        if (cleaned) {
+          localStorage.setItem('queuedDecisions', JSON.stringify(queued));
+        }
+
+        updateSidebarBadges();
+        renderContent();
+        updateLastUpdated();
+      } else {
+        document.getElementById('content').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#9888;</div>
+            <div class="empty-title">No agent data yet</div>
+            <p>Run an agent skill to generate data:</p>
+            <pre style="text-align:left;background:var(--bg-surface);padding:1rem;border-radius:0.5rem;margin-top:1rem;font-size:0.875rem;">
+# SidelineIQ content validation
+cd ~/Projects/SidelineIQ/sideline-iq
+npx tsx scripts/agents/content-validation.ts
+
+# Dosie competitive research
+cd ~/Projects/Dosie
+npx tsx scripts/agents/competitive-research.ts</pre>
+            <p style="margin-top:1rem">Then refresh this page.</p>
+          </div>
+        `;
+      }
+    }
+
+    function updateSidebarBadges() {
+      if (!currentData) return;
+
+      const allPending = (currentData.recommendations || []).filter(r => !r.humanDecision).length;
+      const sidelineiqPending = (currentData.recommendations || []).filter(r => !r.humanDecision && r.project === 'SidelineIQ').length;
+      const dosiePending = (currentData.recommendations || []).filter(r => !r.humanDecision && r.project === 'Dosie').length;
+
+      document.getElementById('allBadge').textContent = allPending;
+      document.getElementById('allBadge').style.display = allPending > 0 ? 'inline' : 'none';
+      document.getElementById('sidelineiqBadge').textContent = sidelineiqPending;
+      document.getElementById('sidelineiqBadge').style.display = sidelineiqPending > 0 ? 'inline' : 'none';
+      document.getElementById('dosieBadge').textContent = dosiePending;
+      document.getElementById('dosieBadge').style.display = dosiePending > 0 ? 'inline' : 'none';
+    }
+
+    function updateLastUpdated() {
+      const now = new Date();
+      document.getElementById('lastUpdated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
+    }
+
+    function filterByProject(items) {
+      if (!currentProject) return items;
+      return items.filter(item => item.project === currentProject);
+    }
+
+    function groupByProject(items) {
+      const groups = {};
+      for (const item of items) {
+        const project = item.project || 'Unknown';
+        if (!groups[project]) groups[project] = [];
+        groups[project].push(item);
+      }
+      return groups;
+    }
+
+    function groupByAgent(items) {
+      const groups = {};
+      for (const item of items) {
+        const agent = item.agentType || 'Unknown';
+        if (!groups[agent]) groups[agent] = [];
+        groups[agent].push(item);
+      }
+      return groups;
+    }
+
+    function renderContent() {
+      if (!currentData) return;
+
+      const recommendations = filterByProject(currentData.recommendations || []);
+      const alerts = filterByProject(currentData.alerts || []);
+      const tasks = filterByProject(currentData.tasks || []);
+
+      // Update stats
+      const pending = recommendations.filter(r => !r.humanDecision);
+      const activeAlerts = alerts.filter(a => !a.acknowledgedAt);
+      const today = new Date().toDateString();
+      const completedToday = tasks.filter(t => t.status === 'COMPLETED' && new Date(t.completedAt || t.createdAt).toDateString() === today);
+
+      document.getElementById('pendingCount').textContent = pending.length;
+      document.getElementById('pendingCount').className = 'stat-value' + (pending.length > 0 ? ' warning' : '');
+      document.getElementById('pendingCard').className = 'stat-card' + (pending.length > 0 ? ' warning' : '');
+
+      document.getElementById('alertsCount').textContent = activeAlerts.length;
+      document.getElementById('alertsCount').className = 'stat-value' + (activeAlerts.length > 0 ? ' danger' : '');
+      document.getElementById('alertsCard').className = 'stat-card' + (activeAlerts.length > 0 ? ' danger' : '');
+
+      document.getElementById('completedCount').textContent = completedToday.length;
+      document.getElementById('totalCount').textContent = tasks.length;
+
+      // Render based on current tab
+      const content = document.getElementById('content');
+
+      if (currentTab === 'recommendations') {
+        renderRecommendations(content, pending);
+      } else if (currentTab === 'alerts') {
+        renderAlerts(content, activeAlerts);
+      } else {
+        renderActivity(content, tasks);
+      }
+    }
+
+    function renderRecommendations(container, items) {
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#10003;</div>
+            <div class="empty-title">No pending recommendations</div>
+            <p>All agent recommendations have been reviewed</p>
+          </div>
+        `;
+        return;
+      }
+
+      const byProject = groupByProject(items);
+      let html = '';
+
+      for (const [project, projectItems] of Object.entries(byProject)) {
+        const byAgent = groupByAgent(projectItems);
+        const projectClass = project.toLowerCase().replace(/\s+/g, '');
+
+        html += `
+          <div class="project-section">
+            <div class="project-header">
+              <span class="project-header-dot" style="background: var(--${projectClass}, var(--accent))"></span>
+              <span class="project-header-title">${project}</span>
+              <div class="project-stats">
+                <span class="project-stat"><strong>${projectItems.length}</strong> pending</span>
+              </div>
+            </div>
+        `;
+
+        for (const [agent, agentItems] of Object.entries(byAgent)) {
+          html += `
+            <div class="agent-group">
+              <div class="agent-group-header">
+                <span>${AGENT_ICONS[agent] || '&#128640;'}</span>
+                ${agent} Agent (${agentItems.length})
+              </div>
+              <div class="item-list">
+          `;
+
+          for (const rec of agentItems) {
+            const isHighPriority = rec.priority === 'HIGH' || rec.priority === 'URGENT';
+            const actionItems = renderActionItems(rec.recommendation);
+            const queuedDecision = isQueued(rec.id);
+
+            let actionsHtml = '';
+            if (queuedDecision) {
+              const isApproved = queuedDecision === 'APPROVED';
+              actionsHtml = `
+                <div class="item-actions">
+                  <span class="badge ${isApproved ? 'running' : 'failed'}" style="padding: 0.5rem 1rem; font-size: 0.75rem;">
+                    ${isApproved ? '&#128337; Queued for approval' : '&#128337; Queued for rejection'}
+                  </span>
+                  <button class="btn btn-secondary" onclick="clearQueued('${rec.id}')">Undo</button>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+                  Run the copied command in terminal to confirm
+                </div>
+              `;
+            } else {
+              actionsHtml = `
+                <div class="item-actions">
+                  <button class="btn btn-approve" onclick="decide('${rec.id}', 'APPROVED')">Approve</button>
+                  <button class="btn btn-reject" onclick="decide('${rec.id}', 'REJECTED')">Reject</button>
+                  <button class="btn btn-secondary" onclick="viewDetails('${rec.id}')">View Details</button>
+                </div>
+              `;
+            }
+
+            html += `
+              <div class="item ${isHighPriority ? 'high-priority' : ''}">
+                <div class="item-header">
+                  <div>
+                    <div class="item-title">${rec.title}</div>
+                    <div class="item-meta">${new Date(rec.createdAt).toLocaleString()}</div>
+                  </div>
+                  <span class="badge ${rec.priority.toLowerCase()}">${rec.priority}</span>
+                </div>
+                <div class="item-description">${rec.reasoning}</div>
+                ${actionItems ? `<div class="action-items">${actionItems}</div>` : ''}
+                ${actionsHtml}
+              </div>
+            `;
+          }
+
+          html += '</div></div>';
+        }
+
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function renderAlerts(container, items) {
+      if (items.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#10003;</div>
+            <div class="empty-title">No active alerts</div>
+            <p>All alerts have been acknowledged</p>
+          </div>
+        `;
+        return;
+      }
+
+      const byProject = groupByProject(items);
+      let html = '';
+
+      for (const [project, projectItems] of Object.entries(byProject)) {
+        const projectClass = project.toLowerCase().replace(/\s+/g, '');
+
+        html += `
+          <div class="project-section">
+            <div class="project-header">
+              <span class="project-header-dot" style="background: var(--${projectClass}, var(--accent))"></span>
+              <span class="project-header-title">${project}</span>
+              <div class="project-stats">
+                <span class="project-stat"><strong>${projectItems.length}</strong> alerts</span>
+              </div>
+            </div>
+            <div class="item-list">
+        `;
+
+        for (const alert of projectItems) {
+          const isHighPriority = alert.priority === 'HIGH' || alert.priority === 'URGENT';
+          html += `
+            <div class="item ${isHighPriority ? 'high-priority' : ''}">
+              <div class="item-header">
+                <div>
+                  <div class="item-title">${alert.title}</div>
+                  <div class="item-meta">${alert.agentType} Agent &bull; ${new Date(alert.createdAt).toLocaleString()}</div>
+                </div>
+                <span class="badge ${alert.priority.toLowerCase()}">${alert.priority}</span>
+              </div>
+              <div class="item-description">${alert.summary}</div>
+              <div class="item-actions">
+                <button class="btn btn-secondary" onclick="acknowledge('${alert.id}')">Acknowledge</button>
+              </div>
+            </div>
+          `;
+        }
+
+        html += '</div></div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function renderActivity(container, items) {
+      const sorted = [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
+
+      if (sorted.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">&#128640;</div>
+            <div class="empty-title">No activity yet</div>
+            <p>Run an agent skill to see activity here</p>
+          </div>
+        `;
+        return;
+      }
+
+      const byProject = groupByProject(sorted);
+      let html = '';
+
+      for (const [project, projectItems] of Object.entries(byProject)) {
+        const byAgent = groupByAgent(projectItems);
+        const projectClass = project.toLowerCase().replace(/\s+/g, '');
+        const completed = projectItems.filter(t => t.status === 'COMPLETED').length;
+        const running = projectItems.filter(t => t.status === 'RUNNING').length;
+
+        html += `
+          <div class="project-section">
+            <div class="project-header">
+              <span class="project-header-dot" style="background: var(--${projectClass}, var(--accent))"></span>
+              <span class="project-header-title">${project}</span>
+              <div class="project-stats">
+                <span class="project-stat"><strong>${completed}</strong> completed</span>
+                ${running > 0 ? `<span class="project-stat"><strong>${running}</strong> running</span>` : ''}
+              </div>
+            </div>
+        `;
+
+        for (const [agent, agentItems] of Object.entries(byAgent)) {
+          html += `
+            <div class="agent-group">
+              <div class="agent-group-header">
+                <span>${AGENT_ICONS[agent] || '&#128640;'}</span>
+                ${agent} Agent (${agentItems.length} tasks)
+              </div>
+              <div class="item-list">
+          `;
+
+          for (const task of agentItems.slice(0, 5)) {
+            const resultDetails = renderTaskResult(task.result);
+            html += `
+              <div class="item">
+                <div class="item-header">
+                  <div>
+                    <div class="item-title">${task.prompt.slice(0, 80)}${task.prompt.length > 80 ? '...' : ''}</div>
+                    <div class="item-meta">${new Date(task.createdAt).toLocaleString()}</div>
+                  </div>
+                  <span class="badge ${task.status.toLowerCase()}">${task.status}</span>
+                </div>
+                ${resultDetails ? `<div class="action-items">${resultDetails}</div>` : ''}
+              </div>
+            `;
+          }
+
+          if (agentItems.length > 5) {
+            html += `<div style="text-align: center; padding: 0.5rem; color: var(--text-muted); font-size: 0.75rem;">+${agentItems.length - 5} more tasks</div>`;
+          }
+
+          html += '</div></div>';
+        }
+
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function decide(recId, decision) {
+      const cmd = `cd ~/Projects/agent-dashboard && npx tsx scripts/decide.ts ${recId.slice(-8)} ${decision}`;
+
+      // Mark as queued in localStorage
+      const queued = JSON.parse(localStorage.getItem('queuedDecisions') || '{}');
+      queued[recId] = decision;
+      localStorage.setItem('queuedDecisions', JSON.stringify(queued));
+
+      // Copy to clipboard and update UI
+      navigator.clipboard.writeText(cmd).then(() => {
+        // Re-render to show queued state
+        renderContent();
+        alert(`${decision === 'APPROVED' ? '✅ Queued for approval' : '❌ Queued for rejection'}!\n\nCommand copied to clipboard.\n\nPaste in terminal to confirm:\n${cmd}\n\n${decision === 'APPROVED' ? 'Then run /execute-approved in Claude Code to do the work.' : ''}`);
+      }).catch(() => {
+        renderContent();
+        alert(`Run this command:\n\n${cmd}`);
+      });
+    }
+
+    function isQueued(recId) {
+      const queued = JSON.parse(localStorage.getItem('queuedDecisions') || '{}');
+      return queued[recId];
+    }
+
+    function clearQueued(recId) {
+      const queued = JSON.parse(localStorage.getItem('queuedDecisions') || '{}');
+      delete queued[recId];
+      localStorage.setItem('queuedDecisions', JSON.stringify(queued));
+      renderContent();
+    }
+
+    function acknowledge(alertId) {
+      alert(`To acknowledge this alert, run:\nnpx tsx scripts/acknowledge.ts ${alertId.slice(-8)}`);
+    }
+
+    function viewDetails(recId) {
+      const rec = currentData.recommendations.find(r => r.id === recId);
+      if (rec) {
+        alert(`Full Reasoning:\n\n${rec.reasoning}\n\nRecommendation Data:\n${JSON.stringify(rec.recommendation, null, 2)}`);
+      }
+    }
+
+    // Event listeners
+    document.getElementById('projectList').addEventListener('click', (e) => {
+      const item = e.target.closest('.project-item');
+      if (!item) return;
+
+      document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+
+      currentProject = item.dataset.project;
+
+      const title = currentProject || 'All Projects';
+      document.getElementById('pageTitle').textContent = title;
+      document.getElementById('pageSubtitle').textContent = currentProject
+        ? `Agent activity for ${currentProject}`
+        : 'Agent activity across all solo projects';
+
+      renderContent();
+    });
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        currentTab = tab.dataset.tab;
+        renderContent();
+      });
+    });
+
+    // Load data on page load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+  </script>
+</body>
+</html>
