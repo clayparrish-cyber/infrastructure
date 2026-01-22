@@ -86,4 +86,23 @@ describe('Similarity Search', () => {
       expect(new Date(r.createdAt).getTime()).toBeGreaterThan(thirtyDaysAgo.getTime())
     })
   })
+
+  it('should throw error for invalid embedding dimensions', async () => {
+    const invalidEmbedding = new Array(512).fill(0.1) // Wrong size
+
+    await expect(findSimilarRecommendations(sql, {
+      agentType: 'INVENTORY_HEALTH',
+      queryEmbedding: invalidEmbedding,
+    })).rejects.toThrow('must have 1536 dimensions')
+  })
+
+  it('should throw error for zero maxExamples', async () => {
+    const queryEmbedding = new Array(1536).fill(0.1)
+
+    await expect(findSimilarRecommendations(sql, {
+      agentType: 'INVENTORY_HEALTH',
+      queryEmbedding,
+      maxExamples: 0,
+    })).rejects.toThrow('must be greater than 0')
+  })
 })
