@@ -53,4 +53,19 @@ describe('Embedding Generation', () => {
       apiKey: '',
     })).rejects.toThrow('OpenAI API key is required')
   })
+
+  it('should throw error for whitespace-only text', async () => {
+    await expect(generateEmbedding({
+      text: '   ',
+      apiKey: 'test-key',
+    })).rejects.toThrow('Text cannot be empty')
+  })
+
+  it('should return empty array for empty texts array', async () => {
+    const embeddings = await generateEmbeddings({
+      texts: [],
+      apiKey: 'test-key',
+    })
+    expect(embeddings).toEqual([])
+  })
 })
