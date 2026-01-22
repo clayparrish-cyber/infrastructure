@@ -14,12 +14,12 @@ describe('Signal Score Calculation', () => {
 
   it('should calculate score for modified high priority signal', () => {
     const score = calculateSignalScore({
-      decision: 'approved',
+      decision: 'modified',
       priority: 'high',
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7) // 7 days ago
     })
-    // 0.6 × 1.0 + 0.2 × 0.797 + 0.2 × 0.75
-    expect(score).toBeCloseTo(0.909, 2)
+    // 0.6 × 0.5 (modified) + 0.2 × 0.797 + 0.2 × 0.75
+    expect(score).toBeCloseTo(0.609, 2)
   })
 
   it('should calculate score for rejected low priority signal', () => {
