@@ -52,4 +52,32 @@ describe('Signal Score Calculation', () => {
     expect(score).toBeCloseTo(0.81, 1)
     expect(score).toBeLessThan(0.82) // Much lower than recent signals
   })
+
+  it('should throw error for future dates', () => {
+    const futureDate = new Date(Date.now() + 1000 * 60 * 60 * 24) // 1 day in future
+    expect(() => calculateSignalScore({
+      decision: 'approved',
+      priority: 'critical',
+      createdAt: futureDate
+    })).toThrow('Signal creation date cannot be in the future')
+  })
+
+  it('should throw error for invalid dates', () => {
+    expect(() => calculateSignalScore({
+      decision: 'approved',
+      priority: 'critical',
+      createdAt: new Date('invalid')
+    })).toThrow('Invalid date provided')
+  })
+
+  it('should handle same-day signals (0 days old)', () => {
+    const score = calculateSignalScore({
+      decision: 'approved',
+      priority: 'critical',
+      createdAt: new Date(Date.now())
+    })
+    // Recency = e^(0) = 1.0
+    // 0.6 × 1.0 + 0.2 × 1.0 + 0.2 × 1.0 = 1.0
+    expect(score).toBeCloseTo(1.0, 2)
+  })
 })
