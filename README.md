@@ -20,18 +20,28 @@ infrastructure/
 
 ### @clayparrish/agent-learning
 
+**Version:** 0.1.0-phase1 (released 2026-01-22)
+
 Shared agent infrastructure enabling learning from past decisions:
-- **Metrics tracking** - Performance measurement
-- **Few-shot learning** - Learn from high-quality past recommendations
-- **Experiment framework** - A/B testing with statistical validation
-- **AgentKnowledge layer** - Cross-agent intelligence sharing
+- ✅ **Few-shot learning** - Learn from high-quality past recommendations using pgvector similarity search
+- ✅ **Signal scoring** - Quality metrics (60% decision, 20% recency, 20% priority)
+- ✅ **Embedding generation** - OpenAI text-embedding-3-small integration with graceful degradation
+- ⏳ **Metrics tracking** - Performance measurement (Phase 2)
+- ⏳ **Experiment framework** - A/B testing with statistical validation (Phase 2)
+- ⏳ **AgentKnowledge layer** - Cross-agent intelligence sharing (Phase 3)
 
-**Used by:**
-- GT-IMS (Inventory Health, Monday Briefing agents)
-- Menu Autopilot (OCR Review, Menu Weekly Report agents)
-- SidelineIQ (Marketing, Curriculum agents)
+**Currently integrated:**
+- GT-IMS: Inventory Health agent
 
-**Design:** [docs/plans/2026-01-22-agent-learning-systems-design.md](docs/plans/2026-01-22-agent-learning-systems-design.md)
+**Planned integrations:**
+- GT-IMS: Monday Briefing agent
+- Menu Autopilot: OCR Review, Menu Weekly Report agents
+- SidelineIQ: Marketing, Curriculum agents
+
+**Documentation:**
+- Design: [docs/plans/2026-01-22-agent-learning-systems-design.md](docs/plans/2026-01-22-agent-learning-systems-design.md)
+- Implementation: [docs/plans/2026-01-22-agent-learning-implementation.md](docs/plans/2026-01-22-agent-learning-implementation.md)
+- Package README: [packages/agent-learning/README.md](packages/agent-learning/README.md)
 
 ## Tools
 
