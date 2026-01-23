@@ -491,13 +491,30 @@ Use this checklist as you install Phase 1 agents:
 - [x] Research Brief Generator installed (2026-01-23)
 - [x] Technical Researcher installed (2026-01-23) - bonus
 - [x] PostgreSQL DBA installed (2026-01-23)
-- [ ] Phase 1 config file created
-- [ ] Database connections verified
-- [ ] Monday briefing tested
+- [x] Phase 1 config file created (exists at infrastructure/config/agents/phase-1-config.ts)
+- [x] Database connections verified (2026-01-23) - GT-IMS Neon DB working
+- [x] Monday briefing tested (2026-01-23) - gt-ims/scripts/agents/monday-briefing.ts runs
 - [ ] Marketing → Legal flow tested
 - [ ] Deep Research Team tested
 - [ ] Database optimization tested
-- [ ] Command Center dashboard showing recommendations
+- [x] Command Center dashboard showing recommendations (2026-01-23) - deployed at gt-ims.vercel.app/command-center
+- [x] Inventory health agent tested (2026-01-23) - gt-ims/scripts/agents/inventory-health.ts runs, creates 8 recommendations
+
+---
+
+## Executive Dashboard (NEW - 2026-01-23)
+
+Decision made to build unified Executive Dashboard that:
+1. Aggregates agent recommendations from ALL ventures
+2. Replaces Leadership Team Meeting Google Doc with native L10 meeting interface
+
+**Design document:** `docs/plans/2026-01-23-executive-dashboard-design.md`
+
+**Key decisions:**
+- Location: `infrastructure/apps/executive-dashboard/`
+- Auth: Google OAuth with @gallanttiger.com restriction
+- Data: Aggregation layer (ventures push to central DB)
+- Permissions: Clay=all 5 ventures, Charlie/Kamal=GT/MA/AT
 
 ---
 
