@@ -8,14 +8,19 @@
 
 ## Overview
 
-A single executive dashboard that aggregates agent recommendations from all ventures (GT-IMS, Menu Autopilot, AirTip, SidelineIQ, Dosie) into one place. Clay, Charlie, and Kamal can see pending recommendations, approve/reject them, and filter by venture.
+A single executive dashboard that:
+1. Aggregates agent recommendations from all ventures (GT-IMS, Menu Autopilot, AirTip, SidelineIQ, Dosie)
+2. **Replaces the Leadership Team Meeting Google Doc** with a native L10 meeting interface
+
+Clay, Charlie, and Kamal can see pending recommendations, approve/reject them, run their weekly L10 meetings, and track Rocks and Scorecard metrics - all in one place.
 
 ### Why Unified?
 
-- **One place to check** - Not 5 different dashboards
+- **One place to check** - Not 5 different dashboards or Google Docs
 - **Cross-venture patterns** - See if agents across ventures are flagging similar issues
 - **Shared infrastructure** - Auth, permissions, UI components built once
-- **EOS alignment** - Supports Rocks, quarterly reviews, and OKRs tracking (future)
+- **EOS native** - L10 meetings, Scorecard, Rocks, IDS built into the workflow
+- **Agent → Meeting flow** - Agent recommendations automatically surface in IDS discussions
 
 ---
 
@@ -96,9 +101,14 @@ Venture agents write to a central `executive_dashboard` database. This decouples
 ┌─────────────────────────────────────────────────────────────────┐
 │              Executive Dashboard UI                              │
 │                                                                  │
-│   /                    - Dashboard home (pending count)          │
+│   /                    - Dashboard home (pending count + meeting)│
 │   /recommendations     - List view with filters                  │
 │   /recommendations/[id]- Detail view with approve/reject         │
+│   /meetings            - Meeting list + create new               │
+│   /meetings/[id]       - L10 meeting view (live or archived)     │
+│   /scorecard           - Weekly metrics tracking                 │
+│   /rocks               - Quarterly priorities                    │
+│   /todos               - Open to-dos across meetings             │
 │   /settings            - User permissions (admin only)           │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -419,8 +429,9 @@ Standard Next.js API routes with NextAuth session validation:
 
 ## MVP Scope
 
-### Phase 1: Core Dashboard (This Implementation)
+### Phase 1: Core Dashboard + L10 Meetings (This Implementation)
 
+**Core Dashboard:**
 - [ ] Next.js app setup with Tailwind + shadcn/ui
 - [ ] Prisma schema and Neon database
 - [ ] Google OAuth with @gallanttiger.com
@@ -431,11 +442,21 @@ Standard Next.js API routes with NextAuth session validation:
 - [ ] Recommendation detail with approve/reject
 - [ ] Settings page for user management (admin only)
 
-### Phase 2: Enhanced Features (Future)
+**L10 Meeting Integration:**
+- [ ] Meeting schema (Meeting, CheckIn, Headline, IdsItem, Todo, Rock, ScorecardMetric)
+- [ ] L10 meeting view with timed sections
+- [ ] Scorecard view with manual metric entry
+- [ ] Rocks view with progress tracking
+- [ ] IDS view integrating agent recommendations + manual issues
+- [ ] To-do creation and tracking
+- [ ] Meeting history/archive
 
-- [ ] EOS integration (Rocks, Quarterly Reviews)
+### Phase 2: Automation + Intelligence (Future)
+
+- [ ] Auto-populate scorecard metrics from venture databases
 - [ ] Notification preferences (email, Slack)
 - [ ] Bulk actions (approve/reject multiple)
+- [ ] Google Docs export after each meeting
 - [ ] Analytics (decision patterns, agent performance)
 - [ ] API for venture agents to read decision outcomes
 
@@ -444,6 +465,7 @@ Standard Next.js API routes with NextAuth session validation:
 - [ ] Pattern detection across ventures
 - [ ] Shared knowledge base
 - [ ] Agent performance scoring
+- [ ] Predictive recommendations based on historical decisions
 
 ---
 
@@ -530,6 +552,337 @@ API_KEY_DOSIE="sk_dosie_..."
 
 ---
 
+## EOS L10 Meeting Integration
+
+### Replacing the Leadership Google Doc
+
+The Executive Dashboard will replace the existing Google Doc-based "Leadership Team Meeting Agenda" document. Instead of maintaining a separate doc, meeting elements become native to the dashboard.
+
+**Current State (Google Doc):**
+- Manual weekly entries dated with bullet points
+- Links to external Scorecard and Rocks sheets
+- To-do items scattered throughout
+- Issues sections without tracking
+- No connection to agent recommendations
+
+**Future State (Executive Dashboard):**
+- Structured L10 meeting view with timed sections
+- Scorecard metrics pulled from venture databases
+- Rocks tracked with progress indicators
+- Issues become IDS items that can spawn agent recommendations
+- Agent recommendations feed into IDS discussion
+
+### EOS L10 Meeting Structure
+
+The standard EOS Level 10 meeting runs 90 minutes with this structure:
+
+| Section | Duration | Dashboard Integration |
+|---------|----------|----------------------|
+| **Check-In** | 5 min | Quick status from each person (text input) |
+| **Scorecard Review** | 10 min | Auto-populated metrics from ventures |
+| **Rock Review** | 5 min | Quarterly priorities with on/off track status |
+| **Headlines** | 5 min | Quick updates from each person |
+| **IDS** | 60 min | Identify, Discuss, Solve - includes agent recommendations |
+| **Close** | 5 min | Recap to-dos, rate meeting 1-10 |
+
+### Data Flow: Meetings + Recommendations
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Meeting Day Flow                              │
+│                                                                  │
+│  1. Agents auto-populate:                                        │
+│     - Scorecard metrics (from venture DBs)                       │
+│     - Rock progress updates                                      │
+│     - New issues/recommendations for IDS                         │
+│                                                                  │
+│  2. During meeting:                                              │
+│     - Review scorecard (10 min)                                  │
+│     - Review rocks on/off track (5 min)                          │
+│     - Headlines from Clay, Charlie, Kamal (5 min)                │
+│     - IDS: Agent recommendations + manual issues (60 min)        │
+│                                                                  │
+│  3. After meeting:                                               │
+│     - To-dos assigned with owners                                │
+│     - Decisions recorded on recommendations                      │
+│     - Meeting notes saved                                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Additional Database Schema
+
+```prisma
+// Add to existing schema
+
+model Meeting {
+  id            String    @id @default(cuid())
+  date          DateTime
+  attendees     String[]  // Emails of attendees
+
+  // Check-in responses
+  checkIns      CheckIn[]
+
+  // Headlines
+  headlines     Headline[]
+
+  // IDS items (includes agent recommendations)
+  idsItems      IdsItem[]
+
+  // To-dos created during meeting
+  todos         Todo[]
+
+  // Meeting rating (1-10)
+  rating        Int?
+  notes         String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model CheckIn {
+  id          String   @id @default(cuid())
+  meetingId   String
+  meeting     Meeting  @relation(fields: [meetingId], references: [id])
+  userId      String
+  content     String   // "Good week, closed Bay State deal"
+  createdAt   DateTime @default(now())
+}
+
+model Headline {
+  id          String   @id @default(cuid())
+  meetingId   String
+  meeting     Meeting  @relation(fields: [meetingId], references: [id])
+  userId      String
+  content     String   // Quick update
+  createdAt   DateTime @default(now())
+}
+
+model IdsItem {
+  id                String   @id @default(cuid())
+  meetingId         String
+  meeting           Meeting  @relation(fields: [meetingId], references: [id])
+
+  // Can be linked to agent recommendation OR manual
+  recommendationId  String?  @unique
+  recommendation    AgentRecommendation? @relation(fields: [recommendationId], references: [id])
+
+  // For manual IDS items
+  title             String
+  description       String?
+  raisedBy          String   // Email
+
+  // IDS outcome
+  status            IdsStatus @default(IDENTIFIED)
+  solution          String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Todo {
+  id          String    @id @default(cuid())
+  meetingId   String?
+  meeting     Meeting?  @relation(fields: [meetingId], references: [id])
+
+  title       String
+  owner       String    // Email
+  dueDate     DateTime?
+  status      TodoStatus @default(OPEN)
+
+  // Link to IDS item that spawned this
+  idsItemId   String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model Rock {
+  id          String    @id @default(cuid())
+  quarter     String    // "Q1 2026"
+  title       String
+  owner       String    // Email
+  ventureId   String?   // Optional - some rocks are cross-venture
+  status      RockStatus @default(ON_TRACK)
+  progress    Int       @default(0) // 0-100
+  notes       String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model ScorecardMetric {
+  id          String    @id @default(cuid())
+  ventureId   String
+  venture     Venture   @relation(fields: [ventureId], references: [id])
+
+  name        String    // "Revenue", "Customer Count", etc.
+  target      Float
+  actual      Float?
+  unit        String    // "$", "%", "#"
+  frequency   String    // "weekly", "monthly"
+
+  // Who owns this metric
+  owner       String    // Email
+
+  // Auto-update from venture DB
+  sourceQuery String?   // Optional: SQL or API call to get actual value
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum IdsStatus {
+  IDENTIFIED
+  DISCUSSING
+  SOLVED
+  DROPPED
+}
+
+enum TodoStatus {
+  OPEN
+  COMPLETED
+  DROPPED
+}
+
+enum RockStatus {
+  ON_TRACK
+  OFF_TRACK
+  COMPLETED
+  DROPPED
+}
+```
+
+### UI: Meeting View (`/meetings`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  L10 Meeting                               Clay Parrish ▼       │
+│  January 23, 2026                                               │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────┐ ┌───────────┐ ┌──────┐ ┌─────────┐ ┌─────┐ ┌─────┐│
+│  │ Check-In│ │ Scorecard │ │ Rocks│ │Headlines│ │ IDS │ │Close││
+│  │  5 min  │ │  10 min   │ │5 min │ │  5 min  │ │60min│ │5 min││
+│  │   ✓     │ │     ●     │ │      │ │         │ │     │ │     ││
+│  └─────────┘ └───────────┘ └──────┘ └─────────┘ └─────┘ └─────┘│
+│                                                                  │
+│  ═══════════════════════════════════════════════════════════════│
+│                                                                  │
+│  SCORECARD                                          [Edit →]    │
+│  ┌──────────────────┬────────┬────────┬────────┬────────┐      │
+│  │ Metric           │ Owner  │ Target │ Actual │ Status │      │
+│  ├──────────────────┼────────┼────────┼────────┼────────┤      │
+│  │ GT Revenue       │ Charlie│ $50K   │ $48K   │   🟡   │      │
+│  │ GT Inventory Days│ Clay   │ 14     │ 12     │   🟢   │      │
+│  │ MA MRR           │ Clay   │ $5K    │ $4.2K  │   🟡   │      │
+│  │ AirTip Accuracy  │ Clay   │ 98%    │ 97.5%  │   🟢   │      │
+│  └──────────────────┴────────┴────────┴────────┴────────┘      │
+│                                                                  │
+│  [Next: Rock Review →]                                          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### UI: IDS View (During Meeting)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  IDS - Identify, Discuss, Solve                   60 min left   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Issues to Discuss (7)                    [+ Add Manual Issue]  │
+│                                                                  │
+│  ┌─ Agent Recommendations (3) ────────────────────────────────┐ │
+│  │                                                             │ │
+│  │ 🔴 URGENT  GT-IMS   Inventory stockout risk - STR CRD      │ │
+│  │ 🟡 HIGH    MA       Menu cost variance detected            │ │
+│  │ 🟢 MEDIUM  GT-IMS   Legal review: "best frozen sandwich"   │ │
+│  │                                                             │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ┌─ Manual Issues (4) ────────────────────────────────────────┐ │
+│  │                                                             │ │
+│  │ ● Nashville Coop franchise timeline      (Kamal)           │ │
+│  │ ● KFF production capacity for Q2         (Charlie)         │ │
+│  │ ● HACCP certification next steps         (Clay)            │ │
+│  │ ● Interstellar partnership decision      (Kamal)           │ │
+│  │                                                             │ │
+│  └─────────────────────────────────────────────────────────────┘ │
+│                                                                  │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                  │
+│  Currently Discussing:                                          │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ 🔴 Inventory stockout risk - STR CRD                        ││
+│  │ Agent recommendation: Create PO for 50 cases from KFF      ││
+│  │                                                              ││
+│  │ Discussion notes:                                            ││
+│  │ ┌──────────────────────────────────────────────────────────┐││
+│  │ │ Charlie: KFF has capacity, should order 75 cases for     │││
+│  │ │ buffer heading into Q2...                                │││
+│  │ └──────────────────────────────────────────────────────────┘││
+│  │                                                              ││
+│  │ [Solve: Create To-Do] [Drop] [Move to Next Week]            ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### UI: Rocks View (`/rocks`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Q1 2026 Rocks                             Clay Parrish ▼       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Company Rocks                                    [+ Add Rock]  │
+│                                                                  │
+│  ┌──────────────────────────────────┬────────┬────────┬───────┐│
+│  │ Rock                             │ Owner  │Progress│ Status││
+│  ├──────────────────────────────────┼────────┼────────┼───────┤│
+│  │ Launch GT-IMS network map        │ Clay   │ 100%   │   ✓   ││
+│  │ Close 3 new retail accounts      │ Charlie│  66%   │   🟢  ││
+│  │ HACCP certification              │ Clay   │  20%   │   🟡  ││
+│  │ Nashville Coop franchise docs    │ Kamal  │  40%   │   🟢  ││
+│  │ Menu Autopilot beta launch       │ Clay   │  80%   │   🟢  ││
+│  └──────────────────────────────────┴────────┴────────┴───────┘│
+│                                                                  │
+│  Legend: ✓ Complete  🟢 On Track  🟡 Off Track                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Google Docs Sync Strategy
+
+For historical data and external sharing, we can optionally sync with Google Docs:
+
+**Option A: Dashboard as Source of Truth (Recommended)**
+- All meeting data lives in the dashboard database
+- Google Doc becomes read-only archive, auto-generated after each meeting
+- Export meeting summary to Google Doc for external stakeholders
+
+**Option B: Bidirectional Sync**
+- Parse Google Doc structure into database
+- Allow edits in either place
+- More complex, higher maintenance
+
+**Recommendation:** Start with Option A. The dashboard is the source of truth, and we generate a Google Doc summary after each meeting for anyone who needs it.
+
+```typescript
+// POST /api/meetings/[id]/export-to-docs
+// Creates or updates a Google Doc with meeting summary
+
+interface MeetingExport {
+  title: string;        // "Leadership Team Meeting - Jan 23, 2026"
+  checkIns: string[];   // Check-in responses
+  scorecardSummary: string;
+  rocksSummary: string;
+  headlines: string[];
+  idsDiscussed: IdsExport[];
+  todosCreated: TodoExport[];
+  rating: number;
+}
+```
+
+---
+
 ## Migration Path
 
 ### GT-IMS Command Center
@@ -546,11 +899,26 @@ The existing `/command-center` in GT-IMS will remain for GT-specific workflows. 
 ## Success Criteria
 
 **MVP Complete When:**
+
+**Authentication & Permissions:**
 - [ ] Clay, Charlie, Kamal can all log in with Google
 - [ ] Each user only sees their assigned ventures
+
+**Agent Recommendations:**
 - [ ] At least one venture agent successfully posts recommendation
 - [ ] Recommendations can be approved/rejected
 - [ ] Decisions are persisted and visible
+
+**L10 Meetings (Replaces Google Doc):**
+- [ ] Can create a new meeting with date
+- [ ] Scorecard metrics can be entered and tracked week-over-week
+- [ ] Rocks can be created with owner and progress
+- [ ] IDS view shows agent recommendations + manual issues
+- [ ] To-dos can be created from IDS discussion
+- [ ] Meeting history is preserved and browsable
+- [ ] Team agrees dashboard replaces the Leadership Team Meeting Google Doc
+
+**Deployment:**
 - [ ] Deployed to Vercel at exec.gallanttiger.com (or similar)
 
 ---
