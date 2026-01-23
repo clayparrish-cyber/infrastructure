@@ -1,6 +1,7 @@
 # Phase 1 Agent Test Plan
 
 **Date:** 2026-01-23
+**Updated:** 2026-01-23 (revised to use existing infrastructure)
 **Goal:** Validate Phase 1 marketplace agents work end-to-end with GT-IMS
 
 ---
@@ -15,208 +16,302 @@ Phase 1 installed 15 agents from aitmpl.com marketplace. This plan validates the
 
 ---
 
-## Architecture
+## Existing Infrastructure (DO NOT REBUILD)
 
-### Layer Separation (Scaled Solution)
+**Key discovery:** GT-IMS already has working agent scripts that establish the pattern.
+
+### What Already Exists
+
+| Component | Location | Use For |
+|-----------|----------|---------|
+| `inventory-health.ts` | `gt-ims/scripts/agents/` | Template for new agent scripts |
+| `monday-briefing.ts` | `gt-ims/scripts/agents/` | Template for briefing-style agents |
+| `agent-store.ts` | `infrastructure/tools/agent-dashboard/scripts/` | Projects without DBs (SidelineIQ, Dosie) |
+| `@clayparrish/agent-learning` | `infrastructure/packages/agent-learning/` | Embeddings, few-shot learning |
+| Agent Dashboard | `infrastructure/tools/agent-dashboard/` | HTML dashboard for solo projects |
+| Command Center | `gt-ims/app/command-center/` | GT-IMS approval UI |
+
+### Established Pattern (from inventory-health.ts)
+
+```typescript
+// 1. Load environment
+config({ path: '.env.local' })
+config({ path: '.env' })
+
+// 2. Create Prisma client with adapter
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
+
+// 3. Create AgentTask record
+const task = await prisma.agentTask.create({
+  data: {
+    agentType: 'INVENTORY',  // or 'BRIEFING', 'LEGAL', etc.
+    status: 'RUNNING',
+    prompt: 'Description of what this run is doing',
+  },
+})
+
+// 4. Do analysis work (agent-specific logic)
+// ...
+
+// 5. Create AgentRecommendation records
+await prisma.agentRecommendation.create({
+  data: {
+    agentType: 'INVENTORY',
+    taskId: task.id,
+    priority: 'HIGH',
+    recommendation: jsonOutput,
+    reasoning: 'Why this recommendation',
+    assignedTo: 'clay',
+  },
+})
+
+// 6. Optionally generate embeddings for few-shot learning
+const embedding = await generateEmbedding(embeddingText)
+
+// 7. Update task to COMPLETED
+await prisma.agentTask.update({
+  where: { id: task.id },
+  data: { status: 'COMPLETED', completedAt: new Date() },
+})
+```
+
+### Architecture (Already Implemented)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Agent Prompts                             │
-│         .claude/agents/*.md (pure reasoning)                │
-│         - Business Analyst, Legal Advisor, etc.              │
-│         - Become API system prompts when scaling             │
-└─────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│                    Runner Scripts                            │
-│         scripts/runners/agent-runner.ts                      │
-│         - Loads agent prompt + config                        │
-│         - Invokes agent (Task tool or API)                   │
-│         - Persists output to AgentRecommendation             │
-│         - Becomes serverless functions when scaling          │
+│              Agent Scripts (per venture)                     │
+│    gt-ims/scripts/agents/inventory-health.ts                │
+│    gt-ims/scripts/agents/monday-briefing.ts                 │
+│    (NEW) gt-ims/scripts/agents/legal-review.ts              │
+│    (NEW) gt-ims/scripts/agents/research-coordinator.ts      │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                    Shared Infrastructure                     │
 │         @clayparrish/agent-learning                          │
 │         - Few-shot learning, scoring, embeddings             │
-│         - Stays same across local and API execution          │
+│         - Already integrated in inventory-health.ts          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │                    Persistence Layer                         │
-│         AgentRecommendation table (per venture)              │
-│         - GT-IMS, Menu Autopilot, AirTip databases           │
+│         AgentTask, AgentRecommendation, AgentAlert           │
+│         - Already exists in GT-IMS Prisma schema             │
+│         - Command Center already reads from these tables     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Why This Architecture
+### Why NOT Build New Runner
 
-- **Agents stay pure**: No DB logic in prompts, just reasoning
-- **Runners are reusable**: Same runner works for any agent type
-- **Scales to API**: Runners become serverless functions, prompts become system messages
-- **Learning is centralized**: `agent-learning` package handles cross-cutting concerns
+❌ **Original plan:** Build generic `agent-runner.ts`
+✅ **Revised plan:** Copy pattern from `inventory-health.ts`
+
+Reasons:
+- Pattern already proven and working in production
+- Agent-specific scripts are clearer than generic runner + config
+- Each agent has unique data access needs
+- Easier to debug when each agent is self-contained
+- When scaling to API, each script becomes a serverless function
 
 ---
 
 ## Test Cases
 
-### Test 1: Database Connection
-**Agent:** PostgreSQL DBA
-**Input:** "List tables in GT-IMS database"
+### Test 1: Existing Agent Verification
+**Script:** `gt-ims/scripts/agents/inventory-health.ts` (already exists)
+**Purpose:** Verify existing infrastructure still works
 **Success Criteria:**
-- [ ] Connects to database without error
-- [ ] Returns list of tables
-- [ ] No sensitive data exposed in output
+- [ ] Script runs without error: `npx tsx scripts/agents/inventory-health.ts`
+- [ ] AgentTask created with status COMPLETED
+- [ ] AgentRecommendation(s) created
+- [ ] Visible in Command Center at `/command-center`
 
-### Test 2: Monday Briefing
-**Agent:** Business Analyst
-**Input:** "Generate executive briefing for GT-IMS. Focus on inventory metrics."
+### Test 2: Monday Briefing (Existing)
+**Script:** `gt-ims/scripts/agents/monday-briefing.ts` (already exists)
+**Purpose:** Verify briefing agent pattern works
 **Success Criteria:**
-- [ ] Produces structured briefing
-- [ ] Includes key metrics from config (inventory_turnover, stockout_rate, etc.)
-- [ ] Under 500 words (per config)
-- [ ] Surfaces top 3 priorities
+- [ ] Script runs without error: `npx tsx scripts/agents/monday-briefing.ts`
+- [ ] AgentTask created with status COMPLETED
+- [ ] Briefing content in AgentRecommendation
+- [ ] Visible in Command Center
 
-### Test 3: Legal Escalation
-**Agent:** Legal Advisor
-**Input:** "Review this marketing campaign: 'Gallant Tiger PB&J - Guaranteed to be the best frozen sandwich on the market. 100% satisfaction or your money back.'"
+### Test 3: Legal Review (NEW - to create)
+**Script:** `gt-ims/scripts/agents/legal-review.ts` (create from template)
+**Agent Prompt:** `.claude/agents/legal-advisor.md`
+**Test Input:** "Review this campaign: 'Gallant Tiger PB&J - Guaranteed to be the best frozen sandwich. 100% satisfaction or your money back.'"
 **Success Criteria:**
-- [ ] Flags "guaranteed" keyword
-- [ ] Flags "best" keyword
-- [ ] Flags "100%" keyword
-- [ ] Returns risk level (Low/Medium/High)
-- [ ] Provides specific recommendations
+- [ ] Script created following inventory-health.ts pattern
+- [ ] Flags risk keywords (guaranteed, best, 100%)
+- [ ] Returns risk level assessment
+- [ ] Creates AgentRecommendation with findings
+- [ ] Visible in Command Center
 
-### Test 4: Research Query
-**Agent:** Research Coordinator → delegates to specialists
-**Input:** "Research UNFI frozen food shelf space trends for 2026. Limit to 3 sources."
+### Test 4: Research Query (NEW - to create)
+**Script:** `gt-ims/scripts/agents/research-request.ts` (create from template)
+**Agent Prompt:** `.claude/agents/research-coordinator.md`
+**Test Input:** "Research UNFI frozen food shelf space trends for 2026"
 **Success Criteria:**
-- [ ] Query Clarifier validates scope
-- [ ] Competitive Intelligence Analyst contributes
-- [ ] Research Synthesizer combines findings
-- [ ] Report has citations
-- [ ] Output is executive summary format (not raw data)
+- [ ] Script created following inventory-health.ts pattern
+- [ ] Produces research summary with sources
+- [ ] Creates AgentRecommendation with findings
+- [ ] Visible in Command Center
 
-### Test 5: Attribution Analysis
-**Agent:** Marketing Attribution Analyst
-**Input:** "Analyze GT-IMS marketing channel performance for the past 30 days."
+### Test 5: Database Optimization (NEW - to create)
+**Script:** `gt-ims/scripts/agents/db-optimization.ts` (create from template)
+**Agent Prompt:** `.claude/agents/postgresql-dba.md`
+**Test Input:** "Analyze slow queries and suggest optimizations"
 **Success Criteria:**
-- [ ] Attempts to connect to analytics data
-- [ ] Returns channel breakdown (or graceful "no data" message)
-- [ ] Follows attribution model from config (last_touch)
+- [ ] Script created following inventory-health.ts pattern
+- [ ] Connects to database successfully
+- [ ] Identifies any slow queries or suggests "all queries healthy"
+- [ ] Creates AgentRecommendation with findings
+- [ ] Visible in Command Center
 
 ---
 
 ## Files to Create
 
-### 1. scripts/runners/agent-runner.ts
+All new scripts go in `gt-ims/scripts/agents/` following the established pattern.
 
-Generic runner that:
-- Loads agent prompt from `.claude/agents/{name}.md`
-- Loads venture config from `config/agents/phase-1-config.ts`
-- Accepts database connection string
-- Invokes agent with structured prompt
-- Parses output into AgentRecommendation format
-- Writes to database using Prisma or raw SQL
-- Returns structured result
+### 1. legal-review.ts (NEW)
 
 ```typescript
-interface AgentRunnerConfig {
-  agentName: string;           // e.g., 'business-analyst'
-  venture: string;             // e.g., 'gt-ims'
-  databaseUrl: string;         // connection string
-  prompt: string;              // user prompt for this run
-  priority?: 'low' | 'medium' | 'high';
-}
+/**
+ * Legal Review Agent
+ *
+ * Reviews marketing content for compliance risks using Legal Advisor agent.
+ *
+ * Usage: npx tsx scripts/agents/legal-review.ts "campaign text to review"
+ */
 
-interface AgentRunnerResult {
-  success: boolean;
-  agentName: string;
-  output: string;
-  recommendation?: {
-    id: string;
-    type: string;
-    content: string;
-    priority: string;
-  };
-  error?: string;
-  durationMs: number;
-}
+// Follow inventory-health.ts pattern:
+// 1. Load env, create Prisma client
+// 2. Create AgentTask with agentType: 'LEGAL'
+// 3. Parse input campaign text
+// 4. Check against escalation criteria from phase-1-config.ts
+// 5. Create AgentRecommendation with risk assessment
+// 6. Update task to COMPLETED
 ```
 
-### 2. scripts/runners/test-phase1.ts
-
-Test harness that:
-- Runs all 5 test cases sequentially
-- Loads database URLs from environment
-- Logs progress to console
-- Writes results to `docs/plans/2026-01-23-phase1-test-results.md`
-- Reports pass/fail summary
+### 2. research-request.ts (NEW)
 
 ```typescript
-const testCases: TestCase[] = [
-  {
-    name: 'DB Connection',
-    agent: 'postgresql-dba',
-    venture: 'gt-ims',
-    prompt: 'List tables in the GT-IMS database',
-    validate: (result) => result.output.includes('table') && !result.error
-  },
-  // ... other test cases
-];
+/**
+ * Research Request Agent
+ *
+ * Coordinates research queries using Deep Research Team agents.
+ *
+ * Usage: npx tsx scripts/agents/research-request.ts "research query"
+ */
+
+// Follow inventory-health.ts pattern:
+// 1. Load env, create Prisma client
+// 2. Create AgentTask with agentType: 'RESEARCH'
+// 3. Parse research query
+// 4. Execute research (web search, synthesis)
+// 5. Create AgentRecommendation with findings + sources
+// 6. Update task to COMPLETED
+```
+
+### 3. db-optimization.ts (NEW)
+
+```typescript
+/**
+ * Database Optimization Agent
+ *
+ * Analyzes database performance using PostgreSQL DBA agent.
+ *
+ * Usage: npx tsx scripts/agents/db-optimization.ts
+ */
+
+// Follow inventory-health.ts pattern:
+// 1. Load env, create Prisma client
+// 2. Create AgentTask with agentType: 'DBA'
+// 3. Query pg_stat_statements or EXPLAIN ANALYZE on key queries
+// 4. Identify slow queries, missing indexes
+// 5. Create AgentRecommendation with optimization suggestions
+// 6. Update task to COMPLETED
+```
+
+### 4. test-phase1.ts (Test Harness)
+
+```typescript
+/**
+ * Phase 1 Test Harness
+ *
+ * Runs all agent tests sequentially and reports results.
+ *
+ * Usage: npx tsx scripts/agents/test-phase1.ts
+ */
+
+// 1. Run inventory-health.ts (existing)
+// 2. Run monday-briefing.ts (existing)
+// 3. Run legal-review.ts with test input
+// 4. Run research-request.ts with test query
+// 5. Run db-optimization.ts
+// 6. Query AgentTask table for results
+// 7. Output summary to console + markdown file
 ```
 
 ---
 
 ## Environment Setup
 
-### Required Environment Variables
+### GT-IMS Environment (Already Configured)
 
+GT-IMS already has `.env` and `.env.local` files with:
+- `DATABASE_URL` - Neon PostgreSQL connection string
+- Prisma client configured with adapter pattern
+
+### OpenAI (Optional - for embeddings)
+
+If few-shot learning is desired:
 ```bash
-# GT-IMS (primary test target)
-GT_IMS_DATABASE_URL=postgresql://...
-
-# Optional for expanded testing
-MENU_AUTOPILOT_DATABASE_URL=postgresql://...
-AIRTIP_DATABASE_URL=postgresql://...
-SIDELINEIQ_DATABASE_URL=postgresql://...
-
-# OpenAI for embeddings (used by agent-learning)
 OPENAI_API_KEY=sk-...
 ```
 
-### Database Schema Requirements
+The `@clayparrish/agent-learning` package handles graceful degradation if not set.
 
-Each venture database needs these tables (already exist per AGENT_PLANS.md):
+### Database Schema (Already Exists)
+
+GT-IMS Prisma schema already has:
 - `AgentTask` - tracks execution
 - `AgentRecommendation` - stores recommendations for approval
 - `AgentAlert` - stores alerts
 - `AgentKnowledge` - cross-agent intelligence (future)
 
+No migrations needed.
+
 ---
 
 ## Execution Steps
 
-### Step 1: Write Design Doc
+### Step 1: Design Doc
 - [x] Create `docs/plans/2026-01-23-phase1-test-plan.md` (this file)
+- [x] Review existing infrastructure (inventory-health.ts, monday-briefing.ts)
+- [x] Updated plan to use existing patterns
 
-### Step 2: Create Agent Runner
-- [ ] Create `scripts/runners/` directory
-- [ ] Implement `agent-runner.ts`
-- [ ] Add dependencies to package.json if needed
+### Step 2: Verify Existing Agents
+- [ ] Run `inventory-health.ts` - verify it still works
+- [ ] Run `monday-briefing.ts` - verify it still works
+- [ ] Check Command Center shows results
 
-### Step 3: Create Test Harness
-- [ ] Implement `test-phase1.ts`
-- [ ] Define all 5 test cases
+### Step 3: Create New Agent Scripts
+- [ ] Create `legal-review.ts` following inventory-health.ts pattern
+- [ ] Create `research-request.ts` following inventory-health.ts pattern
+- [ ] Create `db-optimization.ts` following inventory-health.ts pattern
+
+### Step 4: Create Test Harness
+- [ ] Create `test-phase1.ts` to run all agents
 - [ ] Add result reporting
 
-### Step 4: Run Tests
-- [ ] Set environment variables
-- [ ] Execute `npx tsx scripts/runners/test-phase1.ts`
-- [ ] Review results
+### Step 5: Run Full Test Suite
+- [ ] Execute `npx tsx scripts/agents/test-phase1.ts`
+- [ ] Verify all agents complete successfully
+- [ ] Check Command Center shows all recommendations
 
-### Step 5: Update Checklist
+### Step 6: Update Checklist
 - [ ] Mark items complete in `docs/phase-1-implementation-guide.md`
 - [ ] Document any issues found
 - [ ] Commit results
@@ -226,38 +321,86 @@ Each venture database needs these tables (already exist per AGENT_PLANS.md):
 ## Success Criteria
 
 **Phase 1 Testing Complete when:**
-- [ ] All 5 test cases pass
-- [ ] At least 1 AgentRecommendation written to GT-IMS database
-- [ ] Recommendation visible in Command Center dashboard
-- [ ] No critical errors in agent execution
-- [ ] Results documented in test-results.md
+- [ ] Existing agents (inventory-health, monday-briefing) run successfully
+- [ ] New agents (legal-review, research-request, db-optimization) created and run
+- [ ] All 5 AgentTask records show status: COMPLETED
+- [ ] AgentRecommendations visible in Command Center at `/command-center`
+- [ ] No critical errors in any agent execution
+- [ ] Results documented in this file or test-results.md
 
 ---
 
 ## Troubleshooting
 
-### Agent not found
-Check `.claude/agents/{name}.md` exists. Run `ls ~/.claude/agents/` to verify.
+### Script fails to start
+```bash
+# Check you're in the right directory
+cd "/Users/clayparrish/Projects/Internal Systems/gt-ims"
+
+# Verify dependencies
+npm install
+
+# Try running directly
+npx tsx scripts/agents/inventory-health.ts
+```
 
 ### Database connection failed
-Verify `GT_IMS_DATABASE_URL` is set and database is accessible.
+```bash
+# Check .env files exist
+ls -la .env .env.local
 
-### Agent returns empty output
-Check agent prompt has required context. May need to pass config values explicitly.
+# Verify DATABASE_URL is set (don't print the full URL)
+grep DATABASE_URL .env.local | head -c 30
+```
+
+### Prisma client errors
+```bash
+# Regenerate Prisma client
+npx prisma generate
+
+# If schema changed, run migrations
+npx prisma migrate dev
+```
 
 ### Recommendation not appearing in Command Center
-Verify:
-1. Record exists in `AgentRecommendation` table
-2. Command Center is connected to same database
-3. Status is not filtered out
+1. Check record exists: Query `AgentRecommendation` table directly
+2. Verify Command Center route: Visit `https://gt-ims.vercel.app/command-center`
+3. Check filters: Command Center may filter by status or date
+
+### Agent script creates task but no recommendation
+Check the script logic - ensure `prisma.agentRecommendation.create()` is called before the task is marked COMPLETED.
+
+---
+
+## Files Summary
+
+| File | Location | Status |
+|------|----------|--------|
+| `inventory-health.ts` | gt-ims/scripts/agents/ | ✅ Exists |
+| `monday-briefing.ts` | gt-ims/scripts/agents/ | ✅ Exists |
+| `legal-review.ts` | gt-ims/scripts/agents/ | 🔨 To Create |
+| `research-request.ts` | gt-ims/scripts/agents/ | 🔨 To Create |
+| `db-optimization.ts` | gt-ims/scripts/agents/ | 🔨 To Create |
+| `test-phase1.ts` | gt-ims/scripts/agents/ | 🔨 To Create |
 
 ---
 
 ## Next Steps After Testing
 
-1. **If all pass:** Expand to Menu Autopilot and AirTip
-2. **If failures:** Debug specific agent, adjust prompts/config
-3. **After validation:** Move to Phase 2 (Innovation Funnel agents)
+1. **If all pass:**
+   - Update `phase-1-implementation-guide.md` checklist
+   - Expand pattern to Menu Autopilot and AirTip
+   - Consider Phase 2 agents (Product Strategist, Task Decomposition, Risk Manager)
+
+2. **If failures:**
+   - Debug specific agent
+   - Check database schema matches expectations
+   - Verify agent prompt in `.claude/agents/` is correct
+
+3. **After validation:**
+   - Document lessons learned
+   - Commit all new scripts
+   - Plan Phase 2 implementation
 
 ---
 
