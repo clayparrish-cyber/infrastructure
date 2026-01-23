@@ -150,11 +150,15 @@ providers: [
 
 ### User Permissions
 
-| User | Email | Ventures | Role |
-|------|-------|----------|------|
-| Clay | clay@gallanttiger.com | ALL (GT, MA, AT, SIQ, Dosie) | ADMIN |
-| Charlie | charlie@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER |
-| Kamal | kamal@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER |
+| User | Email | Ventures | Role | Notes |
+|------|-------|----------|------|-------|
+| Clay | clay@gallanttiger.com | ALL (GT, MA, AT, SIQ, Dosie) | ADMIN | Runs SIQ + Dosie solo |
+| Charlie | charlie@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
+| Kamal | kamal@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
+
+**Venture Ownership:**
+- **Shared (Clay + Charlie + Kamal):** Gallant Tiger, Menu Autopilot, AirTip (via Apolis Hospitality + Parcelle)
+- **Clay solo:** SidelineIQ, Dosie
 
 **Permission model:**
 - Users can only see recommendations for their assigned ventures
@@ -585,6 +589,15 @@ The standard EOS Level 10 meeting runs 90 minutes with this structure:
 | **IDS** | 60 min | Identify, Discuss, Solve - includes agent recommendations |
 | **Close** | 5 min | Recap to-dos, rate meeting 1-10 |
 
+### Agent Types: Analysts vs Researchers
+
+| Agent Type | Data Source | Example |
+|------------|-------------|---------|
+| **Analysts** | Internal venture data | Inventory health, menu cost variance, tip accuracy |
+| **Researchers** | External sources | UNFI trends, competitor analysis, industry reports |
+
+Analysts fit the "watch internal data → surface issues" flow. Researchers are more on-demand or periodic—they pull from external sources and may not trigger from internal events.
+
 ### Data Flow: Meetings + Recommendations
 
 ```
@@ -592,7 +605,7 @@ The standard EOS Level 10 meeting runs 90 minutes with this structure:
 │                    Meeting Day Flow                              │
 │                                                                  │
 │  1. Agents auto-populate:                                        │
-│     - Scorecard metrics (from venture DBs)                       │
+│     - Scorecard metrics (from venture DBs via Analyst agents)    │
 │     - Rock progress updates                                      │
 │     - New issues/recommendations for IDS                         │
 │                                                                  │
