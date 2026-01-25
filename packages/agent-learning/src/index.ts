@@ -14,4 +14,8 @@ export * from './scoring/signal-score'
 export * from './learning/similarity'
 export * from './learning/few-shot'
 
+// Directives (Prime Directives)
+export * from './directives/types'
+export * from './directives/check'
+
 // Note: metrics/track modules will be added in future phases

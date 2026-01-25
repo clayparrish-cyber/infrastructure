@@ -1,8 +1,17 @@
 # Executive Dashboard Design
 
 **Date:** 2026-01-23
-**Status:** Design Complete
+**Status:** RALPH READY
 **Goal:** Unified command center for agent recommendations across all ventures
+
+## Design Decisions (2026-01-23)
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Location | `infrastructure/apps/executive-dashboard/` | Keeps hub centralized with agent configs |
+| Database | Shared GT-IMS Neon instance | Simple, no API needed, agent data already there |
+| Auth | Google OAuth @gallanttiger.com only | Can expand domains later if needed |
+| MVP Scope | Full L10 meeting interface | Replaces Leadership Team Meeting Google Doc |
 
 ---
 
@@ -49,77 +58,59 @@ infrastructure/
         └── 2026-01-23-executive-dashboard-design.md  # This file
 ```
 
-### Data Flow: Aggregation Layer
+### Data Flow: Shared Database (Simplified)
 
-Venture agents write to a central `executive_dashboard` database. This decouples ventures from the dashboard and allows each venture to publish recommendations independently.
+**Decision:** Executive Dashboard connects directly to GT-IMS Neon database. No separate API needed.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Venture Agent Scripts                         │
+│                    GT-IMS Neon PostgreSQL                        │
 │                                                                  │
-│   gt-ims/scripts/agents/      menu-autopilot/scripts/agents/    │
-│   inventory-health.ts         menu-analysis.ts                   │
-│   monday-briefing.ts          cost-optimizer.ts                  │
-│   legal-review.ts             ...                                │
+│   Existing Tables (from GT-IMS):                                 │
+│   - AgentTask, AgentRecommendation, AgentAlert                   │
+│   - User (cookie auth - will add Google OAuth)                   │
+│   - All GT-IMS business tables                                   │
 │                                                                  │
-│   airtip/scripts/agents/      sidelineiq/scripts/agents/        │
-│   ocr-validation.ts           curriculum-analyzer.ts             │
-│   tip-audit.ts                ...                                │
-│                                                                  │
-│   dosie/scripts/agents/                                          │
-│   reminder-optimizer.ts                                          │
+│   New Tables (for L10 meetings):                                 │
+│   - Meeting, CheckIn, Headline, IdsItem                          │
+│   - Rock, ScorecardMetric, ScorecardEntry                        │
+│   - Todo                                                         │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ Write recommendations via API
+              ┌───────────────┴───────────────┐
+              ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────────┐
+│   GT-IMS                │     │   Executive Dashboard            │
+│   gt-ims.vercel.app     │     │   exec.gallanttiger.com          │
+│                         │     │                                  │
+│   Venture-specific UI:  │     │   Cross-venture UI:              │
+│   - Item Master         │     │   - L10 Meeting view             │
+│   - PO Creator          │     │   - Scorecard                    │
+│   - CRM Pipeline        │     │   - Rocks                        │
+│   - Command Center      │     │   - IDS (with agent recs)        │
+│   - Inventory           │     │   - Agent recommendation list    │
+└─────────────────────────┘     └─────────────────────────────────┘
+              │                               │
+              └───────────────┬───────────────┘
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              Executive Dashboard API                             │
+│                    Agent Scripts                                 │
 │                                                                  │
-│   POST /api/recommendations                                      │
-│   {                                                              │
-│     venture: "gt-ims",                                           │
-│     agentType: "INVENTORY",                                      │
-│     priority: "HIGH",                                            │
-│     recommendation: {...},                                       │
-│     assignedTo: "clay@gallanttiger.com"                         │
-│   }                                                              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              executive_dashboard Database (Neon)                 │
+│   gt-ims/scripts/agents/                                         │
+│   - inventory-health.ts (writes AgentRecommendation directly)    │
+│   - monday-briefing.ts                                           │
 │                                                                  │
-│   Tables:                                                        │
-│   - User (Google OAuth users + permissions)                      │
-│   - Venture (GT-IMS, Menu Autopilot, AirTip, etc.)              │
-│   - AgentRecommendation (cross-venture recommendations)          │
-│   - Decision (approval/rejection with reasoning)                 │
-│   - Session (NextAuth sessions)                                  │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              Executive Dashboard UI                              │
-│                                                                  │
-│   /                    - Dashboard home (pending count + meeting)│
-│   /recommendations     - List view with filters                  │
-│   /recommendations/[id]- Detail view with approve/reject         │
-│   /meetings            - Meeting list + create new               │
-│   /meetings/[id]       - L10 meeting view (live or archived)     │
-│   /scorecard           - Weekly metrics tracking                 │
-│   /rocks               - Quarterly priorities                    │
-│   /todos               - Open to-dos across meetings             │
-│   /settings            - User permissions (admin only)           │
+│   Future ventures write to same DB with ventureTag field         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Why Not Read from Venture Databases?
+### Why Shared Database?
 
-1. **Decoupling** - Dashboard doesn't need venture DB credentials
-2. **Schema flexibility** - Ventures can evolve schemas independently
-3. **Offline resilience** - Dashboard works even if venture DB is down
-4. **Query performance** - Dashboard-specific indexes and queries
-5. **Privacy** - Ventures control what they publish to dashboard
+1. **Simplest possible approach** - No API layer to build/maintain
+2. **Agent data already in GT-IMS** - No need to duplicate
+3. **Single Prisma schema** - L10 tables added to GT-IMS schema
+4. **Easy to expand** - Add `ventureTag` field when other ventures add agents
+5. **GT is primary venture** - Makes sense to centralize there for now
 
 ---
 
