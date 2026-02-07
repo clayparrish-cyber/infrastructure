@@ -86,11 +86,15 @@ build_worker_prompt() {
   local item_json="$1"
 
   # Use Python for template substitution — safe with any characters in title/description
-  python3 -c "
-import json, sys
+  # Pass JSON via stdin to avoid shell escaping issues
+  echo "$item_json" | python3 << 'PYEOF'
+import json, sys, os
 
-item = json.loads('''$1''') if '''$1''' else json.loads(sys.stdin.read())
-with open('$WORKER_PROMPT') as f:
+item = json.load(sys.stdin)
+prompt_path = os.environ.get('WORKER_PROMPT', 'agents/workers/implement-finding.md')
+exec_mode = os.environ.get('EXECUTION_MODE', 'dry_run')
+
+with open(prompt_path) as f:
     template = f.read()
 
 replacements = {
@@ -103,14 +107,14 @@ replacements = {
     '{{TYPE}}': item.get('type', 'finding'),
     '{{SOURCE_TYPE}}': item.get('source_type') or 'agent',
     '{{SOURCE_ID}}': item.get('source_id') or 'N/A',
-    '{{EXECUTION_MODE}}': '$EXECUTION_MODE',
+    '{{EXECUTION_MODE}}': exec_mode,
 }
 
 for key, value in replacements.items():
     template = template.replace(key, str(value))
 
 print(template)
-" <<< "$item_json"
+PYEOF
 }
 
 # Run a worker agent for a single work item
