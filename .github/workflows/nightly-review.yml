@@ -532,3 +532,71 @@ jobs:
           fi
 
           echo "Sync complete"
+
+  # ─────────────────────────────────────────────
+  # Job 6: Run worker agents on approved items
+  # ─────────────────────────────────────────────
+  workers:
+    runs-on: ubuntu-latest
+    needs: [setup, clone-projects, sync]
+    if: always() && needs.sync.result != 'cancelled' && needs.sync.result != 'failure'
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Download projects artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: projects
+          path: projects/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Check for approved items
+        id: check-items
+        run: |
+          ITEM_COUNT=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&select=id&limit=1" \
+            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+
+          echo "approved_count=$ITEM_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$ITEM_COUNT" -eq 0 ]; then
+            echo "No approved work items to process. Skipping workers."
+          else
+            echo "Found approved work items — running workers"
+          fi
+
+      - name: Create logs directory
+        if: steps.check-items.outputs.approved_count != '0'
+        run: mkdir -p logs
+
+      - name: Run workers
+        if: steps.check-items.outputs.approved_count != '0'
+        env:
+          PROJECTS_DIR: ${{ github.workspace }}/projects
+          WORKER_PROMPT: ${{ github.workspace }}/agents/workers/implement-finding.md
+          REGISTRY: ${{ github.workspace }}/agents/registry.json
+          LOG_DIR: ${{ github.workspace }}/logs
+          MAX_WORKER_ITEMS: '5'
+          EXECUTION_MODE: 'dry_run'
+        run: |
+          chmod +x ${{ github.workspace }}/agents/workers/work-loop-manager.sh
+          ${{ github.workspace }}/agents/workers/work-loop-manager.sh
+
+      - name: Upload worker logs
+        if: always() && steps.check-items.outputs.approved_count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: worker-logs
+          path: logs/*worker*
+          retention-days: 7
+          if-no-files-found: ignore
