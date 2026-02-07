@@ -323,6 +323,7 @@ jobs:
   # ─────────────────────────────────────────────
   reviews:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [setup, clone-projects, orchestrator]
     steps:
       - name: Checkout infrastructure repo
@@ -538,6 +539,7 @@ jobs:
   # ─────────────────────────────────────────────
   workers:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [setup, clone-projects, sync]
     if: always() && needs.sync.result != 'cancelled' && needs.sync.result != 'failure'
     steps:
