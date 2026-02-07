@@ -156,13 +156,21 @@ run_worker() {
     duration=$((end_time - start_time))
     log "WORKER DONE: $short_id (${duration}s)"
 
-    # Extract diff and execution log from output
-    local proposed_diff execution_log branch_name
+    # Extract markers from output
+    local proposed_diff execution_log branch_name already_resolved
     proposed_diff=$(sed -n '/===PROPOSED_DIFF_START===/,/===PROPOSED_DIFF_END===/p' "$output_file" | sed '1d;$d' || echo "")
     execution_log=$(sed -n '/===EXECUTION_LOG_START===/,/===EXECUTION_LOG_END===/p' "$output_file" | sed '1d;$d' || echo "")
     branch_name=$(sed -n '/===BRANCH_NAME_START===/,/===BRANCH_NAME_END===/p' "$output_file" | sed '1d;$d' || echo "")
+    already_resolved=$(grep -c '===ALREADY_RESOLVED===' "$output_file" || echo "0")
 
-    if [ -n "$proposed_diff" ]; then
+    if [ "$already_resolved" -gt 0 ]; then
+      # Finding already fixed in current code — auto-close
+      local log_escaped
+      log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined finding is already resolved}")
+      update_work_item "$item_id" "{\"status\":\"done\",\"execution_log\":$log_escaped,\"assigned_to\":\"worker-agent\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      insert_event "$item_id" "auto_closed" "in_progress" "done" "Worker verified finding already resolved in current code"
+      log "AUTO-CLOSED: $short_id — already resolved"
+    elif [ -n "$proposed_diff" ]; then
       # Escape for JSON
       local diff_escaped log_escaped
       diff_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$proposed_diff")

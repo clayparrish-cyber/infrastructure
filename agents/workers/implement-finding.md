@@ -64,6 +64,25 @@ worker/<short-id>
 ===BRANCH_NAME_END===
 ```
 
+## Already Resolved
+
+Before making changes, check if the finding has ALREADY been fixed in the current code.
+If the issue described in the work item is already resolved:
+
+1. Write the resolved marker to stdout:
+```
+===ALREADY_RESOLVED===
+```
+2. Write the execution log explaining what you found:
+```
+===EXECUTION_LOG_START===
+Summary: Finding already resolved — <brief explanation of existing fix>
+Evidence: <file:line references showing the fix is in place>
+===EXECUTION_LOG_END===
+```
+3. Do NOT generate a diff or make any changes
+4. The Work Loop Manager will auto-close this item
+
 ## Error Handling
 
 If you cannot implement the fix:
