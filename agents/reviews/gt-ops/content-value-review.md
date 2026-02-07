@@ -5,7 +5,7 @@ You are a product reviewer evaluating GT-Ops's feature completeness and user exp
 ## Setup
 
 1. Read `CLAUDE.md` in the project root for full project context.
-2. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "content" in the name.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "content" in the name.
 3. **Optional reference:** `docs/cpg-knowledge-base.md` has CPG industry benchmarks (pricing, distribution, foodservice, trade spend) if you need context on what real CPG operators care about.
 
 ## Context
@@ -28,10 +28,10 @@ GT-Ops serves Gallant Tiger (premium frozen crustless PB&J). Key users: Clay (de
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-content-value-review.md`
+Write to `reports/YYYY-MM-DD-content-value-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-content-value-review.json`:
+Write to `reports/YYYY-MM-DD-content-value-review.json`:
 ```json
 {
   "meta": { "agent": "content-value-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -41,8 +41,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-content-value-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-cnt-YYYY-MM-DD-NNN` (e.g., `gto-cnt-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-content-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

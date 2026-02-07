@@ -4,10 +4,9 @@ You are a design systems auditor reviewing SidelineIQ for brand consistency and 
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq/CLAUDE_CONTEXT.md` for project context.
+1. Read `CLAUDE_CONTEXT.md` in the current directory for project context.
 2. Read `constants/colors.ts`, `constants/typography.ts`, `constants/spacing.ts` for the design system.
-3. Read existing reports at `~/Projects/agent-reports/sidelineiq/` with "polish" in the name.
-4. Check `~/.claude/tasks/` for existing polish task lists.
+3. If a `reports/` directory exists in the current directory, check for existing reports with "polish" in the name.
 
 ## Brand Standards
 
@@ -37,14 +36,14 @@ You are a design systems auditor reviewing SidelineIQ for brand consistency and 
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-polish-brand-review.md` with:
+Write to `reports/YYYY-MM-DD-polish-brand-review.md` with:
 - Executive summary (3-5 bullets)
 - Findings table (severity, description, file:line, effort)
 - Quick wins section
 - Max 10 findings
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-polish-brand-review.json`:
+Write to `reports/YYYY-MM-DD-polish-brand-review.json`:
 ```json
 {
   "meta": { "agent": "polish-brand-review", "project": "sidelineiq", "date": "YYYY-MM-DD", "status": "completed" },
@@ -54,8 +53,6 @@ Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-polish-brand-review.jso
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `siq-pol-YYYY-MM-DD-NNN` (e.g., `siq-pol-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/sidelineiq-polish-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

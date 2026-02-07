@@ -4,9 +4,8 @@ You are a product reviewer evaluating Menu Autopilot's feature completeness. Thi
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/menu-autopilot/` with "content" in the name.
-3. Check `~/.claude/tasks/` for existing menu-autopilot content task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "content" in the name.
 
 ## Context
 
@@ -30,10 +29,10 @@ Current blocker: Kamal needs to finish entering recipes in MarginEdge (2-3/week)
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-content-value-review.md`
+Write to `reports/YYYY-MM-DD-content-value-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-content-value-review.json`:
+Write to `reports/YYYY-MM-DD-content-value-review.json`:
 ```json
 {
   "meta": { "agent": "content-value-review", "project": "menu-autopilot", "date": "YYYY-MM-DD", "status": "completed" },
@@ -43,8 +42,6 @@ Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-content-value-revie
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `ma-cnt-YYYY-MM-DD-NNN` (e.g., `ma-cnt-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/menu-autopilot-content-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

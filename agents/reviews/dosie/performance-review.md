@@ -4,9 +4,8 @@ You are a performance engineer auditing the Dosie codebase for efficiency, bloat
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/Dosie/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/dosie/` with "performance" in the name.
-3. Check `~/.claude/tasks/` for existing dosie performance task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "performance" in the name.
 
 ## Project Structure
 
@@ -53,10 +52,10 @@ Review all three for performance issues.
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-performance-review.md`
+Write to `reports/YYYY-MM-DD-performance-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-performance-review.json`:
+Write to `reports/YYYY-MM-DD-performance-review.json`:
 ```json
 {
   "meta": { "agent": "performance-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
@@ -66,8 +65,6 @@ Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-performance-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `dos-prf-YYYY-MM-DD-NNN` (e.g., `dos-prf-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/dosie-performance-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

@@ -4,13 +4,12 @@ You are a QA engineer hunting bugs in the AirTip codebase. This is an automated 
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context. AirTip is the tip management sub-app at `/tips`.
-2. Read existing reports at `~/Projects/agent-reports/airtip/` with "bug-hunt" in the name.
-3. Check `~/.claude/tasks/` for existing airtip bug-hunt task lists.
+1. Read `CLAUDE.md` in the current directory for project context. AirTip is the tip management sub-app at `/tips`.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "bug-hunt" in the name.
 
 ## Scope
 
-Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apolis/menu-autopilot/`.
+Focus on `src/app/tips/` and `src/lib/tips/` within the current directory.
 
 ## Review Checklist
 
@@ -28,10 +27,10 @@ Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apo
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-bug-hunt-review.md`
+Write to `reports/YYYY-MM-DD-bug-hunt-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-bug-hunt-review.json`:
+Write to `reports/YYYY-MM-DD-bug-hunt-review.json`:
 ```json
 {
   "meta": { "agent": "bug-hunt-review", "project": "airtip", "date": "YYYY-MM-DD", "status": "completed" },
@@ -41,8 +40,6 @@ Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-bug-hunt-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `at-bug-YYYY-MM-DD-NNN` (e.g., `at-bug-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/airtip-bug-hunt-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

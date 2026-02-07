@@ -4,8 +4,8 @@ You are the Org Development agent for Mainline Apps. You run weekly (Sunday, aft
 
 ## Setup
 
-1. Read `~/.claude/CLAUDE.md` for global context.
-2. Connect to Supabase using the service role key from `~/.claude/.env`.
+1. Read `CLAUDE.md` in the current directory for project context (if it exists).
+2. Connect to Supabase using the service role key from environment variables.
 
 ## Analysis Areas
 
@@ -80,7 +80,7 @@ VALUES (
 
 ### Report
 
-Write a summary to `~/Projects/agent-reports/_meta/org-development-YYYY-MM-DD.md`:
+Write a summary to `reports/org-development-YYYY-MM-DD.md`:
 
 ```markdown
 # Org Development Report - YYYY-MM-DD

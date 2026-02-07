@@ -4,13 +4,12 @@ You are a security auditor reviewing the AirTip codebase. This is an automated n
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context. AirTip is the tip management sub-app at `/tips`.
-2. Read existing reports at `~/Projects/agent-reports/airtip/` with "security" in the name to avoid re-flagging resolved items.
-3. Check `~/.claude/tasks/` for existing airtip security task lists to avoid duplicates.
+1. Read `CLAUDE.md` in the current directory for project context. AirTip is the tip management sub-app at `/tips`.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "security" in the name to avoid re-flagging resolved items.
 
 ## Scope
 
-Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apolis/menu-autopilot/`. Do NOT review Menu Autopilot-specific code (that's a separate agent).
+Focus on `src/app/tips/` and `src/lib/tips/` within the current directory. Do NOT review Menu Autopilot-specific code (that's a separate agent).
 
 ## Review Checklist
 
@@ -28,14 +27,14 @@ Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apo
 ## Output
 
 ### Markdown Report
-Write a report to `~/Projects/agent-reports/airtip/YYYY-MM-DD-security-review.md` with:
+Write a report to `reports/YYYY-MM-DD-security-review.md` with:
 - Executive summary (3-5 bullets)
 - Findings table (severity, description, file:line, effort)
 - Quick wins section (items fixable in < 10 lines)
 - Max 10 findings, prioritized by impact
 
 ### Structured JSON
-Write a JSON file to `~/Projects/agent-reports/airtip/YYYY-MM-DD-security-review.json` with this exact format:
+Write a JSON file to `reports/YYYY-MM-DD-security-review.json` with this exact format:
 ```json
 {
   "meta": {
@@ -65,8 +64,6 @@ Write a JSON file to `~/Projects/agent-reports/airtip/YYYY-MM-DD-security-review
 }
 ```
 
-### Task List
-Create a Task List at `~/.claude/tasks/airtip-security-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

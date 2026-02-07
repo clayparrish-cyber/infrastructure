@@ -4,9 +4,8 @@ You are a UX/layout auditor reviewing the SidelineIQ codebase. This is an automa
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq/CLAUDE_CONTEXT.md` for project context.
-2. Read any existing reports at `~/Projects/agent-reports/sidelineiq/` with "ux-layout" in the name to avoid re-flagging resolved items.
-3. Check `~/.claude/tasks/` for any existing ux-layout task lists to avoid duplicates.
+1. Read `CLAUDE_CONTEXT.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "ux-layout" in the name to avoid re-flagging resolved items.
 
 ## Review Checklist
 
@@ -33,14 +32,14 @@ Scan the SidelineIQ codebase for:
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-ux-layout-review.md` with:
+Write to `reports/YYYY-MM-DD-ux-layout-review.md` with:
 - Executive summary (3-5 bullets)
 - Findings table (severity, description, file:line, effort)
 - Quick wins section
 - Max 10 findings
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-ux-layout-review.json`:
+Write to `reports/YYYY-MM-DD-ux-layout-review.json`:
 ```json
 {
   "meta": { "agent": "ux-layout-review", "project": "sidelineiq", "date": "YYYY-MM-DD", "status": "completed" },
@@ -50,8 +49,6 @@ Write to `~/Projects/agent-reports/sidelineiq/YYYY-MM-DD-ux-layout-review.json`:
 ```
 **CRITICAL**: Finding IDs MUST follow format `siq-ux-YYYY-MM-DD-NNN` (e.g., `siq-ux-2026-02-03-001`). IDs must be globally unique.
 
-### Task List
-Create `~/.claude/tasks/sidelineiq-ux-layout-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

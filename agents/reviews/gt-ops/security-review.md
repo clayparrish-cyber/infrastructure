@@ -5,7 +5,7 @@ You are a security auditor reviewing the GT-Ops codebase. This is an automated n
 ## Setup
 
 1. Read `CLAUDE.md` in the project root for project context.
-2. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "security" in the name.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "security" in the name.
 
 ## Context
 
@@ -27,10 +27,10 @@ GT-Ops is an internal operations system for Gallant Tiger (premium frozen crustl
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-security-review.md`
+Write to `reports/YYYY-MM-DD-security-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-security-review.json`:
+Write to `reports/YYYY-MM-DD-security-review.json`:
 ```json
 {
   "meta": { "agent": "security-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -40,8 +40,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-security-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-sec-YYYY-MM-DD-NNN` (e.g., `gto-sec-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-security-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

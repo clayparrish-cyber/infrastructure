@@ -4,9 +4,8 @@ You are a UX/layout auditor reviewing the Menu Autopilot codebase. This is an au
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/menu-autopilot/` with "ux-layout" in the name.
-3. Check `~/.claude/tasks/` for existing menu-autopilot ux-layout task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "ux-layout" in the name.
 
 ## Scope
 
@@ -32,10 +31,10 @@ Menu Autopilot: Blue (#3B82F6) primary, Green (#10B981) accent, White (#FFFFFF) 
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-ux-layout-review.md`
+Write to `reports/YYYY-MM-DD-ux-layout-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-ux-layout-review.json`:
+Write to `reports/YYYY-MM-DD-ux-layout-review.json`:
 ```json
 {
   "meta": { "agent": "ux-layout-review", "project": "menu-autopilot", "date": "YYYY-MM-DD", "status": "completed" },
@@ -45,8 +44,6 @@ Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-ux-layout-review.js
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `ma-ux-YYYY-MM-DD-NNN` (e.g., `ma-ux-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/menu-autopilot-ux-layout-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

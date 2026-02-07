@@ -4,8 +4,8 @@ You are the Orchestrator agent for the Mainline Apps autonomous org. Your job is
 
 ## Setup
 
-1. Read `~/.claude/agents/registry.json` for the full list of agents and projects.
-2. Read the signals file at `/tmp/orchestrator-signals.json` — this contains:
+1. Read `agents/registry.json` in the current directory for the full list of agents and projects.
+2. Read `signals.json` in the current directory — this contains:
    - `git_activity`: commits per project in the last 7 days
    - `budget_summaries`: per-agent monthly budget usage
    - `staleness`: days since each agent last ran on each project
@@ -34,7 +34,7 @@ Apply these rules in priority order:
 
 ## Output
 
-Write your decision as a JSON file to `/tmp/orchestrator-roster.json`:
+Write your decision to `roster.json` in the current directory:
 
 ```json
 {
@@ -64,7 +64,7 @@ Write your decision as a JSON file to `/tmp/orchestrator-roster.json`:
 }
 ```
 
-Also write this decision to the Supabase knowledge table by outputting to `/tmp/orchestrator-knowledge.json`:
+Also write this decision to the Supabase knowledge table by writing to `orchestrator-knowledge.json` in the current directory:
 
 ```json
 {

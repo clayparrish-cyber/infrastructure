@@ -4,9 +4,8 @@ You are a security auditor reviewing the Dosie codebase. This is an automated ni
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/Dosie/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/dosie/` with "security" in the name.
-3. Check `~/.claude/tasks/` for existing dosie security task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "security" in the name.
 
 ## Project Structure
 
@@ -33,10 +32,10 @@ Review all three for security issues.
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-security-review.md`
+Write to `reports/YYYY-MM-DD-security-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-security-review.json`:
+Write to `reports/YYYY-MM-DD-security-review.json`:
 ```json
 {
   "meta": { "agent": "security-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
@@ -46,8 +45,6 @@ Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-security-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `dos-sec-YYYY-MM-DD-NNN` (e.g., `dos-sec-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/dosie-security-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

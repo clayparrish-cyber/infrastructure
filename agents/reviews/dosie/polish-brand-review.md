@@ -4,10 +4,9 @@ You are a design systems auditor reviewing Dosie for brand consistency and polis
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/Dosie/CLAUDE.md` for project context.
+1. Read `CLAUDE.md` in the current directory for project context.
 2. Look for design system files (colors, typography, spacing constants) across all three codebases.
-3. Read existing reports at `~/Projects/agent-reports/dosie/` with "polish" in the name.
-4. Check `~/.claude/tasks/` for existing dosie polish task lists.
+3. If a `reports/` directory exists in the current directory, check for existing reports with "polish" in the name.
 
 ## Brand Standards
 
@@ -38,10 +37,10 @@ The design should feel like it was made FOR caregivers (mostly women), not by te
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-polish-brand-review.md`
+Write to `reports/YYYY-MM-DD-polish-brand-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-polish-brand-review.json`:
+Write to `reports/YYYY-MM-DD-polish-brand-review.json`:
 ```json
 {
   "meta": { "agent": "polish-brand-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
@@ -51,8 +50,6 @@ Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-polish-brand-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `dos-pol-YYYY-MM-DD-NNN` (e.g., `dos-pol-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/dosie-polish-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

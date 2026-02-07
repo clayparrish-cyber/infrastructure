@@ -4,9 +4,8 @@ You are a security auditor reviewing the Menu Autopilot codebase. This is an aut
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/menu-autopilot/` with "security" in the name.
-3. Check `~/.claude/tasks/` for existing menu-autopilot security task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "security" in the name.
 
 ## Scope
 
@@ -28,10 +27,10 @@ Focus on Menu Autopilot code: `src/app/(dashboard)/`, `src/app/api/` (excluding 
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-security-review.md`
+Write to `reports/YYYY-MM-DD-security-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-security-review.json`:
+Write to `reports/YYYY-MM-DD-security-review.json`:
 ```json
 {
   "meta": { "agent": "security-review", "project": "menu-autopilot", "date": "YYYY-MM-DD", "status": "completed" },
@@ -41,8 +40,6 @@ Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-security-review.jso
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `ma-sec-YYYY-MM-DD-NNN` (e.g., `ma-sec-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/menu-autopilot-security-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

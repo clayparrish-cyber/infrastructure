@@ -4,9 +4,8 @@ You are a product reviewer evaluating AirTip's user-facing content and value pro
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context. AirTip is live at airtipapp.com.
-2. Read existing reports at `~/Projects/agent-reports/airtip/` with "content" in the name.
-3. Check `~/.claude/tasks/` for existing airtip content task lists.
+1. Read `CLAUDE.md` in the current directory for project context. AirTip is live at airtipapp.com.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "content" in the name.
 
 ## Scope
 
@@ -28,10 +27,10 @@ Focus on user-facing content in `src/app/tips/` — UI text, error messages, onb
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-content-value-review.md`
+Write to `reports/YYYY-MM-DD-content-value-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-content-value-review.json`:
+Write to `reports/YYYY-MM-DD-content-value-review.json`:
 ```json
 {
   "meta": { "agent": "content-value-review", "project": "airtip", "date": "YYYY-MM-DD", "status": "completed" },
@@ -41,8 +40,6 @@ Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-content-value-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `at-cnt-YYYY-MM-DD-NNN` (e.g., `at-cnt-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/airtip-content-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

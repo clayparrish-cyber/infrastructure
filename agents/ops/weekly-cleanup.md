@@ -4,9 +4,9 @@ You are an operations manager performing weekly housekeeping across all projects
 
 ## Setup
 
-1. Read `~/.claude/CLAUDE.md` for the global project index and paths.
-2. Read `~/.claude/agents/registry.json` for the full agent registry.
-3. Read `~/Projects/agent-reports/_meta/run-log.json` for this week's agent activity.
+1. Read `CLAUDE.md` in the current directory for project context (if it exists).
+2. Read `agents/registry.json` in the current directory for the full agent registry.
+3. If a `reports/` directory exists, read any `run-log.json` for this week's agent activity.
 
 ## Part 1: Agent Evaluation
 
@@ -14,7 +14,7 @@ Review the run log for the past week and produce an evaluation:
 
 ### Reliability
 - Did all scheduled reviews run? List any that were skipped and why.
-- Check log files at `~/Projects/agent-reports/logs/` for errors or failures.
+- Check log files in the `reports/logs/` directory (if it exists) for errors or failures.
 - Are any projects consistently being skipped (e.g., Lexar not mounted)?
 
 ### Quality
@@ -35,9 +35,8 @@ For each project in the registry:
 - Are there stale files in common locations (node_modules bloat, .DS_Store in git, orphaned config files)?
 
 ### Check agent infrastructure
-- `~/.claude/tasks/` — Are there duplicate task lists for the same project+theme? Merge if found.
-- `~/Projects/agent-reports/` — Are report directories clean? Any malformed JSON files?
-- `~/.claude/agents/reviews/` — Do all projects have all 5 review prompt files?
+- `reports/` — Are report directories clean? Any malformed JSON files?
+- `agents/reviews/` — Do all projects have all 5 review prompt files?
 
 ## Part 3: CLAUDE.md Sync
 
@@ -61,10 +60,10 @@ Produce a digest:
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/_meta/YYYY-MM-DD-weekly-ops.md`
+Write to `reports/YYYY-MM-DD-weekly-ops.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/_meta/YYYY-MM-DD-weekly-ops.json`:
+Write to `reports/YYYY-MM-DD-weekly-ops.json`:
 ```json
 {
   "meta": { "agent": "weekly-cleanup", "project": "all", "date": "YYYY-MM-DD", "status": "completed" },

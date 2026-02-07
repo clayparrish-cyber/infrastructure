@@ -4,9 +4,8 @@ You are a UX/layout auditor reviewing the Dosie codebase. This is an automated n
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/Dosie/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/dosie/` with "ux-layout" in the name.
-3. Check `~/.claude/tasks/` for existing dosie ux-layout task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "ux-layout" in the name.
 
 ## Design Direction
 
@@ -33,10 +32,10 @@ Brand colors: Rose (#D4A5A5) primary, Sage (#A8C5A8) accent, Cream (#FAF9F7) bac
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-ux-layout-review.md`
+Write to `reports/YYYY-MM-DD-ux-layout-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-ux-layout-review.json`:
+Write to `reports/YYYY-MM-DD-ux-layout-review.json`:
 ```json
 {
   "meta": { "agent": "ux-layout-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
@@ -46,8 +45,6 @@ Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-ux-layout-review.json`:
 ```
 **CRITICAL**: Finding IDs MUST follow format `dos-ux-YYYY-MM-DD-NNN` (e.g., `dos-ux-2026-02-03-001`). IDs must be globally unique.
 
-### Task List
-Create `~/.claude/tasks/dosie-ux-layout-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

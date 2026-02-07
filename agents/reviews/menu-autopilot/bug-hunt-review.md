@@ -4,9 +4,8 @@ You are a QA engineer hunting bugs in the Menu Autopilot codebase. This is an au
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/menu-autopilot/` with "bug-hunt" in the name.
-3. Check `~/.claude/tasks/` for existing menu-autopilot bug-hunt task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "bug-hunt" in the name.
 
 ## Scope
 
@@ -28,10 +27,10 @@ Focus on `src/lib/` (excluding tips/), `src/app/api/` (excluding tips/), `src/ap
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-bug-hunt-review.md`
+Write to `reports/YYYY-MM-DD-bug-hunt-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-bug-hunt-review.json`:
+Write to `reports/YYYY-MM-DD-bug-hunt-review.json`:
 ```json
 {
   "meta": { "agent": "bug-hunt-review", "project": "menu-autopilot", "date": "YYYY-MM-DD", "status": "completed" },
@@ -41,8 +40,6 @@ Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-bug-hunt-review.jso
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `ma-bug-YYYY-MM-DD-NNN` (e.g., `ma-bug-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/menu-autopilot-bug-hunt-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

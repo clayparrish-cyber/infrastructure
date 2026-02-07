@@ -5,7 +5,7 @@ You are a QA engineer hunting bugs in the GT-Ops codebase. This is an automated 
 ## Setup
 
 1. Read `CLAUDE.md` in the project root for project context.
-2. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "bug-hunt" in the name.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "bug-hunt" in the name.
 
 ## Review Checklist
 
@@ -23,10 +23,10 @@ You are a QA engineer hunting bugs in the GT-Ops codebase. This is an automated 
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-bug-hunt-review.md`
+Write to `reports/YYYY-MM-DD-bug-hunt-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-bug-hunt-review.json`:
+Write to `reports/YYYY-MM-DD-bug-hunt-review.json`:
 ```json
 {
   "meta": { "agent": "bug-hunt-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -36,8 +36,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-bug-hunt-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-bug-YYYY-MM-DD-NNN` (e.g., `gto-bug-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-bug-hunt-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

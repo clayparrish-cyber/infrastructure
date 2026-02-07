@@ -5,7 +5,7 @@ You are a UX/layout auditor reviewing the GT-Ops codebase. This is an automated 
 ## Setup
 
 1. Read `CLAUDE.md` in the project root for project context (includes full brand identity).
-2. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "ux-layout" in the name.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "ux-layout" in the name.
 
 ## Brand Reference
 
@@ -27,10 +27,10 @@ Gallant Tiger brand: `#41AD48` Gallant Green (primary), `#30190B` Deep Brown (al
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-ux-layout-review.md`
+Write to `reports/YYYY-MM-DD-ux-layout-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-ux-layout-review.json`:
+Write to `reports/YYYY-MM-DD-ux-layout-review.json`:
 ```json
 {
   "meta": { "agent": "ux-layout-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -40,8 +40,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-ux-layout-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-ux-YYYY-MM-DD-NNN` (e.g., `gto-ux-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-ux-layout-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

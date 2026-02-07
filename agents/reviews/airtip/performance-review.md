@@ -4,13 +4,12 @@ You are a performance engineer auditing the AirTip codebase for efficiency, bloa
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context. AirTip is at `/tips`.
-2. Read existing reports at `~/Projects/agent-reports/airtip/` with "performance" in the name.
-3. Check `~/.claude/tasks/` for existing airtip performance task lists.
+1. Read `CLAUDE.md` in the current directory for project context. AirTip is at `/tips`.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "performance" in the name.
 
 ## Scope
 
-Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apolis/menu-autopilot/`. Do NOT review Menu Autopilot-specific code.
+Focus on `src/app/tips/` and `src/lib/tips/` within the current directory. Do NOT review Menu Autopilot-specific code.
 
 ## Review Checklist
 
@@ -40,10 +39,10 @@ Focus on `src/app/tips/` and `src/lib/tips/` within `/Volumes/Lexar/Projects/Apo
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-performance-review.md`
+Write to `reports/YYYY-MM-DD-performance-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-performance-review.json`:
+Write to `reports/YYYY-MM-DD-performance-review.json`:
 ```json
 {
   "meta": { "agent": "performance-review", "project": "airtip", "date": "YYYY-MM-DD", "status": "completed" },
@@ -53,8 +52,6 @@ Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-performance-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `at-prf-YYYY-MM-DD-NNN` (e.g., `at-prf-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/airtip-performance-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

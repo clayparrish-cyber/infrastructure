@@ -4,9 +4,8 @@ You are a QA engineer hunting bugs in the Dosie codebase. This is an automated n
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Personal/Dosie/CLAUDE.md` for project context.
-2. Read existing reports at `~/Projects/agent-reports/dosie/` with "bug-hunt" in the name.
-3. Check `~/.claude/tasks/` for existing dosie bug-hunt task lists.
+1. Read `CLAUDE.md` in the current directory for project context.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "bug-hunt" in the name.
 
 ## Project Structure
 
@@ -31,10 +30,10 @@ Three codebases — check all:
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-bug-hunt-review.md`
+Write to `reports/YYYY-MM-DD-bug-hunt-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-bug-hunt-review.json`:
+Write to `reports/YYYY-MM-DD-bug-hunt-review.json`:
 ```json
 {
   "meta": { "agent": "bug-hunt-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
@@ -44,8 +43,6 @@ Write to `~/Projects/agent-reports/dosie/YYYY-MM-DD-bug-hunt-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `dos-bug-YYYY-MM-DD-NNN` (e.g., `dos-bug-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/dosie-bug-hunt-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

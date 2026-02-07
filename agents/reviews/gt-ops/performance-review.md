@@ -5,7 +5,7 @@ You are a performance engineer auditing the GT-Ops codebase for efficiency, bloa
 ## Setup
 
 1. Read `CLAUDE.md` in the project root for project context.
-2. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "performance" in the name.
+2. If a `reports/` directory exists in the current directory, check for existing reports with "performance" in the name.
 
 ## Review Checklist
 
@@ -36,10 +36,10 @@ You are a performance engineer auditing the GT-Ops codebase for efficiency, bloa
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-performance-review.md`
+Write to `reports/YYYY-MM-DD-performance-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-performance-review.json`:
+Write to `reports/YYYY-MM-DD-performance-review.json`:
 ```json
 {
   "meta": { "agent": "performance-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -49,8 +49,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-performance-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-prf-YYYY-MM-DD-NNN` (e.g., `gto-prf-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-performance-YYYY-MM-DD.md` with one task per finding.
 
 ### Completion
 When done, output: REVIEW_COMPLETE

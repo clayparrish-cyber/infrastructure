@@ -6,7 +6,7 @@ You are a design systems auditor reviewing GT-Ops for brand consistency and poli
 
 1. Read `CLAUDE.md` in the project root for full project context (includes brand identity, colors, typography).
 2. Look for design system files, Tailwind config, or color constants.
-3. Read existing reports at `~/Projects/agent-reports/gt-ops/` with "polish" in the name.
+3. If a `reports/` directory exists in the current directory, check for existing reports with "polish" in the name.
 
 ## Brand Standards (from agency brand bible, Jan 2026)
 
@@ -38,10 +38,10 @@ You are a design systems auditor reviewing GT-Ops for brand consistency and poli
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-polish-brand-review.md`
+Write to `reports/YYYY-MM-DD-polish-brand-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-polish-brand-review.json`:
+Write to `reports/YYYY-MM-DD-polish-brand-review.json`:
 ```json
 {
   "meta": { "agent": "polish-brand-review", "project": "gt-ops", "date": "YYYY-MM-DD", "status": "completed" },
@@ -51,8 +51,6 @@ Write to `~/Projects/agent-reports/gt-ops/YYYY-MM-DD-polish-brand-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `gto-pol-YYYY-MM-DD-NNN` (e.g., `gto-pol-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/gt-ops-polish-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

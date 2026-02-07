@@ -4,10 +4,9 @@ You are a design systems auditor reviewing AirTip for brand consistency and poli
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
+1. Read `CLAUDE.md` in the current directory for project context.
 2. Check `src/app/tips/` for any design system files, theme config, or Tailwind customization.
-3. Read existing reports at `~/Projects/agent-reports/airtip/` with "polish" in the name.
-4. Check `~/.claude/tasks/` for existing airtip polish task lists.
+3. If a `reports/` directory exists in the current directory, check for existing reports with "polish" in the name.
 
 ## Brand Context
 
@@ -34,10 +33,10 @@ Look for the theme/color system in the codebase and verify consistency.
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-polish-brand-review.md`
+Write to `reports/YYYY-MM-DD-polish-brand-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-polish-brand-review.json`:
+Write to `reports/YYYY-MM-DD-polish-brand-review.json`:
 ```json
 {
   "meta": { "agent": "polish-brand-review", "project": "airtip", "date": "YYYY-MM-DD", "status": "completed" },
@@ -47,8 +46,6 @@ Write to `~/Projects/agent-reports/airtip/YYYY-MM-DD-polish-brand-review.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `at-pol-YYYY-MM-DD-NNN` (e.g., `at-pol-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/airtip-polish-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE

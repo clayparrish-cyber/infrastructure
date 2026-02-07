@@ -4,10 +4,9 @@ You are a design systems auditor reviewing Menu Autopilot for brand consistency 
 
 ## Setup
 
-1. Read `/Volumes/Lexar/Projects/Apolis/menu-autopilot/CLAUDE.md` for project context.
+1. Read `CLAUDE.md` in the current directory for project context.
 2. Look for Tailwind config, design tokens, or color constants.
-3. Read existing reports at `~/Projects/agent-reports/menu-autopilot/` with "polish" in the name.
-4. Check `~/.claude/tasks/` for existing menu-autopilot polish task lists.
+3. If a `reports/` directory exists in the current directory, check for existing reports with "polish" in the name.
 
 ## Scope
 
@@ -39,10 +38,10 @@ Focus on `src/app/(dashboard)/` and `src/components/`. Exclude AirTip UI.
 ## Output
 
 ### Markdown Report
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-polish-brand-review.md`
+Write to `reports/YYYY-MM-DD-polish-brand-review.md`
 
 ### Structured JSON
-Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-polish-brand-review.json`:
+Write to `reports/YYYY-MM-DD-polish-brand-review.json`:
 ```json
 {
   "meta": { "agent": "polish-brand-review", "project": "menu-autopilot", "date": "YYYY-MM-DD", "status": "completed" },
@@ -52,8 +51,6 @@ Write to `~/Projects/agent-reports/menu-autopilot/YYYY-MM-DD-polish-brand-review
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `ma-pol-YYYY-MM-DD-NNN` (e.g., `ma-pol-2026-02-03-001`). IDs must be globally unique.
-### Task List
-Create `~/.claude/tasks/menu-autopilot-polish-YYYY-MM-DD.md`
 
 ### Completion
 When done, output: REVIEW_COMPLETE
