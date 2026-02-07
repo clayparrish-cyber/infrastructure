@@ -227,7 +227,7 @@ jobs:
 
           # Run orchestrator from workspace root (it reads agents/registry.json and agents/signals.json)
           cd ${{ github.workspace }}
-          claude -p "$(cat agents/orchestrator/decide-roster.md)" --max-turns 30
+          claude -p "$(cat agents/orchestrator/decide-roster.md)" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash"
 
       - name: Determine roster
         id: determine-roster
@@ -423,7 +423,7 @@ jobs:
 
             cd "$PROJECT_DIR"
             set -o pipefail
-            if claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" 2>&1 | tee "$LOG_FILE"; then
+            if claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" --allowedTools "Read,Write,Edit,Glob,Grep,Bash" 2>&1 | tee "$LOG_FILE"; then
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
             else
