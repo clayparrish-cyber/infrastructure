@@ -30,13 +30,16 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+// Env vars first (CI), file fallback (local)
+const supabaseUrl = process.env.SUPABASE_URL || env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl!, supabaseKey!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
 async function main() {
-  const rosterPath = '/tmp/orchestrator-roster.json';
-  const knowledgePath = '/tmp/orchestrator-knowledge.json';
+  const rosterPath = process.env.ROSTER_PATH || '/tmp/orchestrator-roster.json';
+  const knowledgePath = process.env.KNOWLEDGE_PATH || '/tmp/orchestrator-knowledge.json';
 
   // Read roster
   if (!fs.existsSync(rosterPath)) {

@@ -18,8 +18,10 @@ import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const REGISTRY_PATH = path.join(process.env.HOME || '', '.claude', 'agents', 'registry.json');
-const REPORTS_DIR = path.join(process.env.HOME || '', 'Projects', 'agent-reports');
+const REGISTRY_PATH = process.env.REGISTRY_PATH
+  || path.join(process.env.HOME || '', '.claude', 'agents', 'registry.json');
+const REPORTS_DIR = process.env.REPORTS_DIR
+  || path.join(process.env.HOME || '', 'Projects', 'agent-reports');
 
 function getProjectsFromRegistry(): string[] {
   try {
@@ -281,13 +283,12 @@ async function main() {
     }
   }
 
-  // Load Supabase credentials
-  const env = loadEnv();
-  const url = env.SUPABASE_URL;
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
+  // Load Supabase credentials (env vars first for CI, file fallback for local)
+  const url = process.env.SUPABASE_URL || loadEnv().SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || loadEnv().SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
-    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in ~/.claude/.env');
+    console.error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (set env vars or ~/.claude/.env)');
     process.exit(1);
   }
 

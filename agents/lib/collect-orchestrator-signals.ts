@@ -38,7 +38,10 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, {
+// Env vars first (CI), file fallback (local)
+const supabaseUrl = process.env.SUPABASE_URL || env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(supabaseUrl!, supabaseKey!, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
@@ -47,7 +50,8 @@ async function main() {
 
   // 1. Git activity
   try {
-    const scannerPath = path.join(process.env.HOME || '', '.claude', 'agents', 'lib', 'git-activity-scanner.sh');
+    const scannerPath = process.env.SCANNER_PATH
+      || path.join(process.env.HOME || '', '.claude', 'agents', 'lib', 'git-activity-scanner.sh');
     const gitOutput = execSync(`bash "${scannerPath}"`, { encoding: 'utf-8', timeout: 30000 });
     signals.git_activity = JSON.parse(gitOutput);
   } catch (err) {
@@ -149,8 +153,8 @@ async function main() {
     signals.active_agents = [];
   }
 
-  // Write to /tmp
-  const outputPath = '/tmp/orchestrator-signals.json';
+  // Write to configurable output path (env var for CI, /tmp default for local)
+  const outputPath = process.env.SIGNALS_OUTPUT || '/tmp/orchestrator-signals.json';
   fs.writeFileSync(outputPath, JSON.stringify(signals, null, 2));
   console.log(`Signals written to ${outputPath}`);
   console.log(`  Git activity: ${Object.keys(signals.git_activity as Record<string, unknown>).length} projects`);
