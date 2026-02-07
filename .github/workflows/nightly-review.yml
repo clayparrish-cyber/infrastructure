@@ -600,3 +600,109 @@ jobs:
           path: logs/*worker*
           retention-days: 7
           if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────
+  # Job 7: Reconcile stale findings
+  # ─────────────────────────────────────────────
+  reconcile:
+    runs-on: ubuntu-latest
+    needs: [setup, clone-projects, sync]
+    if: always() && needs.sync.result == 'success'
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Download projects artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: projects
+          path: projects/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Check for stale approved items
+        id: check-stale
+        run: |
+          CUTOFF=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          STALE_COUNT=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&created_at=lt.$CUTOFF&select=id&limit=1" \
+            | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+
+          echo "stale_count=$STALE_COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$STALE_COUNT" -eq 0 ]; then
+            echo "No stale approved items found. Skipping reconciliation."
+          else
+            echo "Found stale approved items — running reconciliation agent"
+          fi
+
+      - name: Create logs directory
+        if: steps.check-stale.outputs.stale_count != '0'
+        run: mkdir -p logs
+
+      - name: Run reconciliation per project
+        if: steps.check-stale.outputs.stale_count != '0'
+        timeout-minutes: 30
+        env:
+          PROJECTS_DIR: ${{ github.workspace }}/projects
+          RECONCILE_PROMPT: ${{ github.workspace }}/agents/reviews/reconcile-stale.md
+          REGISTRY: ${{ github.workspace }}/agents/registry.json
+          DATE: ${{ needs.setup.outputs.date }}
+        run: |
+          WORKSPACE="${{ github.workspace }}"
+
+          # Get list of all projects from registry
+          PROJECTS=$(python3 -c "
+          import json
+          with open('$REGISTRY') as f:
+              reg = json.load(f)
+          for p in reg['projects']:
+              print(p)
+          ")
+
+          while read -r PROJECT_ID; do
+            [ -z "$PROJECT_ID" ] && continue
+            PROJECT_DIR="$WORKSPACE/projects/$PROJECT_ID"
+
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "SKIP: No cloned dir for $PROJECT_ID"
+              continue
+            fi
+
+            echo ""
+            echo "=========================================="
+            echo "Reconciling: $PROJECT_ID"
+            echo "=========================================="
+
+            LOG_FILE="$WORKSPACE/logs/$DATE-reconcile-$PROJECT_ID.log"
+
+            cd "$PROJECT_DIR"
+            set -o pipefail
+            if PROJECT="$PROJECT_ID" PROJECT_DIR="$PROJECT_DIR" \
+              claude -p "$(cat "$WORKSPACE/agents/reviews/reconcile-stale.md")" \
+              --max-turns 30 \
+              --allowedTools "Read,Glob,Grep,Bash" 2>&1 | tee "$LOG_FILE"; then
+              echo "SUCCESS: Reconciliation for $PROJECT_ID"
+            else
+              echo "WARNING: Reconciliation failed for $PROJECT_ID (exit code: $?)"
+            fi
+            cd "$WORKSPACE"
+
+          done <<< "$PROJECTS"
+
+      - name: Upload reconciliation logs
+        if: always() && steps.check-stale.outputs.stale_count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconcile-logs
+          path: logs/*reconcile*
+          retention-days: 7
+          if-no-files-found: ignore
