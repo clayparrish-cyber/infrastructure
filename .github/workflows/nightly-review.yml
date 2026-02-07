@@ -1,0 +1,534 @@
+name: Nightly Agent Review
+
+on:
+  schedule:
+    # 2am CST = 8am UTC
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      theme_override:
+        description: 'Override theme (e.g., security-review, bug-hunt-review)'
+        required: false
+        type: string
+      project_override:
+        description: 'Override project (e.g., sidelineiq, dosie)'
+        required: false
+        type: string
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Job 1: Determine today's schedule
+  # ─────────────────────────────────────────────
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      date: ${{ steps.schedule.outputs.date }}
+      dow: ${{ steps.schedule.outputs.dow }}
+      theme: ${{ steps.schedule.outputs.theme }}
+      tier: ${{ steps.schedule.outputs.tier }}
+    steps:
+      - name: Determine schedule
+        id: schedule
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          DOW=$(date +%u)         # 1=Mon, 7=Sun
+          WEEK_NUM=$(date +%V)    # ISO week number
+
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "dow=$DOW" >> "$GITHUB_OUTPUT"
+
+          # Check for theme override from manual dispatch
+          if [ -n "${{ inputs.theme_override }}" ]; then
+            echo "theme=${{ inputs.theme_override }}" >> "$GITHUB_OUTPUT"
+            echo "tier=0" >> "$GITHUB_OUTPUT"
+            echo "Using override theme: ${{ inputs.theme_override }} (tier 0 = all projects)"
+            exit 0
+          fi
+
+          # Day-of-week to theme mapping
+          case "$DOW" in
+            1) THEME="security-review";       TIER=1 ;;
+            2) THEME="ux-layout-review";      TIER=1 ;;
+            3) THEME="bug-hunt-review";       TIER=1 ;;
+            4) THEME="content-value-review";  TIER=1 ;;
+            5) THEME="polish-brand-review";   TIER=1 ;;
+            6)
+              # Saturday: rotating theme based on week number
+              THEMES=("security-review" "ux-layout-review" "bug-hunt-review" "content-value-review" "polish-brand-review")
+              INDEX=$(( WEEK_NUM % 5 ))
+              THEME="${THEMES[$INDEX]}"
+              TIER=2
+              ;;
+            7) THEME="weekly-cleanup";        TIER=0 ;;
+          esac
+
+          echo "theme=$THEME" >> "$GITHUB_OUTPUT"
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+          echo "Schedule: $DATE (DOW=$DOW, week=$WEEK_NUM) -> theme=$THEME, tier=$TIER"
+
+  # ─────────────────────────────────────────────
+  # Job 2: Clone project repositories
+  # ─────────────────────────────────────────────
+  clone-projects:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Clone project repos
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          TIER: ${{ needs.setup.outputs.tier }}
+          PROJECT_OVERRIDE: ${{ inputs.project_override }}
+        run: |
+          mkdir -p projects
+
+          # Read project repos from registry.json
+          REGISTRY="agents/registry.json"
+
+          # Determine which projects to clone based on tier
+          if [ -n "$PROJECT_OVERRIDE" ]; then
+            # Manual override: only clone the specified project
+            REPO=$(python3 -c "
+          import json
+          with open('$REGISTRY') as f:
+              reg = json.load(f)
+          p = reg['projects'].get('$PROJECT_OVERRIDE', {})
+          print(p.get('repo', ''))
+          ")
+            if [ -n "$REPO" ]; then
+              echo "Cloning override project: $PROJECT_OVERRIDE ($REPO)"
+              git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_OVERRIDE"
+            else
+              echo "ERROR: Project '$PROJECT_OVERRIDE' not found in registry"
+              exit 1
+            fi
+          else
+            # Determine project list from tier
+            PROJECTS=$(python3 -c "
+          import json
+          with open('$REGISTRY') as f:
+              reg = json.load(f)
+          tier = int('$TIER')
+          if tier == 0:
+              # All projects
+              projects = list(reg['projects'].keys())
+          elif tier == 1:
+              projects = reg['tiers']['1']['projects']
+          elif tier == 2:
+              projects = reg['tiers']['2']['projects']
+          else:
+              projects = []
+          for p in projects:
+              repo = reg['projects'][p].get('repo', '')
+              print(f'{p}|{repo}')
+          ")
+
+            # Clone each project (handle shared repos like airtip/menu-autopilot)
+            CLONED_REPOS=""
+            while IFS='|' read -r PROJECT_ID REPO; do
+              if [ -z "$REPO" ]; then
+                echo "WARNING: No repo found for $PROJECT_ID, skipping"
+                continue
+              fi
+
+              # Check if this repo was already cloned (shared repo case)
+              if echo "$CLONED_REPOS" | grep -q "$REPO"; then
+                # For shared repos (e.g., airtip uses menu-autopilot repo),
+                # create a symlink or copy
+                SOURCE_DIR=$(ls -d projects/*/ 2>/dev/null | head -1)
+                for existing in projects/*/; do
+                  EXISTING_NAME=$(basename "$existing")
+                  EXISTING_REPO=$(python3 -c "
+          import json
+          with open('$REGISTRY') as f:
+              reg = json.load(f)
+          print(reg['projects'].get('$EXISTING_NAME', {}).get('repo', ''))
+          ")
+                  if [ "$EXISTING_REPO" = "$REPO" ]; then
+                    echo "Linking $PROJECT_ID -> $EXISTING_NAME (shared repo: $REPO)"
+                    cp -r "projects/$EXISTING_NAME" "projects/$PROJECT_ID"
+                    break
+                  fi
+                done
+              else
+                echo "Cloning $PROJECT_ID from $REPO"
+                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_ID"
+                CLONED_REPOS="$CLONED_REPOS $REPO"
+              fi
+            done <<< "$PROJECTS"
+          fi
+
+          echo "Projects cloned:"
+          ls -la projects/
+
+      - name: Upload projects artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: projects
+          path: projects/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────
+  # Job 3: Orchestrator decides tonight's roster
+  # ─────────────────────────────────────────────
+  orchestrator:
+    runs-on: ubuntu-latest
+    needs: [setup, clone-projects]
+    outputs:
+      roster: ${{ steps.determine-roster.outputs.roster }}
+      use_orchestrator: ${{ steps.determine-roster.outputs.use_orchestrator }}
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Download projects artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: projects
+          path: projects/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install agent lib dependencies
+        run: cd ${{ github.workspace }}/agents/lib && npm ci
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Collect orchestrator signals
+        continue-on-error: true
+        env:
+          PROJECTS_DIR: ${{ github.workspace }}/projects
+          SCANNER_PATH: ${{ github.workspace }}/agents/lib/git-activity-scanner.sh
+          SIGNALS_OUTPUT: ${{ github.workspace }}/signals.json
+        run: |
+          chmod +x "${{ github.workspace }}/agents/lib/git-activity-scanner.sh"
+          npx tsx ${{ github.workspace }}/agents/lib/collect-orchestrator-signals.ts
+
+      - name: Run orchestrator
+        continue-on-error: true
+        run: |
+          # Copy signals into agents/ directory so the orchestrator prompt can find it
+          if [ -f "${{ github.workspace }}/signals.json" ]; then
+            cp "${{ github.workspace }}/signals.json" "${{ github.workspace }}/agents/signals.json"
+          else
+            echo '{}' > "${{ github.workspace }}/agents/signals.json"
+          fi
+
+          # Run orchestrator from workspace root (it reads agents/registry.json and agents/signals.json)
+          cd ${{ github.workspace }}
+          claude -p "$(cat agents/orchestrator/decide-roster.md)" --max-turns 30
+
+      - name: Determine roster
+        id: determine-roster
+        env:
+          THEME: ${{ needs.setup.outputs.theme }}
+          TIER: ${{ needs.setup.outputs.tier }}
+          DATE: ${{ needs.setup.outputs.date }}
+          PROJECT_OVERRIDE: ${{ inputs.project_override }}
+        run: |
+          # Check if orchestrator produced a valid roster
+          if [ -f "${{ github.workspace }}/roster.json" ]; then
+            # Validate it's proper JSON with a roster array
+            if python3 -c "
+          import json, sys
+          with open('${{ github.workspace }}/roster.json') as f:
+              data = json.load(f)
+          assert 'roster' in data and isinstance(data['roster'], list)
+          print(f'Orchestrator roster: {len(data[\"roster\"])} entries')
+          "; then
+              ROSTER=$(cat "${{ github.workspace }}/roster.json")
+              echo "use_orchestrator=true" >> "$GITHUB_OUTPUT"
+              echo "Using orchestrator-generated roster"
+            else
+              echo "Orchestrator roster.json invalid, falling back to static"
+              ROSTER=""
+            fi
+          else
+            echo "No roster.json found, falling back to static schedule"
+            ROSTER=""
+          fi
+
+          # Fallback: generate static roster
+          if [ -z "$ROSTER" ]; then
+            ROSTER=$(python3 -c "
+          import json, sys
+
+          with open('${{ github.workspace }}/agents/registry.json') as f:
+              reg = json.load(f)
+
+          theme = '$THEME'
+          tier = int('$TIER')
+          date = '$DATE'
+          project_override = '$PROJECT_OVERRIDE'
+
+          # Determine projects
+          if project_override:
+              projects = [project_override]
+          elif tier == 0:
+              projects = list(reg['projects'].keys())
+          elif tier == 1:
+              projects = reg['tiers']['1']['projects']
+          elif tier == 2:
+              projects = reg['tiers']['2']['projects']
+          else:
+              projects = []
+
+          # Build roster: run the theme agent on each project
+          roster = []
+          priority = 1
+          for project in projects:
+              roster.append({
+                  'agent_id': theme,
+                  'project': project,
+                  'priority': priority,
+                  'reason': f'Static schedule: {theme} on tier {tier}'
+              })
+              priority += 1
+
+          output = {
+              'date': date,
+              'roster': roster,
+              'source': 'static-fallback'
+          }
+
+          print(json.dumps(output))
+          ")
+            echo "use_orchestrator=false" >> "$GITHUB_OUTPUT"
+            echo "Using static fallback roster"
+          fi
+
+          # Write roster to output (escape for GitHub Actions)
+          # Use a delimiter approach for multiline JSON
+          EOF_MARKER=$(dd if=/dev/urandom bs=15 count=1 2>/dev/null | base64)
+          echo "roster<<${EOF_MARKER}" >> "$GITHUB_OUTPUT"
+          echo "$ROSTER" >> "$GITHUB_OUTPUT"
+          echo "${EOF_MARKER}" >> "$GITHUB_OUTPUT"
+
+          echo "Final roster:"
+          echo "$ROSTER" | python3 -m json.tool
+
+  # ─────────────────────────────────────────────
+  # Job 4: Run agent reviews
+  # ─────────────────────────────────────────────
+  reviews:
+    runs-on: ubuntu-latest
+    needs: [setup, clone-projects, orchestrator]
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Download projects artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: projects
+          path: projects/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Create logs directory
+        run: mkdir -p ${{ github.workspace }}/logs
+
+      - name: Run reviews
+        env:
+          DATE: ${{ needs.setup.outputs.date }}
+          ROSTER_JSON: ${{ needs.orchestrator.outputs.roster }}
+        run: |
+          WORKSPACE="${{ github.workspace }}"
+          REGISTRY="$WORKSPACE/agents/registry.json"
+
+          echo "=== Roster ==="
+          echo "$ROSTER_JSON" | python3 -m json.tool
+          echo "==============="
+
+          # Parse roster and run each agent-project pair sequentially
+          ENTRIES=$(echo "$ROSTER_JSON" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for entry in data.get('roster', []):
+              print(f\"{entry['agent_id']}|{entry['project']}\")
+          ")
+
+          SUCCESS_COUNT=0
+          FAIL_COUNT=0
+          SKIP_COUNT=0
+
+          while IFS='|' read -r AGENT_ID PROJECT_ID; do
+            [ -z "$AGENT_ID" ] && continue
+
+            echo ""
+            echo "=========================================="
+            echo "Running: $AGENT_ID on $PROJECT_ID"
+            echo "=========================================="
+
+            # Determine project directory
+            PROJECT_DIR="$WORKSPACE/projects/$PROJECT_ID"
+            if [ ! -d "$PROJECT_DIR" ]; then
+              echo "SKIP: Project directory not found: $PROJECT_DIR"
+              SKIP_COUNT=$((SKIP_COUNT + 1))
+              continue
+            fi
+
+            # Determine prompt file
+            if [ "$AGENT_ID" = "weekly-cleanup" ]; then
+              PROMPT_FILE="$WORKSPACE/agents/ops/weekly-cleanup.md"
+            else
+              PROMPT_FILE="$WORKSPACE/agents/reviews/$PROJECT_ID/$AGENT_ID.md"
+            fi
+
+            if [ ! -f "$PROMPT_FILE" ]; then
+              echo "SKIP: Prompt file not found: $PROMPT_FILE"
+              SKIP_COUNT=$((SKIP_COUNT + 1))
+              continue
+            fi
+
+            # Create reports directory inside the project
+            mkdir -p "$PROJECT_DIR/reports"
+
+            # Get max_turns from registry (default 50)
+            MAX_TURNS=$(python3 -c "
+          import json
+          with open('$REGISTRY') as f:
+              reg = json.load(f)
+          for agent in reg.get('agents', []):
+              if agent['id'] == '$AGENT_ID':
+                  print(agent.get('maxTurns', 50))
+                  break
+          else:
+              print(50)
+          ")
+
+            echo "Prompt: $PROMPT_FILE"
+            echo "Max turns: $MAX_TURNS"
+            echo "Working directory: $PROJECT_DIR"
+
+            # Run the review agent
+            LOG_FILE="$WORKSPACE/logs/$DATE-$AGENT_ID-$PROJECT_ID.log"
+
+            cd "$PROJECT_DIR"
+            set -o pipefail
+            if claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" 2>&1 | tee "$LOG_FILE"; then
+              echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            else
+              echo "FAILED: $AGENT_ID on $PROJECT_ID (exit code: $?)"
+              FAIL_COUNT=$((FAIL_COUNT + 1))
+            fi
+            cd "$WORKSPACE"
+
+          done <<< "$ENTRIES"
+
+          echo ""
+          echo "=========================================="
+          echo "Review Summary"
+          echo "=========================================="
+          echo "Success: $SUCCESS_COUNT"
+          echo "Failed:  $FAIL_COUNT"
+          echo "Skipped: $SKIP_COUNT"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: projects/*/reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: logs/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────
+  # Job 5: Sync reports to Supabase
+  # ─────────────────────────────────────────────
+  sync:
+    runs-on: ubuntu-latest
+    needs: [setup, reviews]
+    if: always() && needs.reviews.result != 'cancelled'
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Download reports artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: reports
+          path: artifact-reports/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install agent lib dependencies
+        run: cd ${{ github.workspace }}/agents/lib && npm ci
+
+      - name: Reorganize reports for sync script
+        run: |
+          # The artifact saves files as artifact-reports/{project}/reports/*.json
+          # The sync script expects reports/{project}/*.json
+          mkdir -p ${{ github.workspace }}/reports
+
+          if [ -d "${{ github.workspace }}/artifact-reports" ]; then
+            for project_dir in ${{ github.workspace }}/artifact-reports/*/; do
+              [ -d "$project_dir" ] || continue
+              PROJECT_ID=$(basename "$project_dir")
+
+              # Reports are nested: artifact-reports/{project}/reports/*.json
+              REPORTS_SUBDIR="$project_dir/reports"
+              if [ -d "$REPORTS_SUBDIR" ]; then
+                mkdir -p "${{ github.workspace }}/reports/$PROJECT_ID"
+                cp -r "$REPORTS_SUBDIR"/*.json "${{ github.workspace }}/reports/$PROJECT_ID/" 2>/dev/null || true
+                echo "Copied reports for $PROJECT_ID"
+              fi
+            done
+          fi
+
+          echo "Reports directory structure:"
+          find ${{ github.workspace }}/reports -name "*.json" -type f 2>/dev/null || echo "No JSON reports found"
+
+      - name: Sync reports to Supabase
+        env:
+          REPORTS_DIR: ${{ github.workspace }}/reports
+          REGISTRY_PATH: ${{ github.workspace }}/agents/registry.json
+          DATE: ${{ needs.setup.outputs.date }}
+        run: |
+          # Sync each project that has reports
+          if [ -d "${{ github.workspace }}/reports" ]; then
+            for project_dir in ${{ github.workspace }}/reports/*/; do
+              [ -d "$project_dir" ] || continue
+              PROJECT_ID=$(basename "$project_dir")
+
+              echo "Syncing $PROJECT_ID reports for $DATE..."
+              npx tsx ${{ github.workspace }}/agents/lib/sync-to-supabase.ts "$PROJECT_ID" --date "$DATE" || {
+                echo "WARNING: Sync failed for $PROJECT_ID"
+              }
+            done
+          else
+            echo "No reports directory found, nothing to sync"
+          fi
+
+          echo "Sync complete"
