@@ -85,30 +85,32 @@ insert_event() {
 build_worker_prompt() {
   local item_json="$1"
 
-  local id title description project priority type source_type source_id short_id
-  id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-  title=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'])")
-  description=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('description','') or 'No description')")
-  project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
-  priority=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('priority','medium') or 'medium')")
-  type=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['type'])")
-  source_type=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source_type','agent') or 'agent')")
-  source_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source_id','') or 'N/A')")
-  short_id=$(echo "$id" | cut -c1-8)
+  # Use Python for template substitution — safe with any characters in title/description
+  python3 -c "
+import json, sys
 
-  # Read template and substitute
-  sed \
-    -e "s|{{WORK_ITEM_ID}}|$id|g" \
-    -e "s|{{WORK_ITEM_ID_SHORT}}|$short_id|g" \
-    -e "s|{{TITLE}}|$title|g" \
-    -e "s|{{DESCRIPTION}}|$description|g" \
-    -e "s|{{PROJECT}}|$project|g" \
-    -e "s|{{PRIORITY}}|$priority|g" \
-    -e "s|{{TYPE}}|$type|g" \
-    -e "s|{{SOURCE_TYPE}}|$source_type|g" \
-    -e "s|{{SOURCE_ID}}|$source_id|g" \
-    -e "s|{{EXECUTION_MODE}}|$EXECUTION_MODE|g" \
-    "$WORKER_PROMPT"
+item = json.loads('''$1''') if '''$1''' else json.loads(sys.stdin.read())
+with open('$WORKER_PROMPT') as f:
+    template = f.read()
+
+replacements = {
+    '{{WORK_ITEM_ID}}': item['id'],
+    '{{WORK_ITEM_ID_SHORT}}': item['id'][:8],
+    '{{TITLE}}': item.get('title', ''),
+    '{{DESCRIPTION}}': item.get('description') or 'No description',
+    '{{PROJECT}}': item.get('project', ''),
+    '{{PRIORITY}}': item.get('priority') or 'medium',
+    '{{TYPE}}': item.get('type', 'finding'),
+    '{{SOURCE_TYPE}}': item.get('source_type') or 'agent',
+    '{{SOURCE_ID}}': item.get('source_id') or 'N/A',
+    '{{EXECUTION_MODE}}': '$EXECUTION_MODE',
+}
+
+for key, value in replacements.items():
+    template = template.replace(key, str(value))
+
+print(template)
+" <<< "$item_json"
 }
 
 # Run a worker agent for a single work item
@@ -210,14 +212,21 @@ fi
 
 log "Found $ITEM_COUNT approved work item(s) to process"
 
-# Process each item sequentially
+# Write items to temp file (avoids subshell issues with piped while loops)
+ITEMS_FILE=$(mktemp)
 echo "$ITEMS" | python3 -c "
 import sys, json
 items = json.load(sys.stdin)
 for item in items:
     print(json.dumps(item))
-" | while IFS= read -r item_json; do
+" > "$ITEMS_FILE"
+
+# Process each item sequentially
+while IFS= read -r item_json; do
+  [ -z "$item_json" ] && continue
   run_worker "$item_json" || true
-done
+done < "$ITEMS_FILE"
+
+rm -f "$ITEMS_FILE"
 
 log "=== Work Loop Manager complete ==="
