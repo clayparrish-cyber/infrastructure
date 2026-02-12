@@ -136,7 +136,7 @@ Guardrails that prevent agent drift by flagging violations for human review:
 ## Development
 
 ```bash
-cd ~/Projects/infrastructure
+cd /Volumes/Lexar/Projects/infrastructure
 
 # Agent configs
 cat config/agents/phase-1-config.ts
@@ -149,8 +149,8 @@ ls docs/plans/
 
 | Project | Path | Relationship |
 |---------|------|--------------|
-| GT-IMS | ~/Projects/Internal Systems/gt-ims | Primary test bed, has working agents |
-| Menu Autopilot | ~/Projects/menu-autopilot | Future agent integration |
-| AirTip | ~/Projects/menu-autopilot (at /tips) | Future agent integration |
-| SidelineIQ | ~/Projects/SidelineIQ/sideline-iq | Future agent integration |
-| Dosie | ~/Projects/Dosie/web | Future agent integration |
+| GT-Ops | /Volumes/Lexar/Projects/Gallant Tiger/gt-ops | Primary test bed, has working agents |
+| Menu Autopilot | /Volumes/Lexar/Projects/Apolis/menu-autopilot | Future agent integration |
+| AirTip | /Volumes/Lexar/Projects/Apolis/menu-autopilot (at /tips) | Future agent integration |
+| SidelineIQ | /Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq | Future agent integration |
+| Dosie | /Volumes/Lexar/Projects/Personal/Dosie/web | Future agent integration |
