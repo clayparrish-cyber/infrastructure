@@ -1,0 +1,19 @@
+{
+  "name": "@claude-agents/lib",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "supabase-writer.ts",
+  "scripts": {
+    "test": "bun run test-writer.ts",
+    "test:ts-node": "npx ts-node --esm test-writer.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  }
+}

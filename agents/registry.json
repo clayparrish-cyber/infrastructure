@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "tiers": {
+    "1": {
+      "projects": ["sidelineiq", "airtip", "dosie"],
+      "description": "In-market or ready for users"
+    },
+    "2": {
+      "projects": ["gt-ops", "menu-autopilot"],
+      "description": "Scaffolded, waiting on dependencies"
+    }
+  },
+  "projects": {
+    "sidelineiq": {
+      "path": "/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq",
+      "repo": "clayparrish-cyber/sidelineiq",
+      "contextFile": "CLAUDE_CONTEXT.md",
+      "owner": "clay",
+      "stack": "expo/react-native",
+      "reportDir": "~/Projects/agent-reports/sidelineiq"
+    },
+    "airtip": {
+      "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
+      "repo": "clayparrish-cyber/menu-autopilot",
+      "contextFile": "CLAUDE.md",
+      "owner": "clay",
+      "stack": "next.js",
+      "reportDir": "~/Projects/agent-reports/airtip",
+      "note": "AirTip lives at /tips within menu-autopilot. Focus reviews on src/app/tips/ and src/lib/tips/"
+    },
+    "dosie": {
+      "path": "/Volumes/Lexar/Projects/Personal/Dosie",
+      "repo": "clayparrish-cyber/dosie",
+      "contextFile": "CLAUDE.md",
+      "owner": "clay",
+      "stack": "expo/react-native + next.js + swiftui",
+      "reportDir": "~/Projects/agent-reports/dosie"
+    },
+    "gt-ops": {
+      "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-ops",
+      "repo": "clayparrish-cyber/gt-ims",
+      "contextFile": "CLAUDE.md",
+      "owner": "shared",
+      "stack": "next.js/neon",
+      "reportDir": "~/Projects/agent-reports/gt-ops",
+      "note": "Has in-project agents for inventory/trends. Central agents still run here."
+    },
+    "menu-autopilot": {
+      "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
+      "repo": "clayparrish-cyber/menu-autopilot",
+      "contextFile": "CLAUDE.md",
+      "owner": "shared",
+      "stack": "next.js/neon",
+      "reportDir": "~/Projects/agent-reports/menu-autopilot",
+      "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)"
+    }
+  },
+  "agents": [
+    {
+      "id": "security-review",
+      "name": "Security Review",
+      "category": "review",
+      "schedule": { "day": "monday", "tiers": [1] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "OWASP top 10, secrets scanning, auth checks, input validation"
+    },
+    {
+      "id": "ux-layout-review",
+      "name": "UX & Layout Review",
+      "category": "review",
+      "schedule": { "day": "tuesday", "tiers": [1] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Accessibility, responsive design, user flow, visual consistency"
+    },
+    {
+      "id": "bug-hunt-review",
+      "name": "Bug Hunt Review",
+      "category": "review",
+      "schedule": { "day": "wednesday", "tiers": [1] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Edge cases, error handling, race conditions, data integrity"
+    },
+    {
+      "id": "content-value-review",
+      "name": "Content & Value Review",
+      "category": "review",
+      "schedule": { "day": "thursday", "tiers": [1] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Content quality, value proposition, user-facing copy, feature completeness"
+    },
+    {
+      "id": "polish-brand-review",
+      "name": "Polish & Brand Review",
+      "category": "review",
+      "schedule": { "day": "friday", "tiers": [1] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Brand consistency, visual polish, micro-interactions, attention to detail"
+    },
+    {
+      "id": "performance-review",
+      "name": "Performance & Efficiency Review",
+      "category": "review",
+      "schedule": { "day": "saturday", "frequency": "biweekly-even", "tiers": [1, 2] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Bundle size, dead code, unused deps, re-render hotspots, query efficiency, asset optimization"
+    },
+    {
+      "id": "tier2-rotating-review",
+      "name": "Tier 2 Rotating Review",
+      "category": "review",
+      "schedule": { "day": "saturday", "tiers": [2] },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "rotates": ["security-review", "ux-layout-review", "bug-hunt-review", "content-value-review", "polish-brand-review"],
+      "description": "Cycles through review themes for Tier 2 projects each week"
+    },
+    {
+      "id": "weekly-cleanup",
+      "name": "Internal Ops & Agent Evaluation",
+      "category": "ops",
+      "schedule": { "day": "sunday", "tiers": [1, 2] },
+      "maxTurns": 30,
+      "description": "Folder hygiene, CLAUDE.md sync, task list dedup, agent performance eval"
+    },
+    {
+      "id": "competitive-intel",
+      "name": "Competitive Intelligence",
+      "category": "research",
+      "schedule": null,
+      "maxTurns": 80,
+      "suggestedCadence": "biweekly",
+      "description": "Competitor analysis, market positioning, industry trends"
+    },
+    {
+      "id": "marketing-analyst",
+      "name": "Marketing Analysis",
+      "category": "specialist",
+      "schedule": null,
+      "maxTurns": 60,
+      "description": "Campaign performance, attribution, content strategy"
+    },
+    {
+      "id": "legal-advisor",
+      "name": "Legal Review",
+      "category": "specialist",
+      "schedule": null,
+      "maxTurns": 40,
+      "description": "Privacy policies, terms of service, compliance review"
+    },
+    {
+      "id": "business-analyst",
+      "name": "Business Analysis",
+      "category": "specialist",
+      "schedule": null,
+      "maxTurns": 60,
+      "description": "KPIs, revenue analysis, growth projections, cohort analysis"
+    }
+  ]
+}
