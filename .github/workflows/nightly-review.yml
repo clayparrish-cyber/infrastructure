@@ -346,6 +346,38 @@ jobs:
       - name: Create logs directory
         run: mkdir -p ${{ github.workspace }}/logs
 
+      - name: Create usage extraction script
+        run: |
+          cat > ${{ github.workspace }}/extract-usage.py << 'PYEOF'
+          import json, sys
+
+          output_json, usage_file, agent_id, project_id = sys.argv[1:5]
+          try:
+              d = json.load(open(output_json))
+              u = d.get('usage', {})
+              mu = d.get('modelUsage', {})
+              usage = {
+                  'agent_id': agent_id,
+                  'project': project_id,
+                  'total_cost_usd': d.get('total_cost_usd', 0),
+                  'tokens_input': u.get('input_tokens', 0),
+                  'tokens_output': u.get('output_tokens', 0),
+                  'cache_creation_tokens': u.get('cache_creation_input_tokens', 0),
+                  'cache_read_tokens': u.get('cache_read_input_tokens', 0),
+                  'duration_ms': d.get('duration_ms', 0),
+                  'model': list(mu.keys())[0] if mu else 'unknown',
+                  'num_turns': d.get('num_turns', 0),
+              }
+              json.dump(usage, open(usage_file, 'w'), indent=2)
+              cost = usage['total_cost_usd']
+              ti = usage['tokens_input']
+              to = usage['tokens_output']
+              print(f'Usage: ${cost:.4f} USD, {ti}+{to} tokens')
+          except Exception as e:
+              print(f'WARNING: Could not extract usage: {e}', file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+
       - name: Run reviews
         env:
           DATE: ${{ needs.setup.outputs.date }}
@@ -429,27 +461,7 @@ jobs:
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               # Extract usage data to sidecar file for sync step
-              python3 -c "
-import json, sys
-try:
-    d = json.load(open('$OUTPUT_JSON'))
-    usage = {
-        'agent_id': '$AGENT_ID',
-        'project': '$PROJECT_ID',
-        'total_cost_usd': d.get('total_cost_usd', 0),
-        'tokens_input': d.get('usage', {}).get('input_tokens', 0),
-        'tokens_output': d.get('usage', {}).get('output_tokens', 0),
-        'cache_creation_tokens': d.get('usage', {}).get('cache_creation_input_tokens', 0),
-        'cache_read_tokens': d.get('usage', {}).get('cache_read_input_tokens', 0),
-        'duration_ms': d.get('duration_ms', 0),
-        'model': list(d.get('modelUsage', {}).keys())[0] if d.get('modelUsage') else 'unknown',
-        'num_turns': d.get('num_turns', 0)
-    }
-    json.dump(usage, open('$USAGE_FILE', 'w'), indent=2)
-    print(f'Usage saved: \${usage[\"total_cost_usd\"]:.4f} USD, {usage[\"tokens_input\"]}+{usage[\"tokens_output\"]} tokens')
-except Exception as e:
-    print(f'WARNING: Could not extract usage: {e}', file=sys.stderr)
-" || true
+              python3 "$WORKSPACE/extract-usage.py" "$OUTPUT_JSON" "$USAGE_FILE" "$AGENT_ID" "$PROJECT_ID" || true
             else
               echo "FAILED: $AGENT_ID on $PROJECT_ID (exit code: $?)"
               FAIL_COUNT=$((FAIL_COUNT + 1))
