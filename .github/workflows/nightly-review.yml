@@ -323,7 +323,7 @@ jobs:
   # ─────────────────────────────────────────────
   reviews:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     needs: [setup, clone-projects, orchestrator]
     steps:
       - name: Checkout infrastructure repo
@@ -382,6 +382,7 @@ jobs:
         env:
           DATE: ${{ needs.setup.outputs.date }}
           ROSTER_JSON: ${{ needs.orchestrator.outputs.roster }}
+          REVIEW_AGENT_TIMEOUT_SECONDS: '900'
         run: |
           WORKSPACE="${{ github.workspace }}"
           REGISTRY="$WORKSPACE/agents/registry.json"
@@ -401,6 +402,7 @@ jobs:
           SUCCESS_COUNT=0
           FAIL_COUNT=0
           SKIP_COUNT=0
+          TIMEOUT_COUNT=0
 
           while IFS='|' read -r AGENT_ID PROJECT_ID; do
             [ -z "$AGENT_ID" ] && continue
@@ -457,13 +459,20 @@ jobs:
             USAGE_FILE="$PROJECT_DIR/reports/$DATE-$AGENT_ID-usage.json"
 
             cd "$PROJECT_DIR"
-            if claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
+            if timeout --signal=TERM --kill-after=30s "$REVIEW_AGENT_TIMEOUT_SECONDS" \
+              claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               # Extract usage data to sidecar file for sync step
               python3 "$WORKSPACE/extract-usage.py" "$OUTPUT_JSON" "$USAGE_FILE" "$AGENT_ID" "$PROJECT_ID" || true
             else
-              echo "FAILED: $AGENT_ID on $PROJECT_ID (exit code: $?)"
+              EXIT_CODE=$?
+              if [ "$EXIT_CODE" -eq 124 ] || [ "$EXIT_CODE" -eq 137 ]; then
+                echo "TIMEOUT: $AGENT_ID on $PROJECT_ID exceeded ${REVIEW_AGENT_TIMEOUT_SECONDS}s"
+                TIMEOUT_COUNT=$((TIMEOUT_COUNT + 1))
+              else
+                echo "FAILED: $AGENT_ID on $PROJECT_ID (exit code: $EXIT_CODE)"
+              fi
               FAIL_COUNT=$((FAIL_COUNT + 1))
             fi
             cd "$WORKSPACE"
@@ -477,6 +486,7 @@ jobs:
           echo "Success: $SUCCESS_COUNT"
           echo "Failed:  $FAIL_COUNT"
           echo "Skipped: $SKIP_COUNT"
+          echo "Timeout: $TIMEOUT_COUNT"
 
       - name: Upload reports
         if: always()
