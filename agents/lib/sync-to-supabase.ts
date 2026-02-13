@@ -102,7 +102,8 @@ async function syncProject(supabase: ReturnType<typeof createClient>, project: s
     f.includes(date) &&
     !f.includes('_tasks-fallback') &&
     !f.includes('_activity-fallback') &&
-    !f.includes('_runs-fallback')
+    !f.includes('_runs-fallback') &&
+    !f.includes('-usage.json')
   );
 
   if (files.length === 0) {
@@ -247,13 +248,35 @@ async function syncProject(supabase: ReturnType<typeof createClient>, project: s
         }
       });
 
-      // Log to agent_runs_v2 (new table)
+      // Log to agent_runs_v2 (new table) — include usage data if available
+      const usageFile = path.join(projectDir, `${date}-${agentId}-usage.json`);
+      let usageData: Record<string, any> = {};
+      try {
+        if (fs.existsSync(usageFile)) {
+          usageData = JSON.parse(fs.readFileSync(usageFile, 'utf-8'));
+          console.log(`    Usage: $${usageData.total_cost_usd?.toFixed(4)} USD, ${usageData.tokens_input}+${usageData.tokens_output} tokens`);
+        }
+      } catch (e) {
+        console.log(`    Warning: Could not read usage file: ${e}`);
+      }
+
       const { error: runError } = await supabase.from('agent_runs_v2').insert({
         agent_id: agentId,
         project,
         trigger: 'orchestrator',
         status: 'completed',
-        findings_count: report.findings.length
+        findings_count: report.findings.length,
+        tokens_used: (usageData.tokens_input || 0) + (usageData.tokens_output || 0) || null,
+        cost_estimate: usageData.total_cost_usd || null,
+        metadata: usageData.model ? {
+          model: usageData.model,
+          tokens_input: usageData.tokens_input,
+          tokens_output: usageData.tokens_output,
+          cache_creation_tokens: usageData.cache_creation_tokens,
+          cache_read_tokens: usageData.cache_read_tokens,
+          duration_ms: usageData.duration_ms,
+          num_turns: usageData.num_turns,
+        } : {},
       });
 
       if (runError) {
