@@ -154,3 +154,33 @@ ls docs/plans/
 | AirTip | /Volumes/Lexar/Projects/Apolis/menu-autopilot (at /tips) | Future agent integration |
 | SidelineIQ | /Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq | Future agent integration |
 | Dosie | /Volumes/Lexar/Projects/Personal/Dosie/web | Future agent integration |
+
+
+## Org Documentation Governance (3-Tier)
+<!-- ORG_DOCS_3_TIER_POLICY -->
+
+For non-trivial tasks, persist context to Markdown before finishing. Do not leave critical context only in chat.
+
+Use one tier per note:
+1. `canonical`: long-lived source of truth; requires `owner` and recurring `review_by`; `expires_at` should be `none`.
+2. `operational`: medium-lived project context; requires both `review_by` and `expires_at`; default TTL 30 days.
+3. `ephemeral`: short-lived scratch context; requires both `review_by` and `expires_at`; default TTL 7 days.
+
+Required front matter on governed notes:
+
+```md
+---
+type: canonical|operational|ephemeral
+owner: <team-or-person>
+created_at: YYYY-MM-DD
+review_by: YYYY-MM-DD
+expires_at: YYYY-MM-DD|none
+source_of_truth: <canonical file/link/ticket>
+status: active|superseded|expired
+---
+```
+
+Preferred path: `docs/knowledge/{canonical|operational|ephemeral}`.
+Archive stale/superseded notes to `docs/knowledge/archive` and update `status`.
+
+Run `/Volumes/Lexar/Projects/scripts/check-stale-docs.sh` before major handoffs.
