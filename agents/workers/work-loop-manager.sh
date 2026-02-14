@@ -16,16 +16,79 @@ REGISTRY="${REGISTRY:-agents/registry.json}"
 LOG_DIR="${LOG_DIR:-logs}"
 DATE=$(date +%Y-%m-%d)
 
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --max-items)
+      MAX_ITEMS="${2:-$MAX_ITEMS}"
+      shift 2
+      ;;
+    --live)
+      EXECUTION_MODE="live"
+      shift
+      ;;
+    --dry-run)
+      EXECUTION_MODE="dry_run"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
 mkdir -p "$LOG_DIR"
+
+# Load env vars from local files when shell vars are not already set.
+SUPABASE_URL="${SUPABASE_URL:-}"
+SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
+ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
+
+load_env_file() {
+  local env_file="$1"
+  [ -f "$env_file" ] || return 0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|\#*) continue ;;
+    esac
+
+    local key="${line%%=*}"
+    local value="${line#*=}"
+    key="$(echo "$key" | tr -d '[:space:]')"
+    value="$(echo "$value" | sed "s/^['\"]//;s/['\"]$//")"
+
+    case "$key" in
+      SUPABASE_URL)
+        [ -z "$SUPABASE_URL" ] && SUPABASE_URL="$value"
+        ;;
+      NEXT_PUBLIC_SUPABASE_URL)
+        [ -z "$SUPABASE_URL" ] && SUPABASE_URL="$value"
+        ;;
+      SUPABASE_SERVICE_ROLE_KEY)
+        [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && SUPABASE_SERVICE_ROLE_KEY="$value"
+        ;;
+      ANTHROPIC_API_KEY)
+        [ -z "$ANTHROPIC_API_KEY" ] && ANTHROPIC_API_KEY="$value"
+        ;;
+    esac
+  done < "$env_file"
+}
+
+load_env_file "$HOME/.claude/.env"
+load_env_file "/Volumes/Lexar/Projects/Mainline Apps/dashboard/.env.local"
+
+[ -n "$SUPABASE_URL" ] && export SUPABASE_URL
+[ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && export SUPABASE_SERVICE_ROLE_KEY
+[ -n "$ANTHROPIC_API_KEY" ] && export ANTHROPIC_API_KEY
 
 # Validate required env vars
 if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-  echo "ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set"
+  echo "ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set (or present in ~/.claude/.env / dashboard .env.local)"
   exit 1
 fi
 
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "ERROR: ANTHROPIC_API_KEY must be set"
+  echo "ERROR: ANTHROPIC_API_KEY must be set (or present in ~/.claude/.env)"
   exit 1
 fi
 

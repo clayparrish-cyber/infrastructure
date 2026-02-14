@@ -453,6 +453,38 @@ jobs:
             echo "Max turns: $MAX_TURNS"
             echo "Working directory: $PROJECT_DIR"
 
+            # Fetch prior rejections for this project to avoid re-flagging
+            REJECTIONS=$(curl -s \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              "$SUPABASE_URL/rest/v1/work_items?status=eq.rejected&project=eq.$PROJECT_ID&rejection_reason=not.is.null&select=title,rejection_reason&limit=50" \
+              | python3 -c "
+            import json, sys
+            items = json.load(sys.stdin)
+            if not items:
+                print('')
+            else:
+                lines = []
+                for i in items:
+                    lines.append(f'- **{i[\"title\"]}**: {i[\"rejection_reason\"]}')
+                print('\n'.join(lines))
+            " 2>/dev/null || echo "")
+
+            # Build augmented prompt with rejection context
+            BASE_PROMPT=$(cat "$PROMPT_FILE")
+            if [ -n "$REJECTIONS" ]; then
+              AUGMENTED_PROMPT="$BASE_PROMPT
+
+## Prior Rejections — DO NOT Re-Flag These Patterns
+
+The following findings were previously flagged and rejected by the team. Do not file similar findings. Learn from these rejection reasons to calibrate your severity thresholds:
+
+$REJECTIONS
+"
+            else
+              AUGMENTED_PROMPT="$BASE_PROMPT"
+            fi
+
             # Run the review agent
             LOG_FILE="$WORKSPACE/logs/$DATE-$AGENT_ID-$PROJECT_ID.log"
             OUTPUT_JSON="$WORKSPACE/logs/$DATE-$AGENT_ID-$PROJECT_ID-output.json"
@@ -460,7 +492,7 @@ jobs:
 
             cd "$PROJECT_DIR"
             if timeout --signal=TERM --kill-after=30s "$REVIEW_AGENT_TIMEOUT_SECONDS" \
-              claude -p "$(cat "$PROMPT_FILE")" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
+              claude -p "$AUGMENTED_PROMPT" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               # Extract usage data to sidecar file for sync step

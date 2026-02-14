@@ -53,6 +53,24 @@
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/menu-autopilot",
       "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)"
+    },
+    "glossy-sports": {
+      "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports/app",
+      "repo": "clayparrish-cyber/glossy-sports",
+      "contextFile": "CLAUDE.md",
+      "owner": "clay",
+      "stack": "expo/react-native",
+      "reportDir": "~/Projects/agent-reports/glossy-sports",
+      "note": "Mainline Apps project (Bill 75%, Clay 25%). Sports fluency for casual fans."
+    },
+    "infrastructure": {
+      "path": "/Volumes/Lexar/Projects/infrastructure",
+      "repo": "clayparrish-cyber/infrastructure",
+      "contextFile": "CLAUDE.md",
+      "owner": "clay",
+      "stack": "typescript/github-actions",
+      "reportDir": "~/Projects/agent-reports/infrastructure",
+      "note": "Agent infrastructure, orchestrator, sync scripts, agent-learning package."
     }
   },
   "agents": [
