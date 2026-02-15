@@ -2,7 +2,7 @@
   "version": 1,
   "tiers": {
     "1": {
-      "projects": ["sidelineiq", "airtip", "dosie"],
+      "projects": ["sidelineiq", "airtip", "dosie", "glossy-sports"],
       "description": "In-market or ready for users"
     },
     "2": {
@@ -145,6 +145,14 @@
       "schedule": { "day": "sunday", "tiers": [1, 2] },
       "maxTurns": 30,
       "description": "Folder hygiene, CLAUDE.md sync, task list dedup, agent performance eval"
+    },
+    {
+      "id": "content-writer",
+      "name": "Content Writer",
+      "category": "specialist",
+      "schedule": { "day": "wednesday", "tiers": [1] },
+      "maxTurns": 60,
+      "description": "Generates SEO blog posts and content. Writes MDX drafts, stores as work items for review."
     },
     {
       "id": "competitive-intel",
