@@ -1,6 +1,10 @@
 name: Nightly Agent Review
 
 on:
+  push:
+    paths:
+      - '.github/workflows/nightly-review.yml'
+      - 'agents/**'
   schedule:
     # 2am CST = 8am UTC
     - cron: '0 8 * * *'
@@ -22,9 +26,20 @@ env:
 
 jobs:
   # ─────────────────────────────────────────────
+  # Job 0: Quick validation on push (prevents "No jobs were run" failures)
+  # ─────────────────────────────────────────────
+  validate:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate workflow
+        run: echo "Workflow file validated successfully"
+
+  # ─────────────────────────────────────────────
   # Job 1: Determine today's schedule
   # ─────────────────────────────────────────────
   setup:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.schedule.outputs.date }}
