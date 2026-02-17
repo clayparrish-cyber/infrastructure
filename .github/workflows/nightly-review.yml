@@ -574,7 +574,7 @@ jobs:
         with:
           name: reports
           path: projects/*/reports/
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
 
       - name: Upload logs
@@ -583,7 +583,7 @@ jobs:
         with:
           name: logs
           path: logs/
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
 
   # ─────────────────────────────────────────────
@@ -725,7 +725,7 @@ jobs:
         with:
           name: worker-logs
           path: logs/*worker*
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
 
   # ─────────────────────────────────────────────
@@ -831,5 +831,5 @@ jobs:
         with:
           name: reconcile-logs
           path: logs/*reconcile*
-          retention-days: 7
+          retention-days: 1
           if-no-files-found: ignore
