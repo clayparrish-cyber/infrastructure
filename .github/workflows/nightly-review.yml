@@ -488,14 +488,8 @@ jobs:
             # Build augmented prompt with rejection context
             BASE_PROMPT=$(cat "$PROMPT_FILE")
             if [ -n "$REJECTIONS" ]; then
-              AUGMENTED_PROMPT="$BASE_PROMPT
-
-## Prior Rejections — DO NOT Re-Flag These Patterns
-
-The following findings were previously flagged and rejected by the team. Do not file similar findings. Learn from these rejection reasons to calibrate your severity thresholds:
-
-$REJECTIONS
-"
+              REJECTION_SECTION="$(printf '\n\n## Prior Rejections — DO NOT Re-Flag These Patterns\n\nThe following findings were previously flagged and rejected by the team. Do not file similar findings. Learn from these rejection reasons to calibrate your severity thresholds:\n\n%s' "$REJECTIONS")"
+              AUGMENTED_PROMPT="${BASE_PROMPT}${REJECTION_SECTION}"
             else
               AUGMENTED_PROMPT="$BASE_PROMPT"
             fi
