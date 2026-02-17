@@ -66,6 +66,12 @@ Replaces Leadership Team Meeting Google Doc with:
 
 Design doc: `docs/plans/2026-01-23-executive-dashboard-design.md`
 
+## Recent Changes
+
+- **2026-02-17** — Added `business-synthesis` agent: Sunday cross-project weekly briefing (work item trends, costs, approval rates, neglected projects). Registry entry + COMMAND_CENTER env vars in workflow.
+- **2026-02-16** — Fixed glossy-sports clone failure (pointed to nonexistent repo). Added `subdir` support to registry + workflow for monorepo projects. Made clone step resilient (one failure no longer cascades).
+- **2026-02-15** — Fixed "No jobs were run" failure emails: added `push` trigger with `validate` job to nightly-review.yml so pushes to workflow/agent files show green instead of failing.
+
 ## Current Status (2026-01-23)
 
 **Completed:**
