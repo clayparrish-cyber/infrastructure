@@ -110,29 +110,35 @@ jobs:
           # Determine which projects to clone based on tier
           if [ -n "$PROJECT_OVERRIDE" ]; then
             # Manual override: only clone the specified project
-            REPO=$(python3 -c "
+            PROJECT_INFO=$(python3 -c "
           import json
           with open('$REGISTRY') as f:
               reg = json.load(f)
           p = reg['projects'].get('$PROJECT_OVERRIDE', {})
-          print(p.get('repo', ''))
+          print(f\"{p.get('repo', '')}|{p.get('subdir', '')}\")
           ")
+            IFS='|' read -r REPO SUBDIR <<< "$PROJECT_INFO"
             if [ -n "$REPO" ]; then
               echo "Cloning override project: $PROJECT_OVERRIDE ($REPO)"
-              git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_OVERRIDE"
+              if [ -n "$SUBDIR" ]; then
+                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/${PROJECT_OVERRIDE}_fullclone"
+                cp -r "projects/${PROJECT_OVERRIDE}_fullclone/$SUBDIR" "projects/$PROJECT_OVERRIDE"
+                rm -rf "projects/${PROJECT_OVERRIDE}_fullclone"
+              else
+                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_OVERRIDE"
+              fi
             else
               echo "ERROR: Project '$PROJECT_OVERRIDE' not found in registry"
               exit 1
             fi
           else
-            # Determine project list from tier
+            # Determine project list from tier (includes subdir info)
             PROJECTS=$(python3 -c "
           import json
           with open('$REGISTRY') as f:
               reg = json.load(f)
           tier = int('$TIER')
           if tier == 0:
-              # All projects
               projects = list(reg['projects'].keys())
           elif tier == 1:
               projects = reg['tiers']['1']['projects']
@@ -141,46 +147,77 @@ jobs:
           else:
               projects = []
           for p in projects:
-              repo = reg['projects'][p].get('repo', '')
-              print(f'{p}|{repo}')
+              proj = reg['projects'][p]
+              repo = proj.get('repo', '')
+              subdir = proj.get('subdir', '')
+              print(f'{p}|{repo}|{subdir}')
           ")
 
-            # Clone each project (handle shared repos like airtip/menu-autopilot)
-            CLONED_REPOS=""
-            while IFS='|' read -r PROJECT_ID REPO; do
+            # Clone each project (handle shared repos, subdirectories, and failures gracefully)
+            declare -A REPO_CLONE_DIRS
+            CLONE_FAILURES=0
+
+            while IFS='|' read -r PROJECT_ID REPO SUBDIR; do
+              [ -z "$PROJECT_ID" ] && continue
               if [ -z "$REPO" ]; then
                 echo "WARNING: No repo found for $PROJECT_ID, skipping"
                 continue
               fi
 
-              # Check if this repo was already cloned (shared repo case)
-              if echo "$CLONED_REPOS" | grep -q "$REPO"; then
-                # For shared repos (e.g., airtip uses menu-autopilot repo),
-                # create a symlink or copy
-                SOURCE_DIR=$(ls -d projects/*/ 2>/dev/null | head -1)
-                for existing in projects/*/; do
-                  EXISTING_NAME=$(basename "$existing")
-                  EXISTING_REPO=$(python3 -c "
-          import json
-          with open('$REGISTRY') as f:
-              reg = json.load(f)
-          print(reg['projects'].get('$EXISTING_NAME', {}).get('repo', ''))
-          ")
-                  if [ "$EXISTING_REPO" = "$REPO" ]; then
-                    echo "Linking $PROJECT_ID -> $EXISTING_NAME (shared repo: $REPO)"
-                    cp -r "projects/$EXISTING_NAME" "projects/$PROJECT_ID"
-                    break
+              # Check if this repo was already cloned
+              if [ -n "${REPO_CLONE_DIRS[$REPO]:-}" ]; then
+                CLONE_SRC="${REPO_CLONE_DIRS[$REPO]}"
+                echo "Reusing clone of $REPO for $PROJECT_ID"
+                if [ -n "$SUBDIR" ]; then
+                  cp -r "$CLONE_SRC/$SUBDIR" "projects/$PROJECT_ID" 2>/dev/null || {
+                    echo "WARNING: Subdir '$SUBDIR' not found in $REPO for $PROJECT_ID"
+                    cp -r "$CLONE_SRC" "projects/$PROJECT_ID"
+                  }
+                else
+                  cp -r "$CLONE_SRC" "projects/$PROJECT_ID"
+                fi
+                continue
+              fi
+
+              # Clone the repo
+              CLONE_DIR="projects/_clone_${PROJECT_ID}"
+              echo "Cloning $PROJECT_ID from $REPO"
+              if git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "$CLONE_DIR"; then
+                REPO_CLONE_DIRS[$REPO]="$CLONE_DIR"
+                if [ -n "$SUBDIR" ]; then
+                  if [ -d "$CLONE_DIR/$SUBDIR" ]; then
+                    cp -r "$CLONE_DIR/$SUBDIR" "projects/$PROJECT_ID"
+                    echo "Extracted subdir '$SUBDIR' for $PROJECT_ID"
+                  else
+                    echo "WARNING: Subdir '$SUBDIR' not found, using full repo for $PROJECT_ID"
+                    cp -r "$CLONE_DIR" "projects/$PROJECT_ID"
                   fi
-                done
+                else
+                  mv "$CLONE_DIR" "projects/$PROJECT_ID"
+                  REPO_CLONE_DIRS[$REPO]="projects/$PROJECT_ID"
+                fi
               else
-                echo "Cloning $PROJECT_ID from $REPO"
-                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_ID"
-                CLONED_REPOS="$CLONED_REPOS $REPO"
+                echo "WARNING: Failed to clone $REPO for $PROJECT_ID, skipping"
+                CLONE_FAILURES=$((CLONE_FAILURES + 1))
               fi
             done <<< "$PROJECTS"
+
+            # Clean up temp clone directories
+            rm -rf projects/_clone_* 2>/dev/null || true
+
+            # Fail only if NO projects were cloned
+            CLONED_COUNT=$(ls -d projects/*/ 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$CLONED_COUNT" -eq 0 ]; then
+              echo "ERROR: No projects were cloned successfully"
+              exit 1
+            fi
+
+            if [ "$CLONE_FAILURES" -gt 0 ]; then
+              echo "WARNING: $CLONE_FAILURES clone(s) failed, but $CLONED_COUNT project(s) available"
+            fi
           fi
 
-          echo "Projects cloned:"
+          echo "Projects cloned ($CLONED_COUNT):"
           ls -la projects/
 
       - name: Upload projects artifact

@@ -55,13 +55,14 @@
       "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)"
     },
     "glossy-sports": {
-      "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports/app",
-      "repo": "clayparrish-cyber/glossy-sports",
+      "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports",
+      "repo": "clayparrish-cyber/mainline-apps",
+      "subdir": "glossy-sports",
       "contextFile": "CLAUDE.md",
       "owner": "clay",
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/glossy-sports",
-      "note": "Mainline Apps project (Bill 75%, Clay 25%). Sports fluency for casual fans."
+      "note": "Mainline Apps project (Bill 75%, Clay 25%). Lives in mainline-apps monorepo under glossy-sports/ subdir."
     },
     "infrastructure": {
       "path": "/Volumes/Lexar/Projects/infrastructure",
