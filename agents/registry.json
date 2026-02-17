@@ -148,6 +148,15 @@
       "description": "Folder hygiene, CLAUDE.md sync, task list dedup, agent performance eval"
     },
     {
+      "id": "business-synthesis",
+      "name": "Cross-Project Business Synthesis",
+      "category": "ops",
+      "schedule": { "day": "sunday", "tiers": [0] },
+      "maxTurns": 40,
+      "depth": "adaptive",
+      "description": "Weekly cross-project synthesis: work item trends, cost analysis, approval rates, neglected projects. Writes one research_request work item as a weekly briefing."
+    },
+    {
       "id": "content-writer",
       "name": "Content Writer",
       "category": "specialist",
