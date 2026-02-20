@@ -1,0 +1,49 @@
+name: Type Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agents/lib/**'
+      - 'packages/agent-learning/**'
+      - '.github/workflows/typecheck.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'agents/lib/**'
+      - 'packages/agent-learning/**'
+
+jobs:
+  typecheck-agents-lib:
+    name: Type check (agents/lib)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agents/lib
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: agents/lib/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+
+  typecheck-agent-learning:
+    name: Type check (packages/agent-learning)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/agent-learning
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: packages/agent-learning/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
