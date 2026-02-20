@@ -28,6 +28,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: agents/lib/package-lock.json
       - run: npm ci
+      - name: Security audit
+        run: npm audit --audit-level=critical
       - name: Type check
         run: npx tsc --noEmit
 
@@ -45,5 +47,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: packages/agent-learning/package-lock.json
       - run: npm ci
+      - name: Security audit
+        run: npm audit --audit-level=critical
       - name: Type check
         run: npx tsc --noEmit
