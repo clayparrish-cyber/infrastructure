@@ -83,6 +83,25 @@ Evidence: <file:line references showing the fix is in place>
 3. Do NOT generate a diff or make any changes
 4. The Work Loop Manager will auto-close this item
 
+## Human-Action-Required Tasks
+
+If the work item cannot be implemented in code (for example banking setup, legal filing, account verification, app-store portal actions), do this:
+
+1. Write the marker to stdout:
+```
+===HUMAN_ACTION_REQUIRED===
+```
+2. Write the execution log:
+```
+===EXECUTION_LOG_START===
+Summary: Human action required — <brief reason>
+Next step: <clear human action to take>
+Evidence: <why no code change applies>
+===EXECUTION_LOG_END===
+```
+3. Do NOT generate a diff or make changes
+4. The Work Loop Manager will route this item back to triage for human pickup
+
 ## Error Handling
 
 If you cannot implement the fix:

@@ -27,7 +27,7 @@ infrastructure/                    # THE HUB
     └── plans/
         └── 2026-01-23-executive-dashboard-design.md
 
-gt-ims/                            # SPOKE (venture)
+gt-ops/                            # SPOKE (venture)
 ├── scripts/agents/                # Venture-specific agent scripts
 │   ├── inventory-health.ts        # ✅ Working
 │   └── monday-briefing.ts         # ✅ Working
@@ -68,6 +68,7 @@ Design doc: `docs/plans/2026-01-23-executive-dashboard-design.md`
 
 ## Recent Changes
 
+- **2026-02-20** — Added `strategic-portfolio-audit` agent: monthly first-Sunday audit scoring 10 dimensions per project (revenue, marketing, CI/CD, security, quality, agents, app store, financial, velocity, strategy). Produces tactical work items + strategic escalations via Command Center bulk API. Monthly self-gating in prompt.
 - **2026-02-17** — Added `business-synthesis` agent: Sunday cross-project weekly briefing (work item trends, costs, approval rates, neglected projects). Registry entry + COMMAND_CENTER env vars in workflow.
 - **2026-02-16** — Fixed glossy-sports clone failure (pointed to nonexistent repo). Added `subdir` support to registry + workflow for monorepo projects. Made clone step resilient (one failure no longer cascades).
 - **2026-02-15** — Fixed "No jobs were run" failure emails: added `push` trigger with `validate` job to nightly-review.yml so pushes to workflow/agent files show green instead of failing.
@@ -77,7 +78,7 @@ Design doc: `docs/plans/2026-01-23-executive-dashboard-design.md`
 **Completed:**
 - [x] 15 Phase 1 agents installed
 - [x] inventory-health.ts and monday-briefing.ts verified working
-- [x] GT-IMS Command Center deployed (gt-ims.vercel.app/command-center)
+- [x] GT-IMS Command Center deployed (gt-ops.vercel.app/command-center)
 - [x] Executive Dashboard design document written
 - [x] **Agent Learning Loop Closed** (Ralph mission completed):
   - Signal scores calculated on human decisions (60% decision, 20% recency, 20% priority)

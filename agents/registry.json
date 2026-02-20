@@ -2,7 +2,7 @@
   "version": 1,
   "tiers": {
     "1": {
-      "projects": ["sidelineiq", "airtip", "dosie", "glossy-sports"],
+      "projects": ["sidelineiq", "airtip", "dosie", "glossy-sports", "mainline-apps", "mainline-dashboard"],
       "description": "In-market or ready for users"
     },
     "2": {
@@ -63,6 +63,25 @@
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/glossy-sports",
       "note": "Mainline Apps project (Bill 75%, Clay 25%). Lives in mainline-apps monorepo under glossy-sports/ subdir."
+    },
+    "mainline-apps": {
+      "path": "/Volumes/Lexar/Projects/Mainline Apps",
+      "repo": "clayparrish-cyber/mainline-apps",
+      "contextFile": "README.md",
+      "owner": "shared",
+      "stack": "multi-app monorepo",
+      "reportDir": "~/Projects/agent-reports/mainline-apps",
+      "note": "Mainline Apps monorepo root. Use for cross-app tasks and repo-level automation."
+    },
+    "mainline-dashboard": {
+      "path": "/Volumes/Lexar/Projects/Mainline Apps/dashboard",
+      "repo": "clayparrish-cyber/mainline-apps",
+      "subdir": "dashboard",
+      "contextFile": "CLAUDE.md",
+      "owner": "shared",
+      "stack": "next.js",
+      "reportDir": "~/Projects/agent-reports/mainline-dashboard",
+      "note": "Executive dashboard app in mainline-apps monorepo."
     },
     "infrastructure": {
       "path": "/Volumes/Lexar/Projects/infrastructure",
@@ -196,6 +215,15 @@
       "schedule": null,
       "maxTurns": 60,
       "description": "KPIs, revenue analysis, growth projections, cohort analysis"
+    },
+    {
+      "id": "strategic-portfolio-audit",
+      "name": "Strategic Portfolio Audit",
+      "category": "ops",
+      "schedule": { "day": "sunday", "tiers": [0] },
+      "maxTurns": 80,
+      "depth": "adaptive",
+      "description": "Monthly cross-entity portfolio audit: 10-dimension assessment for Mainline Apps, reduced scope for GT/Apolis. Produces tactical work items and strategic escalations."
     }
   ]
 }
