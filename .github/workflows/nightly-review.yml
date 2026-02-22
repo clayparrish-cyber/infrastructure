@@ -18,6 +18,11 @@ on:
         description: 'Override project (e.g., sidelineiq, dosie)'
         required: false
         type: string
+      dry_run:
+        description: 'Run in dry-run mode - performs analysis but reverts all file changes'
+        required: false
+        type: boolean
+        default: false
 
 env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -437,6 +442,7 @@ jobs:
           DATE: ${{ needs.setup.outputs.date }}
           ROSTER_JSON: ${{ needs.orchestrator.outputs.roster }}
           REVIEW_AGENT_TIMEOUT_SECONDS: '900'
+          DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
         run: |
           WORKSPACE="${{ github.workspace }}"
           REGISTRY="$WORKSPACE/agents/registry.json"
