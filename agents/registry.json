@@ -224,6 +224,16 @@
       "maxTurns": 80,
       "depth": "adaptive",
       "description": "Monthly cross-entity portfolio audit: 10-dimension assessment for Mainline Apps, reduced scope for GT/Apolis. Produces tactical work items and strategic escalations."
+    },
+    {
+      "id": "aso-retention-review",
+      "name": "ASO & Retention Review",
+      "category": "review",
+      "schedule": null,
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "suggestedCadence": "biweekly",
+      "description": "App Store optimization, retention funnel analysis, social content readiness"
     }
   ]
 }

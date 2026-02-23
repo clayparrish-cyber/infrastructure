@@ -610,6 +610,13 @@ jobs:
           name: reports
           path: artifact-reports/
 
+      - name: Download logs artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: logs
+          path: artifact-logs/
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
