@@ -214,7 +214,7 @@ run_worker() {
 
   cd "$project_dir"
   set -o pipefail
-  if timeout 600 claude -p "$prompt" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash" 2>&1 | tee "$output_file"; then
+  if timeout 600 claude -p "$prompt" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null 2>&1 | tee "$output_file"; then
     end_time=$(date +%s)
     duration=$((end_time - start_time))
     log "WORKER DONE: $short_id (${duration}s)"

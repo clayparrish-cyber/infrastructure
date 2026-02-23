@@ -464,7 +464,7 @@ jobs:
           SKIP_COUNT=0
           TIMEOUT_COUNT=0
 
-          while IFS='|' read -r AGENT_ID PROJECT_ID; do
+          while IFS='|' read -r -u 3 AGENT_ID PROJECT_ID; do
             [ -z "$AGENT_ID" ] && continue
 
             echo ""
@@ -546,7 +546,7 @@ jobs:
 
             cd "$PROJECT_DIR"
             if timeout --signal=TERM --kill-after=30s "$REVIEW_AGENT_TIMEOUT_SECONDS" \
-              claude -p "$AUGMENTED_PROMPT" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
+              claude -p "$AUGMENTED_PROMPT" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               # Extract usage data to sidecar file for sync step
@@ -563,7 +563,7 @@ jobs:
             fi
             cd "$WORKSPACE"
 
-          done <<< "$ENTRIES"
+          done 3<<< "$ENTRIES"
 
           echo ""
           echo "=========================================="
