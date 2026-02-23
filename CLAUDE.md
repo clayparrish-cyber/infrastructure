@@ -2,192 +2,101 @@
 
 ## What This Is
 
-Central hub for shared infrastructure across Clay's ventures. Contains:
-- Agent configurations and marketplace integrations
-- Shared packages (@clayparrish/agent-learning)
-- Executive Dashboard (unified command center)
-- Cross-venture tooling
+Registry-driven, multi-project agent infrastructure. Runs nightly via GitHub Actions, Supabase is the source of truth. Reviews 6+ codebases automatically for security, bugs, UX, content, polish, and performance issues.
 
-## Architecture: Hub and Spoke
+## Architecture
 
 ```
-infrastructure/                    # THE HUB
-├── apps/
-│   └── executive-dashboard/       # Unified dashboard (in design)
-├── packages/
-│   └── agent-learning/            # Shared npm package
-├── config/
-│   └── agents/
-│       └── phase-1-config.ts      # Agent configurations
-├── .claude/
-│   └── agents/                    # 15 marketplace agent prompts
-└── docs/
-    ├── agent-marketplace-evaluation.md
-    ├── phase-1-implementation-guide.md
-    └── plans/
-        └── 2026-01-23-executive-dashboard-design.md
+.github/workflows/
+└── nightly-review.yml          # 7-job pipeline (runs 2am CST daily)
 
-gt-ops/                            # SPOKE (venture)
-├── scripts/agents/                # Venture-specific agent scripts
-│   ├── inventory-health.ts        # ✅ Working
-│   └── monday-briefing.ts         # ✅ Working
-└── app/command-center/            # Venture-specific approval UI
+agents/
+├── registry.json               # Project + agent config (tiers, schedules, repos)
+├── orchestrator/
+│   └── decide-roster.md        # AI orchestrator prompt (builds nightly roster)
+├── reviews/
+│   └── {project}/              # Per-project review prompts (7 themes)
+│       ├── security-review.md
+│       ├── ux-layout-review.md
+│       ├── bug-hunt-review.md
+│       ├── content-value-review.md
+│       ├── polish-brand-review.md
+│       ├── performance-review.md
+│       └── aso-retention-review.md
+├── ops/
+│   └── weekly-cleanup.md       # Sunday ops agent
+├── workers/
+│   └── work-loop-manager.sh    # Executes approved work items
+└── lib/
+    ├── collect-orchestrator-signals.ts
+    ├── sync-to-supabase.ts
+    └── git-activity-scanner.sh
 
-menu-autopilot/                    # SPOKE (venture)
-airtip/                            # SPOKE (venture)
-sidelineiq/                        # SPOKE (venture)
-dosie/                             # SPOKE (venture)
+packages/agent-learning/
+└── src/
+    ├── scoring/signal-score.ts
+    └── learning/similarity.ts
 ```
 
-## Key Concepts
+## Nightly Pipeline (7 Jobs)
 
-### Agent Flow
-1. Venture agent scripts run (cron or manual)
-2. Create AgentTask record (in venture DB)
-3. Analyze data, generate recommendations
-4. POST recommendation to Executive Dashboard API
-5. Recommendation appears in unified dashboard
-6. Human approves/rejects in L10 meeting IDS discussion
+1. **setup** — Determines today's theme + tier from day-of-week
+2. **clone-projects** — Clones relevant repos from registry
+3. **orchestrator** — AI builds roster.json (falls back to static if it fails)
+4. **reviews** — Runs `claude -p` for each roster entry sequentially
+5. **sync** — Writes findings to Supabase `work_items` + `agent_runs_v2`
+6. **workers** — Executes approved work items via `claude -p`
+7. **reconcile** — Checks stale approved items, auto-closes resolved ones
 
-### Phase 1 Agents (Installed 2026-01-23)
-15 agents from aitmpl.com marketplace:
-- Business Analyst
-- Legal Advisor
-- Marketing Attribution Analyst
-- Deep Research Team (11 agents)
-- PostgreSQL DBA
+## Weekly Schedule
 
-### Executive Dashboard (In Design)
-Replaces Leadership Team Meeting Google Doc with:
-- L10 meeting interface (Check-In, Scorecard, Rock Review, Headlines, IDS, Close)
-- Cross-venture agent recommendations
-- Rocks and Scorecard tracking
-- Google OAuth with @gallanttiger.com
+| Day | Theme | Tier |
+|-----|-------|------|
+| Mon | security-review | 1 (in-market apps) |
+| Tue | ux-layout-review | 1 |
+| Wed | bug-hunt-review | 1 |
+| Thu | content-value-review | 1 |
+| Fri | polish-brand-review | 1 |
+| Sat | Rotating (week % 5) | 2 (scaffolded projects) |
+| Sun | weekly-cleanup + ops | 0 (all) |
 
-Design doc: `docs/plans/2026-01-23-executive-dashboard-design.md`
+## Project Tiers
+
+- **Tier 1** (in-market): sidelineiq, airtip, dosie, glossy-sports, mainline-apps, mainline-dashboard
+- **Tier 2** (scaffolded): gt-ops, menu-autopilot
+
+## Agent Budgets (Updated 2026-02-23)
+
+Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orchestrator $5.
+
+## Key Tables (Supabase)
+
+| Table | Purpose |
+|-------|---------|
+| `agents` | Roster: id, name, tier (1-4), status, budget_monthly |
+| `agent_runs_v2` | Run history: agent_id, project, status, cost, tokens |
+| `work_items` | All findings: status flow discovered→triaged→approved→in_progress→review→done |
+| `work_item_events` | Audit trail |
+| `agent_budget_summary` | View: per-agent monthly cost vs budget |
+
+## Secrets (GitHub Actions)
+
+- `ANTHROPIC_API_KEY` — Powers all `claude -p` calls. **If credits run out, entire pipeline silently fails.** Set auto-reload at console.anthropic.com.
+- `GH_PAT` — Clones private repos
+- `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — Reads/writes findings
+- `COMMAND_CENTER_URL` / `COMMAND_CENTER_API_KEY` — Posts to dashboard
+
+## Known Gotchas
+
+- **`claude -p` in while-read loops**: Must use fd 3 (`read -u 3`, `done 3<<<`) and `< /dev/null` to prevent stdin consumption. See skill: `claude-p-while-read-stdin-consumption`.
+- **Static fallback**: If orchestrator AI fails, workflow falls back to naive static roster. Check `"source": "static-fallback"` in roster JSON.
+- **Worker directory mismatch**: Workers look for projects at `projects/{name}` — monorepo subdirectories must be extracted correctly in clone step.
+- **Budget view uses current month**: `agent_budget_summary` resets monthly. Runs from prior months don't count against current budget.
 
 ## Recent Changes
 
-- **2026-02-20** — Added `strategic-portfolio-audit` agent: monthly first-Sunday audit scoring 10 dimensions per project (revenue, marketing, CI/CD, security, quality, agents, app store, financial, velocity, strategy). Produces tactical work items + strategic escalations via Command Center bulk API. Monthly self-gating in prompt.
-- **2026-02-17** — Added `business-synthesis` agent: Sunday cross-project weekly briefing (work item trends, costs, approval rates, neglected projects). Registry entry + COMMAND_CENTER env vars in workflow.
-- **2026-02-16** — Fixed glossy-sports clone failure (pointed to nonexistent repo). Added `subdir` support to registry + workflow for monorepo projects. Made clone step resilient (one failure no longer cascades).
-- **2026-02-15** — Fixed "No jobs were run" failure emails: added `push` trigger with `validate` job to nightly-review.yml so pushes to workflow/agent files show green instead of failing.
-
-## Current Status (2026-01-23)
-
-**Completed:**
-- [x] 15 Phase 1 agents installed
-- [x] inventory-health.ts and monday-briefing.ts verified working
-- [x] GT-IMS Command Center deployed (gt-ops.vercel.app/command-center)
-- [x] Executive Dashboard design document written
-- [x] **Agent Learning Loop Closed** (Ralph mission completed):
-  - Signal scores calculated on human decisions (60% decision, 20% recency, 20% priority)
-  - Similarity query finds past recommendations before generating new ones
-  - Few-shot examples formatted and included in recommendation reasoning
-  - 7-day deduplication prevents duplicate recommendations
-  - All 32 unit tests pass
-
-**Next Steps:**
-- [ ] Build Executive Dashboard MVP (Priority 2)
-- [x] **Add prime directives to agents** (Priority 3) - ✅ COMPLETED 2026-01-23
-- [ ] Fix hardcoded demand value in inventory-health.ts (Priority 4)
-- [ ] Create legal-review.ts, research-request.ts, db-optimization.ts agent scripts
-
-### @clayparrish/agent-learning Package
-
-Shared npm package for agent learning capabilities:
-
-```
-packages/agent-learning/
-├── src/
-│   ├── scoring/signal-score.ts      # calculateSignalScore()
-│   ├── learning/
-│   │   ├── similarity.ts            # findSimilarRecommendations()
-│   │   └── few-shot.ts              # formatExamplesForPrompt()
-│   ├── embeddings/generate.ts       # generateEmbedding()
-│   ├── directives/
-│   │   ├── types.ts                 # Directive, DirectiveContext, Violation
-│   │   └── check.ts                 # checkDirectives(), formatViolations()
-│   └── db/connection.ts             # Database connection helpers
-└── dist/                            # Compiled output (use this for imports)
-```
-
-### Agent Prime Directives (Added 2026-01-23)
-
-Guardrails that prevent agent drift by flagging violations for human review:
-
-**Config:** `config/agents/prime-directives.ts`
-
-**Universal Directives (all agents):**
-- `cite-source` - Must cite data source for every recommendation
-- `flag-uncertainty` - Flag when confidence < 80%
-- `human-reasoning` - Include human-readable reasoning (>20 chars)
-
-**Agent-Specific Directives:**
-- INVENTORY: `fresh-data` (data < 7 days), `realistic-demand` (CRM-based)
-- LEGAL: `no-advice` (flag only, never provide legal advice)
-- RESEARCH: `cite-sources` (must include URLs)
-
-**Enforcement:** Soft - violations set `needsVerification=true` and populate `violationReason` for Command Center review.
-
-**Usage in venture projects:**
-```json
-// package.json
-"dependencies": {
-  "@clayparrish/agent-learning": "file:../../infrastructure/packages/agent-learning"
-}
-```
-
-**Note:** Next.js 16 requires webpack config for `file:` linked packages. See skill: `nextjs-exclude-scripts-from-build`
-
-## Development
-
-```bash
-cd /Volumes/Lexar/Projects/infrastructure
-
-# Agent configs
-cat config/agents/phase-1-config.ts
-
-# View design docs
-ls docs/plans/
-```
-
-## Related Projects
-
-| Project | Path | Relationship |
-|---------|------|--------------|
-| GT-Ops | /Volumes/Lexar/Projects/Gallant Tiger/gt-ops | Primary test bed, has working agents |
-| Menu Autopilot | /Volumes/Lexar/Projects/Apolis/menu-autopilot | Future agent integration |
-| AirTip | /Volumes/Lexar/Projects/Apolis/menu-autopilot (at /tips) | Future agent integration |
-| SidelineIQ | /Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq | Future agent integration |
-| Dosie | /Volumes/Lexar/Projects/Personal/Dosie/web | Future agent integration |
-
-
-## Org Documentation Governance (3-Tier)
-<!-- ORG_DOCS_3_TIER_POLICY -->
-
-For non-trivial tasks, persist context to Markdown before finishing. Do not leave critical context only in chat.
-
-Use one tier per note:
-1. `canonical`: long-lived source of truth; requires `owner` and recurring `review_by`; `expires_at` should be `none`.
-2. `operational`: medium-lived project context; requires both `review_by` and `expires_at`; default TTL 30 days.
-3. `ephemeral`: short-lived scratch context; requires both `review_by` and `expires_at`; default TTL 7 days.
-
-Required front matter on governed notes:
-
-```md
----
-type: canonical|operational|ephemeral
-owner: <team-or-person>
-created_at: YYYY-MM-DD
-review_by: YYYY-MM-DD
-expires_at: YYYY-MM-DD|none
-source_of_truth: <canonical file/link/ticket>
-status: active|superseded|expired
----
-```
-
-Preferred path: `docs/knowledge/{canonical|operational|ephemeral}`.
-Archive stale/superseded notes to `docs/knowledge/archive` and update `status`.
-
-Run `/Volumes/Lexar/Projects/scripts/check-stale-docs.sh` before major handoffs.
+- **2026-02-23** — Fixed while-read loop bug: `claude -p` consumed stdin, causing reviews to process only 1 roster entry. Fixed with fd 3 + `< /dev/null`. Updated agent budgets to match actual usage ($38→$60/mo). Diagnosed 5-day outage caused by Anthropic API credit exhaustion.
+- **2026-02-22** — Added ASO & retention review agents, fixed logs artifact download.
+- **2026-02-20** — Added DRY_RUN input, strategic-portfolio-audit agent, business-synthesis agent.
+- **2026-02-17** — Added business-synthesis agent for Sunday weekly briefings.
+- **2026-02-16** — Fixed glossy-sports clone failure, added monorepo subdir support.
