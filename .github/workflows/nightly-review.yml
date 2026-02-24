@@ -614,6 +614,42 @@ jobs:
               continue
             fi
 
+            # Hard budget enforcement — skip if agent exceeds monthly budget
+            BUDGET_CHECK=$(curl -s \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              "$SUPABASE_URL/rest/v1/agent_budget_summary?agent_id=eq.$AGENT_ID&select=budget_monthly,cost_this_month,budget_pct_used" \
+              | python3 -c "
+            import json, sys
+            data = json.load(sys.stdin)
+            if not data:
+                print('ok|0|0|0')
+            else:
+                row = data[0]
+                budget = float(row.get('budget_monthly') or 0)
+                cost = float(row.get('cost_this_month') or 0)
+                pct = float(row.get('budget_pct_used') or 0)
+                if budget > 0 and pct >= 95:
+                    print(f'block|{budget}|{cost}|{pct:.1f}')
+                elif budget > 0 and pct >= 80:
+                    print(f'warn|{budget}|{cost}|{pct:.1f}')
+                else:
+                    print(f'ok|{budget}|{cost}|{pct:.1f}')
+            " 2>/dev/null || echo "ok|0|0|0")
+
+            BUDGET_STATUS=$(echo "$BUDGET_CHECK" | cut -d'|' -f1)
+            BUDGET_LIMIT=$(echo "$BUDGET_CHECK" | cut -d'|' -f2)
+            BUDGET_SPENT=$(echo "$BUDGET_CHECK" | cut -d'|' -f3)
+            BUDGET_PCT=$(echo "$BUDGET_CHECK" | cut -d'|' -f4)
+
+            if [ "$BUDGET_STATUS" = "block" ]; then
+              echo "SKIP: $AGENT_ID over budget ($BUDGET_PCT% of \$$BUDGET_LIMIT used, \$$BUDGET_SPENT spent)"
+              SKIP_COUNT=$((SKIP_COUNT + 1))
+              continue
+            elif [ "$BUDGET_STATUS" = "warn" ]; then
+              echo "WARNING: $AGENT_ID at $BUDGET_PCT% of \$$BUDGET_LIMIT budget (\$$BUDGET_SPENT spent) — running anyway"
+            fi
+
             # Determine prompt file
             if [ "$AGENT_ID" = "weekly-cleanup" ]; then
               PROMPT_FILE="$WORKSPACE/agents/ops/weekly-cleanup.md"

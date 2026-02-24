@@ -63,6 +63,133 @@ const AGENT_CATEGORY: Record<string, string> = {
   'weekly-cleanup': 'ops',
 };
 
+// =============================================================================
+// Shadow Recommender — generates system_recommendation for L2+ categories
+// Mirrors dashboard/src/lib/server/shadow-recommender.ts logic
+// =============================================================================
+
+async function applyRecommendation(
+  supabase: ReturnType<typeof createClient>,
+  workItemId: string,
+  category: string,
+  project: string
+): Promise<void> {
+  // Check autonomy level
+  const { data: rule } = await supabase
+    .from('autonomy_rules')
+    .select('current_level')
+    .eq('decision_category', category)
+    .single();
+
+  if (!rule || (rule.current_level || 1) < 2) return;
+
+  // Get recent decisions for pattern matching
+  const { data: recentDecisions } = await supabase
+    .from('decision_log')
+    .select('decision, priority, project')
+    .eq('decision_category', category)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (!recentDecisions || recentDecisions.length < 5) return;
+
+  // Compute outcome counts
+  const approvals = recentDecisions.filter(d => d.decision === 'approved').length;
+  const rejections = recentDecisions.filter(d => d.decision === 'rejected').length;
+  const deferrals = recentDecisions.filter(d => d.decision === 'deferred').length;
+  const total = recentDecisions.length;
+
+  const approvalRate = approvals / total;
+  const rejectionRate = rejections / total;
+  const deferralRate = deferrals / total;
+
+  // Project-specific refinement (70% category-wide, 30% project-specific)
+  const sameProject = recentDecisions.filter(d => d.project === project);
+  let projectApprovalRate = approvalRate;
+  if (sameProject.length >= 3) {
+    projectApprovalRate = sameProject.filter(d => d.decision === 'approved').length / sameProject.length;
+  }
+  const weightedApprovalRate = 0.7 * approvalRate + 0.3 * projectApprovalRate;
+
+  // Determine recommendation
+  let recommendation: string;
+  let confidence: number;
+
+  if (weightedApprovalRate >= 0.70) {
+    recommendation = 'approved';
+    confidence = Math.min(0.95, 0.5 + (weightedApprovalRate - 0.5));
+  } else if (rejectionRate >= 0.50) {
+    recommendation = 'rejected';
+    confidence = Math.min(0.90, 0.4 + rejectionRate * 0.5);
+  } else if (deferralRate >= 0.40) {
+    recommendation = 'deferred';
+    confidence = Math.min(0.80, 0.3 + deferralRate * 0.5);
+  } else {
+    recommendation = 'approved';
+    confidence = 0.4 + (approvalRate * 0.3);
+  }
+
+  // Boost confidence with more data
+  const dataSizeBoost = Math.min(0.1, (total - 5) * 0.005);
+  confidence = Math.min(0.95, Math.round((confidence + dataSizeBoost) * 100) / 100);
+
+  // Update work item with recommendation
+  const { error } = await supabase
+    .from('work_items')
+    .update({
+      system_recommendation: recommendation,
+      system_confidence: confidence,
+    })
+    .eq('id', workItemId);
+
+  if (!error) {
+    console.log(`      Shadow: ${recommendation} (${(confidence * 100).toFixed(0)}%)`);
+  }
+}
+
+// =============================================================================
+// Auto-Approve — auto-approves findings for L3+ categories
+// Mirrors dashboard/src/lib/server/auto-approve.ts logic
+// =============================================================================
+
+async function maybeAutoApprove(
+  supabase: ReturnType<typeof createClient>,
+  workItemId: string,
+  category: string
+): Promise<void> {
+  const { data: rule } = await supabase
+    .from('autonomy_rules')
+    .select('current_level')
+    .eq('decision_category', category)
+    .single();
+
+  if (!rule || (rule.current_level || 1) < 3) return;
+
+  // Auto-approve
+  const { error } = await supabase
+    .from('work_items')
+    .update({ status: 'approved' })
+    .eq('id', workItemId);
+
+  if (error) return;
+
+  // Log event
+  await supabase.from('work_item_events').insert({
+    work_item_id: workItemId,
+    event_type: 'auto_approved',
+    from_status: 'discovered',
+    to_status: 'approved',
+    actor: 'system',
+    actor_type: 'system',
+    notes: `Autonomy L${rule.current_level}: auto-approved for category ${category}`,
+  });
+
+  // Update autonomy metrics
+  await supabase.rpc('update_autonomy_metrics', { p_category: category });
+
+  console.log(`      Auto-approved (L${rule.current_level})`);
+}
+
 function loadEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   try {
@@ -226,6 +353,20 @@ async function syncProject(supabase: ReturnType<typeof createClient>, project: s
 
             if (eventError) {
               console.log(`    Error inserting work_item_event for ${finding.id}: ${eventError.message}`);
+            }
+
+            // L2+ Shadow recommendation — records what system would decide
+            try {
+              await applyRecommendation(supabase, workItem.id, decisionCategory, project);
+            } catch (e) {
+              console.log(`      Recommendation error (non-blocking): ${e}`);
+            }
+
+            // L3+ Auto-approve — bypasses human gate
+            try {
+              await maybeAutoApprove(supabase, workItem.id, decisionCategory);
+            } catch (e) {
+              console.log(`      Auto-approve error (non-blocking): ${e}`);
             }
           }
         }
