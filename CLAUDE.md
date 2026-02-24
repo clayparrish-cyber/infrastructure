@@ -95,8 +95,128 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
+- **2026-02-24** — Added `credit-check` job to nightly pipeline: probes Anthropic API before running agents, gates entire pipeline on credit availability, alerts Command Center on exhaustion.
 - **2026-02-23** — Fixed while-read loop bug: `claude -p` consumed stdin, causing reviews to process only 1 roster entry. Fixed with fd 3 + `< /dev/null`. Updated agent budgets to match actual usage ($38→$60/mo). Diagnosed 5-day outage caused by Anthropic API credit exhaustion.
 - **2026-02-22** — Added ASO & retention review agents, fixed logs artifact download.
 - **2026-02-20** — Added DRY_RUN input, strategic-portfolio-audit agent, business-synthesis agent.
 - **2026-02-17** — Added business-synthesis agent for Sunday weekly briefings.
-- **2026-02-16** — Fixed glossy-sports clone failure, added monorepo subdir support.
+
+## Current Status (2026-01-23)
+
+**Completed:**
+- [x] 15 Phase 1 agents installed
+- [x] inventory-health.ts and monday-briefing.ts verified working
+- [x] GT-IMS Command Center deployed (gt-ops.vercel.app/command-center)
+- [x] Executive Dashboard design document written
+- [x] **Agent Learning Loop Closed** (Ralph mission completed):
+  - Signal scores calculated on human decisions (60% decision, 20% recency, 20% priority)
+  - Similarity query finds past recommendations before generating new ones
+  - Few-shot examples formatted and included in recommendation reasoning
+  - 7-day deduplication prevents duplicate recommendations
+  - All 32 unit tests pass
+
+**Next Steps:**
+- [ ] Build Executive Dashboard MVP (Priority 2)
+- [x] **Add prime directives to agents** (Priority 3) - ✅ COMPLETED 2026-01-23
+- [ ] Fix hardcoded demand value in inventory-health.ts (Priority 4)
+- [ ] Create legal-review.ts, research-request.ts, db-optimization.ts agent scripts
+
+### @clayparrish/agent-learning Package
+
+Shared npm package for agent learning capabilities:
+
+```
+packages/agent-learning/
+├── src/
+│   ├── scoring/signal-score.ts      # calculateSignalScore()
+│   ├── learning/
+│   │   ├── similarity.ts            # findSimilarRecommendations()
+│   │   └── few-shot.ts              # formatExamplesForPrompt()
+│   ├── embeddings/generate.ts       # generateEmbedding()
+│   ├── directives/
+│   │   ├── types.ts                 # Directive, DirectiveContext, Violation
+│   │   └── check.ts                 # checkDirectives(), formatViolations()
+│   └── db/connection.ts             # Database connection helpers
+└── dist/                            # Compiled output (use this for imports)
+```
+
+### Agent Prime Directives (Added 2026-01-23)
+
+Guardrails that prevent agent drift by flagging violations for human review:
+
+**Config:** `config/agents/prime-directives.ts`
+
+**Universal Directives (all agents):**
+- `cite-source` - Must cite data source for every recommendation
+- `flag-uncertainty` - Flag when confidence < 80%
+- `human-reasoning` - Include human-readable reasoning (>20 chars)
+
+**Agent-Specific Directives:**
+- INVENTORY: `fresh-data` (data < 7 days), `realistic-demand` (CRM-based)
+- LEGAL: `no-advice` (flag only, never provide legal advice)
+- RESEARCH: `cite-sources` (must include URLs)
+
+**Enforcement:** Soft - violations set `needsVerification=true` and populate `violationReason` for Command Center review.
+
+**Usage in venture projects:**
+```json
+// package.json
+"dependencies": {
+  "@clayparrish/agent-learning": "file:../../infrastructure/packages/agent-learning"
+}
+```
+
+**Note:** Next.js 16 requires webpack config for `file:` linked packages. See skill: `nextjs-exclude-scripts-from-build`
+
+## Development
+
+```bash
+cd /Volumes/Lexar/Projects/infrastructure
+
+# Agent configs
+cat config/agents/phase-1-config.ts
+
+# View design docs
+ls docs/plans/
+```
+
+## Related Projects
+
+| Project | Path | Relationship |
+|---------|------|--------------|
+| GT-Ops | /Volumes/Lexar/Projects/Gallant Tiger/gt-ops | Primary test bed, has working agents |
+| Menu Autopilot | /Volumes/Lexar/Projects/Apolis/menu-autopilot | Future agent integration |
+| AirTip | /Volumes/Lexar/Projects/Apolis/menu-autopilot (at /tips) | Future agent integration |
+| SidelineIQ | /Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq | Future agent integration |
+| Dosie | /Volumes/Lexar/Projects/Personal/Dosie/web | Future agent integration |
+
+
+## Org Documentation Governance (3-Tier)
+<!-- ORG_DOCS_3_TIER_POLICY -->
+
+For non-trivial tasks, persist context to Markdown before finishing. Do not leave critical context only in chat.
+
+Use one tier per note:
+1. `canonical`: long-lived source of truth; requires `owner` and recurring `review_by`; `expires_at` should be `none`.
+2. `operational`: medium-lived project context; requires both `review_by` and `expires_at`; default TTL 30 days.
+3. `ephemeral`: short-lived scratch context; requires both `review_by` and `expires_at`; default TTL 7 days.
+
+Required front matter on governed notes:
+
+```md
+---
+type: canonical|operational|ephemeral
+owner: <team-or-person>
+created_at: YYYY-MM-DD
+review_by: YYYY-MM-DD
+expires_at: YYYY-MM-DD|none
+source_of_truth: <canonical file/link/ticket>
+status: active|superseded|expired
+---
+```
+
+Preferred path: `docs/knowledge/{canonical|operational|ephemeral}`.
+Archive stale/superseded notes to `docs/knowledge/archive` and update `status`.
+
+Run `/Volumes/Lexar/Projects/scripts/check-stale-docs.sh` before major handoffs.
+

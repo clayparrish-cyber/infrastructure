@@ -43,10 +43,144 @@ jobs:
         run: echo "Workflow file validated successfully"
 
   # ─────────────────────────────────────────────
+  # Job 0.5: Credit balance health check
+  # ─────────────────────────────────────────────
+  credit-check:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      credits_ok: ${{ steps.check.outputs.credits_ok }}
+      balance_warning: ${{ steps.check.outputs.balance_warning }}
+    steps:
+      - name: Check Anthropic API credit health
+        id: check
+        env:
+          ANTHROPIC_ADMIN_API_KEY: ${{ secrets.ANTHROPIC_ADMIN_API_KEY }}
+        run: |
+          echo "=== Anthropic Credit Health Check ==="
+
+          CREDITS_OK="true"
+          BALANCE_WARNING=""
+
+          # ── Strategy 1: Admin API cost report (if admin key available) ──
+          if [ -n "$ANTHROPIC_ADMIN_API_KEY" ]; then
+            echo "Admin API key found — checking recent spend..."
+
+            # Get cost for last 7 days
+            START_DATE=$(date -u -d '7 days ago' +%Y-%m-%dT00:00:00Z)
+            END_DATE=$(date -u +%Y-%m-%dT23:59:59Z)
+
+            COST_RESPONSE=$(curl -s -w "\n%{http_code}" \
+              -H "x-api-key: $ANTHROPIC_ADMIN_API_KEY" \
+              -H "anthropic-version: 2023-06-01" \
+              "https://api.anthropic.com/v1/organizations/cost_report?starting_at=${START_DATE}&ending_at=${END_DATE}")
+
+            HTTP_CODE=$(echo "$COST_RESPONSE" | tail -1)
+            RESPONSE_BODY=$(echo "$COST_RESPONSE" | head -n -1)
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Cost report retrieved successfully"
+              echo "$RESPONSE_BODY" | python3 -c "
+          import json, sys
+          try:
+              data = json.load(sys.stdin)
+              total_cents = 0
+              for item in data.get('data', []):
+                  for cost in item.get('costs', []):
+                      total_cents += int(cost.get('amount', '0'))
+              total_usd = total_cents / 100
+              print(f'7-day spend: \${total_usd:.2f} USD')
+          except Exception as e:
+              print(f'Could not parse cost report: {e}')
+          " || true
+            elif [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
+              echo "WARNING: Admin API key is invalid or lacks permissions (HTTP $HTTP_CODE)"
+              echo "Falling back to lightweight API probe..."
+            else
+              echo "WARNING: Cost report returned HTTP $HTTP_CODE"
+            fi
+          else
+            echo "No ANTHROPIC_ADMIN_API_KEY set — skipping cost report check"
+          fi
+
+          # ── Strategy 2: Lightweight API probe (always run) ──
+          # Send a minimal count_tokens request to verify the API key works
+          # and credits are sufficient. This costs essentially nothing.
+          echo ""
+          echo "Running lightweight API probe..."
+
+          PROBE_RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d '{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"hi"}]}' \
+            "https://api.anthropic.com/v1/messages/count_tokens")
+
+          PROBE_HTTP=$(echo "$PROBE_RESPONSE" | tail -1)
+          PROBE_BODY=$(echo "$PROBE_RESPONSE" | head -n -1)
+
+          case "$PROBE_HTTP" in
+            200)
+              echo "API probe: OK (credits available, key valid)"
+              ;;
+            402)
+              echo "CRITICAL: API returned 402 — credit balance exhausted!"
+              CREDITS_OK="false"
+              BALANCE_WARNING="Anthropic API credits exhausted (402). Nightly agents cannot run. Enable auto-reload at https://console.anthropic.com/settings/billing"
+              ;;
+            401)
+              echo "CRITICAL: API returned 401 — API key invalid or expired!"
+              CREDITS_OK="false"
+              BALANCE_WARNING="Anthropic API key invalid or expired (401). Check ANTHROPIC_API_KEY secret."
+              ;;
+            429)
+              echo "WARNING: API returned 429 — rate limited. Credits likely OK but hitting limits."
+              BALANCE_WARNING="Anthropic API rate limited (429). Agents may experience throttling."
+              ;;
+            *)
+              echo "WARNING: API probe returned unexpected HTTP $PROBE_HTTP"
+              echo "Response: $PROBE_BODY"
+              # Don't block on unexpected responses — might be transient
+              BALANCE_WARNING="Anthropic API probe returned HTTP $PROBE_HTTP. Check logs."
+              ;;
+          esac
+
+          # ── Output results ──
+          echo "credits_ok=$CREDITS_OK" >> "$GITHUB_OUTPUT"
+          echo "balance_warning=$BALANCE_WARNING" >> "$GITHUB_OUTPUT"
+
+          # ── Alert Command Center if there's a warning ──
+          if [ -n "$BALANCE_WARNING" ] && [ -n "$COMMAND_CENTER_URL" ] && [ -n "$COMMAND_CENTER_API_KEY" ]; then
+            echo ""
+            echo "Sending alert to Command Center..."
+
+            ALERT_PRIORITY="medium"
+            if [ "$CREDITS_OK" = "false" ]; then
+              ALERT_PRIORITY="high"
+            fi
+            ALERT_DATE=$(date +%Y-%m-%d)
+
+            curl -s -X POST "$COMMAND_CENTER_URL/api/work-items" \
+              -H "Content-Type: application/json" \
+              -H "x-api-key: $COMMAND_CENTER_API_KEY" \
+              -d "{\"items\":[{\"title\":\"Anthropic API Credit Alert — $ALERT_DATE\",\"description\":\"$BALANCE_WARNING\",\"project\":\"infrastructure\",\"priority\":\"$ALERT_PRIORITY\",\"status\":\"discovered\",\"source_type\":\"agent\",\"created_by\":\"credit-check-bot\"}]}" \
+              || echo "WARNING: Failed to send alert to Command Center"
+          fi
+
+          if [ "$CREDITS_OK" = "false" ]; then
+            echo ""
+            echo "============================================"
+            echo "ABORTING: Credits exhausted. Skipping nightly run."
+            echo "Fix: Enable auto-reload at https://console.anthropic.com/settings/billing"
+            echo "============================================"
+          fi
+
+  # ─────────────────────────────────────────────
   # Job 1: Determine today's schedule
   # ─────────────────────────────────────────────
   setup:
-    if: github.event_name != 'push'
+    if: github.event_name != 'push' && needs.credit-check.outputs.credits_ok != 'false'
+    needs: credit-check
     runs-on: ubuntu-latest
     outputs:
       date: ${{ steps.schedule.outputs.date }}
@@ -598,7 +732,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     needs: [setup, reviews]
-    if: always() && needs.reviews.result != 'cancelled'
+    if: always() && needs.setup.result == 'success' && needs.reviews.result != 'cancelled'
     steps:
       - name: Checkout infrastructure repo
         uses: actions/checkout@v4
@@ -679,7 +813,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [setup, clone-projects, sync]
-    if: always() && needs.sync.result != 'cancelled' && needs.sync.result != 'failure'
+    if: always() && needs.setup.result == 'success' && needs.sync.result != 'cancelled' && needs.sync.result != 'failure'
     steps:
       - name: Checkout infrastructure repo
         uses: actions/checkout@v4
@@ -747,7 +881,7 @@ jobs:
   reconcile:
     runs-on: ubuntu-latest
     needs: [setup, clone-projects, sync]
-    if: always() && needs.sync.result == 'success'
+    if: always() && needs.setup.result == 'success' && needs.sync.result == 'success'
     steps:
       - name: Checkout infrastructure repo
         uses: actions/checkout@v4
