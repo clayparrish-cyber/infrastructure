@@ -954,6 +954,30 @@ jobs:
             echo "Found stale approved items — running reconciliation agent"
           fi
 
+      - name: Evaluate autonomy levels (graduation + demotion)
+        run: |
+          echo "Running autonomy evaluation loop..."
+          RESULT=$(curl -s -X POST \
+            "https://app.mainlineapps.com/api/autonomy/evaluate" \
+            -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
+            -H "Content-Type: application/json")
+
+          echo "$RESULT" | python3 -c "
+          import json, sys
+          try:
+              data = json.load(sys.stdin)
+              promotions = data.get('promotions', [])
+              demotions = data.get('demotions', [])
+              unchanged = data.get('unchanged', 0)
+              print(f'Autonomy evaluation: {len(promotions)} promotions, {len(demotions)} demotions, {unchanged} unchanged')
+              for p in promotions:
+                  print(f'  PROMOTED: {p[\"category\"]} L{p[\"from\"]} → L{p[\"to\"]}')
+              for d in demotions:
+                  print(f'  DEMOTED: {d[\"category\"]} L{d[\"from\"]} → L{d[\"to\"]}')
+          except Exception as e:
+              print(f'Evaluation response: {e}')
+          " 2>/dev/null || echo "Autonomy evaluation skipped (API not reachable)"
+
       - name: Create logs directory
         if: steps.check-stale.outputs.stale_count != '0'
         run: mkdir -p logs
