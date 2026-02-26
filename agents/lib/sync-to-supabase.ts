@@ -99,7 +99,7 @@ async function applyRecommendation(
   if (!recentDecisions || recentDecisions.length < 5) return;
 
   // Compute outcome counts
-  const approvals = recentDecisions.filter((d: any) => d.decision === 'approved').length;
+  const approvals = recentDecisions.filter((d: any) => d.decision === 'approved' || d.decision === 'acknowledged').length;
   const rejections = recentDecisions.filter((d: any) => d.decision === 'rejected').length;
   const deferrals = recentDecisions.filter((d: any) => d.decision === 'deferred').length;
   const total = recentDecisions.length;
