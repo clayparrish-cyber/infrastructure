@@ -4,7 +4,7 @@
 # Usage: ./work-loop-manager.sh [--max-items N]
 #
 # Required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
-# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, EXECUTION_MODE
+# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, EXECUTION_MODE, NIGHTLY_COST_CAP
 
 set -euo pipefail
 
@@ -14,6 +14,8 @@ PROJECTS_DIR="${PROJECTS_DIR:-projects}"
 WORKER_PROMPT="${WORKER_PROMPT:-agents/workers/implement-finding.md}"
 REGISTRY="${REGISTRY:-agents/registry.json}"
 LOG_DIR="${LOG_DIR:-logs}"
+NIGHTLY_COST_CAP="${NIGHTLY_COST_CAP:-10.00}"
+CUMULATIVE_COST="0"
 DATE=$(date +%Y-%m-%d)
 
 while [ $# -gt 0 ]; do
@@ -245,6 +247,8 @@ cost = data.get('cost_usd', 0)
 print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
 " 2>/dev/null)" || true
       log "USAGE: $short_id — ${tokens_input}+${tokens_output} tokens, \$${cost_usd}"
+      # Write cost to shared file for governor
+      echo "$cost_usd" > "$COST_FILE" 2>/dev/null || true
     fi
 
     # Extract markers from output
@@ -312,12 +316,29 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
 
 log "=== Work Loop Manager starting (max_items=$MAX_ITEMS, mode=$EXECUTION_MODE) ==="
 
+# Log manager run start to agent_runs_v2
+MANAGER_RUN_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+curl -s \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"agent_id\":\"work-loop-manager\",\"project\":\"all\",\"trigger\":\"github_actions\",\"status\":\"running\",\"started_at\":\"$MANAGER_RUN_START\"}" \
+  "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
+
 # Fetch approved items
 ITEMS=$(fetch_approved_items)
 ITEM_COUNT=$(echo "$ITEMS" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
 
 if [ "$ITEM_COUNT" -eq 0 ]; then
   log "No approved work items to process. Exiting."
+  # Mark manager run as completed (no-op run)
+  curl -s -X PATCH \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Content-Type: application/json" \
+    -H "Prefer: return=minimal" \
+    -d "{\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"findings_count\":0}" \
+    "$SUPABASE_URL/rest/v1/agent_runs_v2?agent_id=eq.work-loop-manager&started_at=eq.$MANAGER_RUN_START" || true
   exit 0
 fi
 
@@ -325,6 +346,8 @@ log "Found $ITEM_COUNT approved work item(s) to process"
 
 # Write items to temp file (avoids subshell issues with piped while loops)
 ITEMS_FILE=$(mktemp)
+COST_FILE=$(mktemp)
+echo "0" > "$COST_FILE"
 echo "$ITEMS" | python3 -c "
 import sys, json
 items = json.load(sys.stdin)
@@ -336,8 +359,31 @@ for item in items:
 while IFS= read -r item_json; do
   [ -z "$item_json" ] && continue
   run_worker "$item_json" || true
+
+  # Accumulate cost from last worker run
+  LAST_COST=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+  CUMULATIVE_COST=$(python3 -c "print(round($CUMULATIVE_COST + ${LAST_COST:-0}, 4))" 2>/dev/null || echo "$CUMULATIVE_COST")
+  echo "0" > "$COST_FILE"
+
+  # Check cost cap
+  if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+    log "COST CAP: Cumulative cost \$$CUMULATIVE_COST exceeds nightly cap \$$NIGHTLY_COST_CAP — stopping"
+    break
+  fi
 done < "$ITEMS_FILE"
 
 rm -f "$ITEMS_FILE"
+rm -f "$COST_FILE"
+
+log "Cumulative worker cost: \$$CUMULATIVE_COST (cap: \$$NIGHTLY_COST_CAP)"
+
+# Log manager run completion
+curl -s -X PATCH \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=minimal" \
+  -d "{\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"findings_count\":$ITEM_COUNT}" \
+  "$SUPABASE_URL/rest/v1/agent_runs_v2?agent_id=eq.work-loop-manager&started_at=eq.$MANAGER_RUN_START" || true
 
 log "=== Work Loop Manager complete ==="
