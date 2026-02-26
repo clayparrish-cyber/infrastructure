@@ -244,6 +244,14 @@
       "maxTurns": 80,
       "depth": "adaptive",
       "description": "Monthly cross-entity portfolio audit: 10-dimension assessment for Mainline Apps, reduced scope for GT/Apolis. Produces tactical work items and strategic escalations."
+    },
+    {
+      "id": "evaluator",
+      "name": "Agent Evaluator",
+      "category": "ops",
+      "schedule": { "day": "sunday", "tiers": [0] },
+      "maxTurns": 40,
+      "description": "Weekly meta-analysis of agent performance: push-harder flags, calibration drift, cost efficiency, coverage gaps, L3+ override patterns."
     }
   ]
 }

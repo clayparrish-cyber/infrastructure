@@ -49,7 +49,7 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 | Thu | content-value-review | competitive-intel (even) |
 | Fri | security-review | polish-brand-review (odd) |
 | Sat | performance-review (even) + tier2-rotating | — |
-| Sun | weekly-cleanup + business-synthesis + strategic-portfolio-audit | — |
+| Sun | weekly-cleanup + business-synthesis + evaluator + strategic-portfolio-audit | — |
 
 ## Output
 
