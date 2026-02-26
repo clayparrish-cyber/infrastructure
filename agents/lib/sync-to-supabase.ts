@@ -18,6 +18,8 @@ import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
 
+type SupabaseClientLike = any;
+
 const REGISTRY_PATH = process.env.REGISTRY_PATH
   || path.join(process.env.HOME || '', '.claude', 'agents', 'registry.json');
 const REPORTS_DIR = process.env.REPORTS_DIR
@@ -69,7 +71,7 @@ const AGENT_CATEGORY: Record<string, string> = {
 // =============================================================================
 
 async function applyRecommendation(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientLike,
   workItemId: string,
   category: string,
   project: string
@@ -97,9 +99,9 @@ async function applyRecommendation(
   if (!recentDecisions || recentDecisions.length < 5) return;
 
   // Compute outcome counts
-  const approvals = recentDecisions.filter(d => d.decision === 'approved').length;
-  const rejections = recentDecisions.filter(d => d.decision === 'rejected').length;
-  const deferrals = recentDecisions.filter(d => d.decision === 'deferred').length;
+  const approvals = recentDecisions.filter((d: any) => d.decision === 'approved').length;
+  const rejections = recentDecisions.filter((d: any) => d.decision === 'rejected').length;
+  const deferrals = recentDecisions.filter((d: any) => d.decision === 'deferred').length;
   const total = recentDecisions.length;
 
   const approvalRate = approvals / total;
@@ -107,10 +109,10 @@ async function applyRecommendation(
   const deferralRate = deferrals / total;
 
   // Project-specific refinement (70% category-wide, 30% project-specific)
-  const sameProject = recentDecisions.filter(d => d.project === project);
+  const sameProject = recentDecisions.filter((d: any) => d.project === project);
   let projectApprovalRate = approvalRate;
   if (sameProject.length >= 3) {
-    projectApprovalRate = sameProject.filter(d => d.decision === 'approved').length / sameProject.length;
+    projectApprovalRate = sameProject.filter((d: any) => d.decision === 'approved').length / sameProject.length;
   }
   const weightedApprovalRate = 0.7 * approvalRate + 0.3 * projectApprovalRate;
 
@@ -156,7 +158,7 @@ async function applyRecommendation(
 // =============================================================================
 
 async function maybeAutoApprove(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClientLike,
   workItemId: string,
   category: string
 ): Promise<void> {
@@ -221,7 +223,7 @@ function loadEnv(): Record<string, string> {
   return env;
 }
 
-async function syncProject(supabase: ReturnType<typeof createClient>, project: string, date: string) {
+async function syncProject(supabase: SupabaseClientLike, project: string, date: string) {
   const projectDir = path.join(REPORTS_DIR, project);
 
   if (!fs.existsSync(projectDir)) {
@@ -498,7 +500,7 @@ async function main() {
     process.exit(1);
   }
 
-  const supabase = createClient(url, key, {
+  const supabase: SupabaseClientLike = createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
 

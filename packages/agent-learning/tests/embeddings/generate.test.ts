@@ -1,18 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { generateEmbedding, generateEmbeddings } from '../../src/embeddings/generate'
 
 // Mock OpenAI client
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    embeddings: {
-      create: vi.fn().mockImplementation(async (params) => {
+  default: class OpenAIMock {
+    embeddings = {
+      create: vi.fn().mockImplementation(async (params: { input: string | string[] }) => {
         const inputs = Array.isArray(params.input) ? params.input : [params.input]
         return {
           data: inputs.map(() => ({ embedding: new Array(1536).fill(0.1) })),
         }
       }),
-    },
-  })),
+    }
+  },
 }))
 
 describe('Embedding Generation', () => {
