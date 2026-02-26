@@ -102,7 +102,7 @@ fetch_approved_items() {
   raw=$(curl -s \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&order=created_at.asc&limit=100&select=id,title,description,project,priority,type,source_type,source_id,metadata")
+    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&system_recommendation=not.is.null&source_type=eq.agent&order=created_at.asc&limit=100&select=id,title,description,project,priority,type,source_type,source_id,metadata")
 
   # Sort by priority then take MAX_ITEMS
   echo "$raw" | python3 -c "
@@ -214,10 +214,38 @@ run_worker() {
 
   cd "$project_dir"
   set -o pipefail
-  if timeout 600 claude -p "$prompt" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null 2>&1 | tee "$output_file"; then
+  local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
+  if timeout 600 claude -p "$prompt" --max-turns 30 --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+    # Extract text content from JSON for marker parsing
+    python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+result = data.get('result', '')
+if isinstance(result, list):
+    result = '\n'.join(str(r.get('text', '')) if isinstance(r, dict) else str(r) for r in result)
+print(result)
+" "$json_output" > "$output_file" 2>/dev/null || cp "$json_output" "$output_file"
+
     end_time=$(date +%s)
     duration=$((end_time - start_time))
     log "WORKER DONE: $short_id (${duration}s)"
+
+    # Extract usage telemetry
+    local tokens_input=0 tokens_output=0 cost_usd=0
+    if [ -f "$json_output" ]; then
+      eval "$(python3 -c "
+import json
+with open('$json_output') as f:
+    data = json.load(f)
+usage = data.get('usage', {})
+ti = usage.get('input_tokens', 0)
+to = usage.get('output_tokens', 0)
+cost = data.get('cost_usd', 0)
+print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
+" 2>/dev/null)" || true
+      log "USAGE: $short_id — ${tokens_input}+${tokens_output} tokens, \$${cost_usd}"
+    fi
 
     # Extract markers from output
     local proposed_diff execution_log branch_name already_resolved
@@ -225,6 +253,7 @@ run_worker() {
     execution_log=$(sed -n '/===EXECUTION_LOG_START===/,/===EXECUTION_LOG_END===/p' "$output_file" | sed '1d;$d' || echo "")
     branch_name=$(sed -n '/===BRANCH_NAME_START===/,/===BRANCH_NAME_END===/p' "$output_file" | sed '1d;$d' || echo "")
     already_resolved=$(grep -c '===ALREADY_RESOLVED===' "$output_file" || echo "0")
+    human_action=$(grep -c '===HUMAN_ACTION_REQUIRED===' "$output_file" || echo "0")
 
     if [ "$already_resolved" -gt 0 ]; then
       # Finding already fixed in current code — auto-close
@@ -233,6 +262,13 @@ run_worker() {
       update_work_item "$item_id" "{\"status\":\"done\",\"execution_log\":$log_escaped,\"assigned_to\":\"worker-agent\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "auto_closed" "in_progress" "done" "Worker verified finding already resolved in current code"
       log "AUTO-CLOSED: $short_id — already resolved"
+    elif [ "$human_action" -gt 0 ]; then
+      # Route back to triaged for human pickup
+      local log_escaped
+      log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined this requires human action}")
+      update_work_item "$item_id" "{\"status\":\"triaged\",\"assigned_to\":null,\"execution_log\":$log_escaped,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      insert_event "$item_id" "human_required" "in_progress" "triaged" "Worker determined this item requires human action — routing to triage"
+      log "HUMAN-ACTION: $short_id — routed to triage"
     elif [ -n "$proposed_diff" ]; then
       # Escape for JSON
       local diff_escaped log_escaped
@@ -265,7 +301,7 @@ run_worker() {
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Content-Type: application/json" \
-    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
+    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
     "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
 
   # Brief pause between workers

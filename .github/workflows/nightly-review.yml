@@ -874,7 +874,7 @@ jobs:
           ITEM_COUNT=$(curl -s \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&select=id&limit=1" \
+            "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&system_recommendation=not.is.null&source_type=eq.agent&select=id&limit=1" \
             | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
 
           echo "approved_count=$ITEM_COUNT" >> "$GITHUB_OUTPUT"
@@ -897,7 +897,7 @@ jobs:
           REGISTRY: ${{ github.workspace }}/agents/registry.json
           LOG_DIR: ${{ github.workspace }}/logs
           MAX_WORKER_ITEMS: '5'
-          EXECUTION_MODE: 'dry_run'
+          EXECUTION_MODE: 'live'
         run: |
           chmod +x ${{ github.workspace }}/agents/workers/work-loop-manager.sh
           ${{ github.workspace }}/agents/workers/work-loop-manager.sh
