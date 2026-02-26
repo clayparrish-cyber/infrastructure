@@ -74,6 +74,9 @@ async function applyRecommendation(
   category: string,
   project: string
 ): Promise<void> {
+  // Delegations are auto-approved by the creating agent — skip
+  if (category.startsWith('delegation-')) return;
+
   // Check autonomy level
   const { data: rule } = await supabase
     .from('autonomy_rules')
@@ -157,6 +160,9 @@ async function maybeAutoApprove(
   workItemId: string,
   category: string
 ): Promise<void> {
+  // Delegations are auto-approved by the creating agent — skip
+  if (category.startsWith('delegation-')) return;
+
   const { data: rule } = await supabase
     .from('autonomy_rules')
     .select('current_level')
@@ -374,6 +380,42 @@ async function syncProject(supabase: ReturnType<typeof createClient>, project: s
         // Count as synced if either insert succeeded (or was already present)
         if (!existing || !existingWorkItem) {
           synced++;
+        }
+      }
+
+      // Process delegation requests from scout agents
+      if (report.delegations && Array.isArray(report.delegations)) {
+        for (const delegation of report.delegations) {
+          if (!delegation.specialist || !delegation.title) continue;
+
+          const { data: delegationItem, error: delError } = await supabase
+            .from('work_items')
+            .insert({
+              type: 'delegation',
+              project,
+              title: delegation.title,
+              description: delegation.description || '',
+              status: 'approved', // Auto-approved — skip human gate
+              priority: delegation.priority || 'medium',
+              source_type: 'agent',
+              source_id: agentId,
+              created_by: agentId,
+              assigned_to: delegation.specialist,
+              decision_category: `delegation-${delegation.specialist}`,
+              metadata: {
+                requesting_agent: agentId,
+                delegation_context: delegation.context,
+                specialist: delegation.specialist,
+              },
+            })
+            .select('id')
+            .single();
+
+          if (delegationItem) {
+            console.log(`      Delegated to ${delegation.specialist}: ${delegation.title}`);
+          } else if (delError) {
+            console.warn(`      Delegation insert failed: ${delError.message}`);
+          }
         }
       }
 

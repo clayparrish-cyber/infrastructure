@@ -312,6 +312,259 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
   sleep 2
 }
 
+# ── Specialist Delegation Support ──
+
+# Specialist ID to prompt file mapping
+specialist_prompt_path() {
+  local specialist_id="$1"
+  case "$specialist_id" in
+    legal-advisor)        echo "agents/specialists/legal-review.md" ;;
+    marketing-analyst)    echo "agents/specialists/marketing-analysis.md" ;;
+    competitive-intel)    echo "agents/specialists/competitive-intel-analysis.md" ;;
+    business-analyst)     echo "agents/specialists/business-analysis.md" ;;
+    *)                    echo "" ;;
+  esac
+}
+
+# Fetch approved delegation work items from Supabase
+fetch_delegation_items() {
+  curl -s \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&type=eq.delegation&assigned_to=not.is.null&order=created_at.asc&limit=5&select=id,title,description,project,priority,type,source_type,source_id,assigned_to,metadata"
+}
+
+# Build specialist prompt from templates
+build_specialist_prompt() {
+  local item_json="$1"
+
+  echo "$item_json" | python3 << 'PYEOF'
+import json, sys, os
+
+item = json.load(sys.stdin)
+
+specialist_id = item.get('assigned_to', '')
+metadata = item.get('metadata', {}) or {}
+requesting_agent = metadata.get('requesting_agent', 'unknown')
+parent_id = metadata.get('parent_id', '')
+
+# Map specialist ID to prompt file
+specialist_map = {
+    'legal-advisor': 'agents/specialists/legal-review.md',
+    'marketing-analyst': 'agents/specialists/marketing-analysis.md',
+    'competitive-intel': 'agents/specialists/competitive-intel-analysis.md',
+    'business-analyst': 'agents/specialists/business-analysis.md',
+}
+
+specialist_prompt_path = specialist_map.get(specialist_id, '')
+dispatch_template_path = 'agents/workers/run-specialist.md'
+
+# Read templates
+try:
+    with open(dispatch_template_path) as f:
+        dispatch_template = f.read()
+except FileNotFoundError:
+    print(f"ERROR: Dispatch template not found: {dispatch_template_path}", file=sys.stderr)
+    sys.exit(1)
+
+specialist_prompt = ''
+if specialist_prompt_path:
+    try:
+        with open(specialist_prompt_path) as f:
+            specialist_prompt = f.read()
+    except FileNotFoundError:
+        print(f"WARNING: Specialist prompt not found: {specialist_prompt_path}", file=sys.stderr)
+
+replacements = {
+    '{{WORK_ITEM_ID}}': item['id'],
+    '{{TITLE}}': item.get('title', ''),
+    '{{DESCRIPTION}}': item.get('description') or 'No description',
+    '{{PROJECT}}': item.get('project', ''),
+    '{{REQUESTING_AGENT}}': requesting_agent,
+    '{{PARENT_ID}}': parent_id,
+    '{{SPECIALIST_ID}}': specialist_id,
+    '{{SPECIALIST_PROMPT_PATH}}': specialist_prompt_path,
+}
+
+for key, value in replacements.items():
+    dispatch_template = dispatch_template.replace(key, str(value))
+    specialist_prompt = specialist_prompt.replace(key, str(value))
+
+# Combine: dispatch template + specialist prompt
+combined = dispatch_template + '\n\n---\n\n' + specialist_prompt
+print(combined)
+PYEOF
+}
+
+# Run a specialist agent for a delegation work item
+run_specialist() {
+  local item_json="$1"
+  local item_id project specialist project_dir
+
+  item_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+  project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
+  specialist=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('assigned_to','unknown'))")
+  project_dir="$PROJECTS_DIR/$project"
+
+  if [ ! -d "$project_dir" ]; then
+    log "SKIP DELEGATION $item_id: project directory not found: $project_dir"
+    return 1
+  fi
+
+  # Verify specialist prompt exists
+  local prompt_file
+  prompt_file=$(specialist_prompt_path "$specialist")
+  if [ -z "$prompt_file" ] || [ ! -f "$prompt_file" ]; then
+    log "SKIP DELEGATION $item_id: unknown specialist '$specialist'"
+    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Unknown specialist: $specialist\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "worker_failed" "in_progress" "review" "Unknown specialist type: $specialist"
+    return 1
+  fi
+
+  local short_id
+  short_id=$(echo "$item_id" | cut -c1-8)
+  log "SPECIALIST START: $short_id ($project) — $specialist — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
+
+  # Mark as in_progress
+  update_work_item "$item_id" "{\"status\":\"in_progress\",\"execution_mode\":\"specialist\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+  insert_event "$item_id" "assigned" "approved" "in_progress" "Dispatched to specialist: $specialist"
+
+  # Build combined prompt
+  local prompt
+  prompt=$(build_specialist_prompt "$item_json")
+
+  # Run claude -p with timeout (10 minutes max per specialist)
+  local output_file="$LOG_DIR/$DATE-specialist-$short_id.log"
+  local start_time end_time duration
+
+  start_time=$(date +%s)
+
+  cd "$project_dir"
+  set -o pipefail
+  local json_output="$LOG_DIR/$DATE-specialist-$short_id-output.json"
+  if timeout 600 claude -p "$prompt" --max-turns 20 --output-format json --allowedTools "Read,Glob,Grep" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+    # Extract text content from JSON for marker parsing
+    python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+result = data.get('result', '')
+if isinstance(result, list):
+    result = '\n'.join(str(r.get('text', '')) if isinstance(r, dict) else str(r) for r in result)
+print(result)
+" "$json_output" > "$output_file" 2>/dev/null || cp "$json_output" "$output_file"
+
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    log "SPECIALIST DONE: $short_id (${duration}s)"
+
+    # Extract usage telemetry
+    local tokens_input=0 tokens_output=0 cost_usd=0
+    if [ -f "$json_output" ]; then
+      eval "$(python3 -c "
+import json
+with open('$json_output') as f:
+    data = json.load(f)
+usage = data.get('usage', {})
+ti = usage.get('input_tokens', 0)
+to = usage.get('output_tokens', 0)
+cost = data.get('cost_usd', 0)
+print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
+" 2>/dev/null)" || true
+      log "USAGE: $short_id — ${tokens_input}+${tokens_output} tokens, \$${cost_usd}"
+      echo "$cost_usd" > "$COST_FILE" 2>/dev/null || true
+    fi
+
+    # Extract markers from output
+    local analysis execution_log work_items_json
+    analysis=$(sed -n '/===ANALYSIS_START===/,/===ANALYSIS_END===/p' "$output_file" | sed '1d;$d' || echo "")
+    execution_log=$(sed -n '/===EXECUTION_LOG_START===/,/===EXECUTION_LOG_END===/p' "$output_file" | sed '1d;$d' || echo "")
+    work_items_json=$(sed -n '/===WORK_ITEMS_START===/,/===WORK_ITEMS_END===/p' "$output_file" | sed '1d;$d' || echo "[]")
+
+    # Combine analysis + execution_log for storage
+    local combined_log="${analysis}"
+    if [ -n "$execution_log" ]; then
+      combined_log="${combined_log}
+
+--- Execution Log ---
+${execution_log}"
+    fi
+
+    # Escape for JSON
+    local log_escaped
+    log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$combined_log")
+
+    # Update delegation item to done with analysis
+    update_work_item "$item_id" "{\"status\":\"done\",\"execution_log\":$log_escaped,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "specialist_completed" "in_progress" "done" "Specialist $specialist completed analysis"
+    log "SPECIALIST COMPLETE: $short_id — analysis stored"
+
+    # Create child work items if any
+    if [ -n "$work_items_json" ] && [ "$work_items_json" != "[]" ]; then
+      echo "$work_items_json" | python3 -c "
+import json, sys, os
+import urllib.request
+
+items = json.load(sys.stdin)
+if not isinstance(items, list):
+    sys.exit(0)
+
+url = os.environ['SUPABASE_URL'] + '/rest/v1/work_items'
+key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+project = '$project'
+parent_id = '$item_id'
+specialist = '$specialist'
+
+for item in items[:3]:  # Max 3 child items
+    payload = {
+        'type': item.get('type', 'task'),
+        'project': project,
+        'title': item.get('title', 'Untitled'),
+        'description': item.get('description', ''),
+        'status': 'discovered',
+        'priority': item.get('priority', 'medium'),
+        'source_type': 'agent',
+        'source_id': f'specialist-{specialist}',
+        'created_by': f'specialist-{specialist}',
+        'parent_id': parent_id,
+        'decision_category': f'specialist-followup',
+    }
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        'apikey': key,
+        'Authorization': f'Bearer {key}',
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+    })
+    try:
+        urllib.request.urlopen(req)
+        print(f'      Created child item: {item.get(\"title\", \"Untitled\")}')
+    except Exception as e:
+        print(f'      Failed to create child item: {e}', file=sys.stderr)
+" 2>&1 | while IFS= read -r line; do log "$line"; done || true
+    fi
+
+  else
+    log "SPECIALIST FAILED: $short_id (timeout or error)"
+    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Specialist timed out or crashed\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "worker_failed" "in_progress" "review" "Specialist $specialist timed out or crashed"
+  fi
+
+  # Return to workspace root
+  cd - > /dev/null
+
+  # Log run to agent_runs_v2
+  curl -s \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Content-Type: application/json" \
+    -d "{\"agent_id\":\"specialist-$specialist\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
+    "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
+
+  # Brief pause between specialists
+  sleep 2
+}
+
 # ===== MAIN =====
 
 log "=== Work Loop Manager starting (max_items=$MAX_ITEMS, mode=$EXECUTION_MODE) ==="
@@ -329,53 +582,97 @@ curl -s \
 ITEMS=$(fetch_approved_items)
 ITEM_COUNT=$(echo "$ITEMS" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
 
-if [ "$ITEM_COUNT" -eq 0 ]; then
-  log "No approved work items to process. Exiting."
-  # Mark manager run as completed (no-op run)
-  curl -s -X PATCH \
-    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    -H "Content-Type: application/json" \
-    -H "Prefer: return=minimal" \
-    -d "{\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"findings_count\":0}" \
-    "$SUPABASE_URL/rest/v1/agent_runs_v2?agent_id=eq.work-loop-manager&started_at=eq.$MANAGER_RUN_START" || true
-  exit 0
-fi
-
-log "Found $ITEM_COUNT approved work item(s) to process"
-
-# Write items to temp file (avoids subshell issues with piped while loops)
-ITEMS_FILE=$(mktemp)
 COST_FILE=$(mktemp)
 echo "0" > "$COST_FILE"
-echo "$ITEMS" | python3 -c "
+
+# ── Phase 1: Process approved code-fix work items ──
+
+if [ "$ITEM_COUNT" -eq 0 ]; then
+  log "Phase 1: No approved work items to process"
+else
+  log "Phase 1: Found $ITEM_COUNT approved work item(s) to process"
+
+  # Write items to temp file (avoids subshell issues with piped while loops)
+  ITEMS_FILE=$(mktemp)
+  echo "$ITEMS" | python3 -c "
 import sys, json
 items = json.load(sys.stdin)
 for item in items:
     print(json.dumps(item))
 " > "$ITEMS_FILE"
 
-# Process each item sequentially
-while IFS= read -r item_json; do
-  [ -z "$item_json" ] && continue
-  run_worker "$item_json" || true
+  # Process each item sequentially
+  while IFS= read -r item_json; do
+    [ -z "$item_json" ] && continue
+    run_worker "$item_json" || true
 
-  # Accumulate cost from last worker run
-  LAST_COST=$(cat "$COST_FILE" 2>/dev/null || echo "0")
-  CUMULATIVE_COST=$(python3 -c "print(round($CUMULATIVE_COST + ${LAST_COST:-0}, 4))" 2>/dev/null || echo "$CUMULATIVE_COST")
-  echo "0" > "$COST_FILE"
+    # Accumulate cost from last worker run
+    LAST_COST=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+    CUMULATIVE_COST=$(python3 -c "print(round($CUMULATIVE_COST + ${LAST_COST:-0}, 4))" 2>/dev/null || echo "$CUMULATIVE_COST")
+    echo "0" > "$COST_FILE"
 
-  # Check cost cap
-  if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
-    log "COST CAP: Cumulative cost \$$CUMULATIVE_COST exceeds nightly cap \$$NIGHTLY_COST_CAP — stopping"
-    break
+    # Check cost cap
+    if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+      log "COST CAP: Cumulative cost \$$CUMULATIVE_COST exceeds nightly cap \$$NIGHTLY_COST_CAP — stopping"
+      break
+    fi
+  done < "$ITEMS_FILE"
+
+  rm -f "$ITEMS_FILE"
+fi
+
+log "Phase 1 complete. Cumulative cost: \$$CUMULATIVE_COST"
+
+# ── Phase 2: Process specialist delegation requests ──
+
+# Check cost cap before starting Phase 2
+SKIP_PHASE2=false
+if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+  log "Phase 2 SKIPPED: cost cap already reached (\$$CUMULATIVE_COST >= \$$NIGHTLY_COST_CAP)"
+  SKIP_PHASE2=true
+fi
+
+if [ "$SKIP_PHASE2" = "false" ]; then
+  DELEGATIONS=$(fetch_delegation_items)
+  DELEGATION_COUNT=$(echo "$DELEGATIONS" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+
+  if [ "$DELEGATION_COUNT" -gt 0 ]; then
+    log "Phase 2: Processing $DELEGATION_COUNT delegation request(s)"
+
+    # Write delegation items to temp file
+    DELEGATION_FILE=$(mktemp)
+    echo "$DELEGATIONS" | python3 -c "
+import sys, json
+items = json.load(sys.stdin)
+for item in items:
+    print(json.dumps(item))
+" > "$DELEGATION_FILE"
+
+    while IFS= read -r delegation_json; do
+      [ -z "$delegation_json" ] && continue
+      run_specialist "$delegation_json" || true
+
+      # Accumulate cost from last specialist run
+      LAST_COST=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+      CUMULATIVE_COST=$(python3 -c "print(round($CUMULATIVE_COST + ${LAST_COST:-0}, 4))" 2>/dev/null || echo "$CUMULATIVE_COST")
+      echo "0" > "$COST_FILE"
+
+      # Check cost cap
+      if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+        log "COST CAP: Cumulative cost \$$CUMULATIVE_COST exceeds nightly cap \$$NIGHTLY_COST_CAP — stopping delegations"
+        break
+      fi
+    done < "$DELEGATION_FILE"
+
+    rm -f "$DELEGATION_FILE"
+  else
+    log "Phase 2: No delegation requests to process"
   fi
-done < "$ITEMS_FILE"
+fi
 
-rm -f "$ITEMS_FILE"
 rm -f "$COST_FILE"
 
-log "Cumulative worker cost: \$$CUMULATIVE_COST (cap: \$$NIGHTLY_COST_CAP)"
+log "Cumulative total cost: \$$CUMULATIVE_COST (cap: \$$NIGHTLY_COST_CAP)"
 
 # Log manager run completion
 curl -s -X PATCH \
