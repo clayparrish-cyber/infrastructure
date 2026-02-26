@@ -259,9 +259,9 @@ import json
 with open('$json_output') as f:
     data = json.load(f)
 usage = data.get('usage', {})
-ti = usage.get('input_tokens', 0)
+ti = usage.get('input_tokens', 0) + usage.get('cache_creation_input_tokens', 0) + usage.get('cache_read_input_tokens', 0)
 to = usage.get('output_tokens', 0)
-cost = data.get('cost_usd', 0)
+cost = data.get('total_cost_usd', 0) or data.get('cost_usd', 0) or 0
 print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
 " 2>/dev/null)" || true
       log "USAGE: $short_id — ${tokens_input}+${tokens_output} tokens, \$${cost_usd}"
@@ -486,9 +486,9 @@ import json
 with open('$json_output') as f:
     data = json.load(f)
 usage = data.get('usage', {})
-ti = usage.get('input_tokens', 0)
+ti = usage.get('input_tokens', 0) + usage.get('cache_creation_input_tokens', 0) + usage.get('cache_read_input_tokens', 0)
 to = usage.get('output_tokens', 0)
-cost = data.get('cost_usd', 0)
+cost = data.get('total_cost_usd', 0) or data.get('cost_usd', 0) or 0
 print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
 " 2>/dev/null)" || true
       log "USAGE: $short_id — ${tokens_input}+${tokens_output} tokens, \$${cost_usd}"
