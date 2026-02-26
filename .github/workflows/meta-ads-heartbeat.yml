@@ -1,0 +1,37 @@
+# Meta Ads API Heartbeat
+# Accumulates Marketing API calls to meet Meta's 1,500-call / 15-day threshold
+# for Ads Management Standard Access.
+#
+# Runs every hour → 5 calls/hour × 24 = 120 calls/day → 1,500 in ~13 days
+#
+# To start: Add these GitHub secrets:
+#   META_ADS_ACCESS_TOKEN  — Long-lived token from SidelineIQ FB App (874168382262397)
+#   META_ADS_ACCOUNT_ID    — Ad account ID (no "act_" prefix)
+#
+# To stop: Disable this workflow in GitHub Actions once access is granted.
+
+name: Meta Ads Heartbeat
+
+on:
+  schedule:
+    - cron: '17 * * * *'  # Every hour at :17
+  workflow_dispatch: {}     # Manual trigger
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    # Only run if secrets are configured
+    if: ${{ vars.META_HEARTBEAT_ENABLED == 'true' }}
+    timeout-minutes: 2
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: agents/scripts/meta-ads-heartbeat.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Run heartbeat
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_ADS_ACCOUNT_ID: ${{ secrets.META_ADS_ACCOUNT_ID }}
+        run: bash agents/scripts/meta-ads-heartbeat.sh
