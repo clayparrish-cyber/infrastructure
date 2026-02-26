@@ -214,10 +214,29 @@ run_worker() {
 
   start_time=$(date +%s)
 
+  # Initialize telemetry vars before the if/else so they exist in both branches
+  local tokens_input=0 tokens_output=0 cost_usd=0
+
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
   if timeout 600 claude -p "$prompt" --max-turns 30 --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+    # Guard against empty output from claude -p
+    if [ ! -s "$json_output" ]; then
+      log "WORKER FAILED: $short_id (empty output from claude)"
+      update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker received empty response from claude -p\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker received empty response from claude -p"
+      cd - > /dev/null
+      curl -s \
+        -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+        -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":0,\"cost_estimate\":0}" \
+        "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
+      sleep 2
+      return 1
+    fi
+
     # Extract text content from JSON for marker parsing
     python3 -c "
 import json, sys
@@ -233,8 +252,7 @@ print(result)
     duration=$((end_time - start_time))
     log "WORKER DONE: $short_id (${duration}s)"
 
-    # Extract usage telemetry
-    local tokens_input=0 tokens_output=0 cost_usd=0
+    # Extract usage telemetry (vars initialized before if/else)
     if [ -f "$json_output" ]; then
       eval "$(python3 -c "
 import json
@@ -439,6 +457,9 @@ run_specialist() {
 
   start_time=$(date +%s)
 
+  # Initialize telemetry vars before the if/else so they exist in both branches
+  local tokens_input=0 tokens_output=0 cost_usd=0
+
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-specialist-$short_id-output.json"
@@ -458,8 +479,7 @@ print(result)
     duration=$((end_time - start_time))
     log "SPECIALIST DONE: $short_id (${duration}s)"
 
-    # Extract usage telemetry
-    local tokens_input=0 tokens_output=0 cost_usd=0
+    # Extract usage telemetry (vars initialized before if/else)
     if [ -f "$json_output" ]; then
       eval "$(python3 -c "
 import json

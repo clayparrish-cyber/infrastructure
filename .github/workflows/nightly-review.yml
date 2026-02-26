@@ -1102,25 +1102,28 @@ jobs:
 
           DESCRIPTION="Nightly run ${DATE} (theme: ${THEME})\n\n${STATUS_LINE}\n\nNew findings: ${FINDING_COUNT}\nWorker executions: ${WORKER_COUNT}\n\nRun: ${RUN_URL}"
 
-          # Post to dashboard
-          curl -s -X POST "https://app.mainlineapps.com/api/work-items" \
-            -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
-            -H "Content-Type: application/json" \
-            -d "$(python3 -c "
+          # Post nightly summary directly to Supabase (more reliable than dashboard API)
+          SUMMARY_PAYLOAD=$(python3 -c "
           import json
+          desc = 'Nightly run ${DATE} (theme: ${THEME})\n\n${STATUS_LINE}\n\nNew findings: ${FINDING_COUNT}\nWorker executions: ${WORKER_COUNT}\n\nRun: ${RUN_URL}'
           print(json.dumps({
-              'items': [{
-                  'title': 'Nightly Run ${DATE}: ${STATUS_LINE}',
-                  'description': '${DESCRIPTION}'.replace('\\\\n', '\n'),
-                  'project': 'infrastructure',
-                  'priority': '${PRIORITY}',
-                  'type': 'nightly_summary',
-                  'status': 'done',
-                  'source_type': 'agent',
-                  'created_by': 'nightly-orchestrator'
-              }]
+              'title': 'Nightly Run ${DATE}: ${STATUS_LINE}',
+              'description': desc,
+              'project': 'infrastructure',
+              'priority': '${PRIORITY}',
+              'type': 'nightly_summary',
+              'status': 'done',
+              'source_type': 'agent',
+              'created_by': 'nightly-orchestrator'
           }))
-          ")" || echo "WARNING: Failed to post nightly summary"
+          ")
+
+          curl -s -X POST "$SUPABASE_URL/rest/v1/work_items" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "$SUMMARY_PAYLOAD" || echo "WARNING: Failed to post nightly summary"
 
           echo ""
           echo "Nightly summary posted to dashboard"
