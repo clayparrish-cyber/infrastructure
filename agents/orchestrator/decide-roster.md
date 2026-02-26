@@ -24,13 +24,32 @@ Apply these rules in priority order:
 3. **Active projects first**: Projects with 5+ commits in the last 7 days get priority for bug-hunt-review and security-review.
 4. **Quiet projects deprioritized**: Projects with 0 commits in 14+ days get at most 1 agent per night (ops/cleanup only).
 5. **Budget respect**: If an agent has used >80% of budget_monthly, skip it unless a must-run rule applies. If >95%, always skip.
-6. **Day-of-week affinity**: Prefer the agent that would normally run today based on the old static schedule (Mon=security, Tue=UX, etc.) but you CAN override if signals warrant it.
+6. **Day-of-week affinity**: Prefer agents scheduled for today based on their `schedule.day` or `schedule.days` array. You CAN override if signals warrant it.
 7. **Variety**: Don't run the same agent on the same project two nights in a row (check staleness data).
-8. **Capacity cap**: Maximum 8 agent-project runs per night to stay within Max subscription soft limits.
+8. **Capacity cap**: Maximum 8 agent-project runs per night to stay within API budget soft limits.
 
-### Skip Rules
-9. **Inactive agents**: Never schedule agents with status != 'active'.
-10. **On-demand only**: Never schedule agents with schedule.frequency = 'on-demand' (competitive-intel, marketing-analyst, legal-advisor, business-analyst).
+### Exclusion Rules
+9. **Inactive agents**: Never schedule agents with status != 'active' in Supabase.
+10. **Project exclusions**: Respect the `excludeProjects` array on each agent — never run that agent on an excluded project. This exists because some projects have human-managed marketing/content (e.g., GT is managed by Kamal/Charlie).
+11. **On-demand specialists**: Agents with `schedule: null` (marketing-analyst, legal-advisor, business-analyst) are delegation targets only — never schedule them directly. They run when another agent creates a delegation work item.
+12. **Frequency gates**: Respect `frequency` fields:
+    - `biweekly-even`: Only run on even ISO week numbers
+    - `biweekly-odd`: Only run on odd ISO week numbers
+    - No frequency field = weekly
+
+### Multi-Agent Nights
+Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content-writer + creative-provocateur on odd weeks). This is expected. Schedule all that fit within the capacity cap.
+
+**Updated schedule reference:**
+| Day | Primary | Secondary (biweekly) |
+|-----|---------|---------------------|
+| Mon | security-review | — |
+| Tue | ux-layout-review (even) | aso-retention-review (odd) |
+| Wed | bug-hunt-review + content-writer | creative-provocateur (odd) |
+| Thu | content-value-review | competitive-intel (even) |
+| Fri | security-review | polish-brand-review (odd) |
+| Sat | performance-review (even) + tier2-rotating | — |
+| Sun | weekly-cleanup + business-synthesis + strategic-portfolio-audit | — |
 
 ## Output
 

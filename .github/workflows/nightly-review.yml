@@ -206,13 +206,15 @@ jobs:
             exit 0
           fi
 
-          # Day-of-week to theme mapping
+          # Day-of-week to theme mapping (static fallback — orchestrator overrides this)
+          # Multi-agent nights: THEME is the primary agent for static fallback.
+          # The orchestrator handles scheduling secondary/biweekly agents.
           case "$DOW" in
             1) THEME="security-review";       TIER=1 ;;
             2) THEME="ux-layout-review";      TIER=1 ;;
             3) THEME="bug-hunt-review";       TIER=1 ;;
             4) THEME="content-value-review";  TIER=1 ;;
-            5) THEME="polish-brand-review";   TIER=1 ;;
+            5) THEME="security-review";       TIER=1 ;;  # 2x/week security
             6)
               # Saturday: rotating theme based on week number
               THEMES=("security-review" "ux-layout-review" "bug-hunt-review" "content-value-review" "polish-brand-review")

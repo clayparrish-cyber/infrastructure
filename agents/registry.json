@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tiers": {
     "1": {
       "projects": ["sidelineiq", "airtip", "dosie", "glossy-sports", "mainline-apps", "mainline-dashboard"],
@@ -43,7 +43,7 @@
       "owner": "shared",
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/gt-ops",
-      "note": "Has in-project agents for inventory/trends. Central agents still run here."
+      "note": "Has in-project agents for inventory/trends. Central agents still run here. Marketing managed by Kamal/Charlie — exclude marketing/content agents."
     },
     "menu-autopilot": {
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
@@ -98,7 +98,7 @@
       "id": "security-review",
       "name": "Security Review",
       "category": "review",
-      "schedule": { "day": "monday", "tiers": [1] },
+      "schedule": { "days": ["monday", "friday"], "tiers": [1] },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "OWASP top 10, secrets scanning, auth checks, input validation"
@@ -107,7 +107,7 @@
       "id": "ux-layout-review",
       "name": "UX & Layout Review",
       "category": "review",
-      "schedule": { "day": "tuesday", "tiers": [1] },
+      "schedule": { "day": "tuesday", "frequency": "biweekly-even", "tiers": [1] },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Accessibility, responsive design, user flow, visual consistency"
@@ -134,7 +134,7 @@
       "id": "polish-brand-review",
       "name": "Polish & Brand Review",
       "category": "review",
-      "schedule": { "day": "friday", "tiers": [1] },
+      "schedule": { "day": "friday", "frequency": "biweekly-odd", "tiers": [1] },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Brand consistency, visual polish, micro-interactions, attention to detail"
@@ -180,6 +180,7 @@
       "name": "Content Writer",
       "category": "specialist",
       "schedule": { "day": "wednesday", "tiers": [1] },
+      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
       "maxTurns": 60,
       "description": "Generates SEO blog posts and content. Writes MDX drafts, stores as work items for review."
     },
@@ -187,10 +188,29 @@
       "id": "competitive-intel",
       "name": "Competitive Intelligence",
       "category": "research",
-      "schedule": null,
+      "schedule": { "day": "thursday", "frequency": "biweekly-even", "tiers": [1] },
+      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
       "maxTurns": 80,
-      "suggestedCadence": "biweekly",
-      "description": "Competitor analysis, market positioning, industry trends"
+      "description": "Competitor analysis, market positioning, industry trends, keyword gap analysis"
+    },
+    {
+      "id": "creative-provocateur",
+      "name": "Creative Provocateur",
+      "category": "specialist",
+      "schedule": { "day": "wednesday", "frequency": "biweekly-odd", "tiers": [1] },
+      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "maxTurns": 40,
+      "description": "Generates unconventional, trend-aware marketing and content ideas. Deliberately bold — optimizes for shareability and virality over corporate safety."
+    },
+    {
+      "id": "aso-retention-review",
+      "name": "ASO & Retention Review",
+      "category": "review",
+      "schedule": { "day": "tuesday", "frequency": "biweekly-odd", "tiers": [1] },
+      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "App Store optimization, retention funnel analysis, social content readiness"
     },
     {
       "id": "marketing-analyst",
@@ -198,7 +218,7 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 60,
-      "description": "Campaign performance, attribution, content strategy"
+      "description": "Campaign performance, attribution, content strategy. On-demand — triggered via delegation from other agents."
     },
     {
       "id": "legal-advisor",
@@ -206,7 +226,7 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 40,
-      "description": "Privacy policies, terms of service, compliance review"
+      "description": "Privacy policies, terms of service, compliance review. On-demand — triggered via delegation from other agents."
     },
     {
       "id": "business-analyst",
@@ -214,7 +234,7 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 60,
-      "description": "KPIs, revenue analysis, growth projections, cohort analysis"
+      "description": "KPIs, revenue analysis, growth projections, cohort analysis. On-demand — triggered via delegation from other agents."
     },
     {
       "id": "strategic-portfolio-audit",
@@ -224,16 +244,6 @@
       "maxTurns": 80,
       "depth": "adaptive",
       "description": "Monthly cross-entity portfolio audit: 10-dimension assessment for Mainline Apps, reduced scope for GT/Apolis. Produces tactical work items and strategic escalations."
-    },
-    {
-      "id": "aso-retention-review",
-      "name": "ASO & Retention Review",
-      "category": "review",
-      "schedule": null,
-      "maxTurns": 50,
-      "depth": "adaptive",
-      "suggestedCadence": "biweekly",
-      "description": "App Store optimization, retention funnel analysis, social content readiness"
     }
   ]
 }
