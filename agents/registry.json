@@ -252,6 +252,15 @@
       "schedule": { "day": "sunday", "tiers": [0] },
       "maxTurns": 40,
       "description": "Weekly meta-analysis of agent performance: push-harder flags, calibration drift, cost efficiency, coverage gaps, L3+ override patterns."
+    },
+    {
+      "id": "app-review-monitor",
+      "name": "App Store Review Monitor",
+      "category": "ops",
+      "schedule": { "day": "daily", "tiers": [1] },
+      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure", "airtip"],
+      "maxTurns": 15,
+      "description": "Daily lightweight check for new App Store reviews. Creates work items for negative reviews or rating drops."
     }
   ]
 }

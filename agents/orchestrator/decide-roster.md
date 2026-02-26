@@ -37,6 +37,9 @@ Apply these rules in priority order:
     - `biweekly-odd`: Only run on odd ISO week numbers
     - No frequency field = weekly
 
+### Daily Agents
+**Daily agents** (e.g., `app-review-monitor`): Agents with `"day": "daily"` run every night regardless of day-of-week. They are designed to be lightweight and cheap (capped at 15 turns). Always include them in the roster unless budget rules exclude them. They do NOT count toward the variety rule (rule 7) since they are expected to run every night.
+
 ### Multi-Agent Nights
 Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content-writer + creative-provocateur on odd weeks). This is expected. Schedule all that fit within the capacity cap.
 
@@ -50,6 +53,7 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 | Fri | security-review | polish-brand-review (odd) |
 | Sat | performance-review (even) + tier2-rotating | — |
 | Sun | weekly-cleanup + business-synthesis + evaluator + strategic-portfolio-audit | — |
+| Daily | app-review-monitor (iOS apps only: sidelineiq, dosie, glossy-sports) | — |
 
 ## Output
 
