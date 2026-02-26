@@ -14,6 +14,18 @@ on:
       - 'packages/agent-learning/**'
 
 jobs:
+  auth-contract-check:
+    name: Contract check (command-center auth header)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce Authorization Bearer for command-center calls
+        run: |
+          if grep -RIn 'x-api-key: \$COMMAND_CENTER_API_KEY' .github scripts agents; then
+            echo "Found x-api-key usage with COMMAND_CENTER_API_KEY. Use Authorization: Bearer instead."
+            exit 1
+          fi
+
   typecheck-agents-lib:
     name: Type check (agents/lib)
     runs-on: ubuntu-latest
