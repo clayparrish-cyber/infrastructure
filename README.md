@@ -10,8 +10,8 @@ infrastructure/
 │   └── plans/               # Dated design docs for shared systems
 ├── packages/                # Shared npm packages (@clayparrish/*)
 │   └── agent-learning/      # Agent learning systems (metrics, few-shot, experiments, knowledge)
-├── tools/                   # Shared tools and utilities
-│   └── agent-dashboard/     # Dashboard for monitoring agents across all projects
+├── agents/                  # Prompts, orchestrator, worker scripts, registry
+├── scripts/                 # Supporting CLI/scripts (cc, setup helpers)
 ├── AGENT_PLANS.md          # Master agent planning document
 └── README.md               # This file
 ```
@@ -43,13 +43,11 @@ Shared agent infrastructure enabling learning from past decisions:
 - Implementation: [docs/plans/2026-01-22-agent-learning-implementation.md](docs/plans/2026-01-22-agent-learning-implementation.md)
 - Package README: [packages/agent-learning/README.md](packages/agent-learning/README.md)
 
-## Tools
+## Dashboard
 
-### Agent Dashboard
+The operating dashboard for this infrastructure lives in the Mainline Apps repo:
 
-Web-based dashboard for monitoring agent performance across all projects.
-
-**Location:** `tools/agent-dashboard/`
+**Location:** `/Volumes/Lexar/Projects/Mainline Apps/dashboard`
 
 ## Architecture: Hub and Spoke
 

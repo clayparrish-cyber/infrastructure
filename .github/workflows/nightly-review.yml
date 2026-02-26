@@ -162,7 +162,7 @@ jobs:
 
             curl -s -X POST "$COMMAND_CENTER_URL/api/work-items" \
               -H "Content-Type: application/json" \
-              -H "x-api-key: $COMMAND_CENTER_API_KEY" \
+              -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
               -d "{\"items\":[{\"title\":\"Anthropic API Credit Alert — $ALERT_DATE\",\"description\":\"$BALANCE_WARNING\",\"project\":\"infrastructure\",\"priority\":\"$ALERT_PRIORITY\",\"status\":\"discovered\",\"source_type\":\"agent\",\"created_by\":\"credit-check-bot\"}]}" \
               || echo "WARNING: Failed to send alert to Command Center"
           fi

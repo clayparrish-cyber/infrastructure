@@ -49,5 +49,7 @@ jobs:
       - run: npm ci
       - name: Security audit
         run: npm audit --audit-level=critical
+      - name: Test suite
+        run: npm test
       - name: Type check
         run: npx tsc --noEmit
