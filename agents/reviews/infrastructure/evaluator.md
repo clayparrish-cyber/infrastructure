@@ -17,95 +17,66 @@ You have these environment variables available:
 ### 1. Gather Data
 
 ```bash
-WEEK_AGO=$(date -u -d '7 days ago' +%Y-%m-%dT00:00:00Z)
+META_REVIEW_JSON=$(curl -s "${COMMAND_CENTER_URL}/api/ops/agent-meta-review" \
+  -H "Authorization: Bearer ${COMMAND_CENTER_API_KEY}")
 
-# Autonomy rules (current levels + metrics)
-curl -s "${SUPABASE_URL}/rest/v1/autonomy_rules?select=*" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Recent decisions (last 2 weeks for trend analysis)
-TWO_WEEKS=$(date -u -d '14 days ago' +%Y-%m-%dT00:00:00Z)
-curl -s "${SUPABASE_URL}/rest/v1/decision_log?created_at=gte.${TWO_WEEKS}&select=decision_category,decision,human_agreed_with_system,system_confidence,created_at&order=created_at.desc" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Agent runs this week (performance + cost)
-curl -s "${SUPABASE_URL}/rest/v1/agent_runs_v2?started_at=gte.${WEEK_AGO}&select=agent_id,project,status,findings_count,cost_estimate,tokens_used,started_at&order=started_at.desc" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Work items created this week (findings quality)
-curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&source_type=eq.agent&select=id,title,project,status,priority,decision_category,source_id,created_at,metadata&order=created_at.desc" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Declared operating modes (current business context)
-curl -s "${SUPABASE_URL}/rest/v1/knowledge?type=eq.insight&subject=eq.project-operating-mode&select=project,content,created_at&order=created_at.desc" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
-
-# Stored rejection lessons (latest learning loop context)
-curl -s "${SUPABASE_URL}/rest/v1/context_items?source=eq.manual&select=project,source_account,summary,source_metadata,created_at&order=created_at.desc&limit=200" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+echo "$META_REVIEW_JSON"
 ```
+
+If the meta-review endpoint fails or returns malformed JSON, fall back to the raw Supabase queries and reconstruct the same sections manually.
 
 ### 2. Analyze
 
+Use `meta_review` from the API response as the primary source of truth. It already contains:
+
+- `recommendations`
+- `pushHarder`
+- `needsTuning`
+- `lessonMisses`
+- `modeAlignmentRisks`
+- `coverageGaps`
+- `projectAttentionGaps`
+
 #### 2a. Push Harder Signal
 
-For each decision category with an autonomy rule:
-- If approval rate exceeds 85% over the last 2+ weeks AND total decisions >= 15, the agents may not be pushing hard enough.
-- Flag with: "Approval rate at {rate}% for {category} over {weeks} weeks — agents may be too conservative."
-- Recommendation: agents should increase severity thresholds and flag more edge cases.
-
-**The goal is a healthy 70-80% approval rate.** Below 70% means agents are noisy. Above 85% means they're playing it safe.
+Start from `meta_review.pushHarder`.
+- These are deterministic candidates where recent approval quality, high-impact yield, and confidence calibration all say the agent can be more aggressive.
+- Treat them as "raise the bar" recommendations, not guarantees.
 
 #### 2b. Calibration Drift
 
-Compare week 1 vs week 2 approval rates per category:
-- If approval rate changed by >15 points in either direction, flag it as potential calibration drift.
-- Could mean: human reviewer changed standards, or agent prompts were modified, or the codebase genuinely improved/degraded.
+Use `meta_review.needsTuning` and specifically call out:
+- low recent acceptance
+- high-confidence misses
+- repeated lesson misses
+
+If you need deeper explanation, use raw Supabase queries only as supporting evidence, not as the primary scoring source.
 
 #### 2c. Agent Cost Efficiency
 
-For each agent that ran this week:
-- Cost per finding = total cost / findings count
-- If cost per finding > $2.00, flag as potentially inefficient.
-- If an agent produced 0 findings but ran 3+ times this week, flag as potentially redundant on those projects.
+Use the `costPerAcceptedFinding` values already present in `pushHarder` and `needsTuning`.
+- High cost with strong acceptance can still be acceptable.
+- High cost combined with low acceptance or repeated lesson misses is a real concern.
 
 #### 2d. Coverage Gaps
 
-Cross-reference agent runs with the registry schedule:
-- Which scheduled agents didn't run this week?
-- Which projects received zero attention?
-- Are there any agents that should have run but were skipped due to budget?
+Use:
+- `meta_review.coverageGaps` for scheduled agent drift
+- `meta_review.projectAttentionGaps` for active-mode projects receiving no fresh attention
 
 #### 2e. Override Patterns (L3+ categories)
 
-For categories at L3 or L4:
-- Were any auto-decisions overridden by humans this week?
-- If override rate > 10%, flag for potential demotion.
-- If override rate is 0% with 10+ auto-decisions, flag as "performing well."
+Use the dashboard's autonomy view and only supplement with raw autonomy queries if you need to explain a structural autonomy change. The deterministic meta-review model is not replacing the autonomy-level engine; it is replacing the weekly prompt-level performance synthesis.
 
 #### 2f. Operating-Mode Alignment
 
-Use the declared project operating modes from `knowledge` as the business lens for evaluation:
-
-- In `launch` or `hardening` projects, are agents surfacing real blockers, or wasting attention on polish and side quests?
-- In `growth` projects, are agents finding conversion, attribution, and monetization issues, or mostly low-impact cleanup?
-- In `freeze` or `maintenance` projects, are agents still creating net-new scope that should have been filtered out?
-
-Flag any agent/project combinations where accepted work is materially misaligned with the declared mode.
+Use `meta_review.modeAlignmentRisks` directly.
+- These are already computed from declared operating modes plus recent rejection tags and attention patterns.
 
 #### 2g. Repeated Lesson Misses
 
-Use stored lesson artifacts from `context_items` where `source_metadata.kind = agent_lessons`:
-
-- Are agents repeating rejection patterns that were already captured in the lesson store?
-- Which agents are still triggering the same rejection tags after lessons were written?
-- Are there projects where the lessons are stale or too weak to change behavior?
+Use `meta_review.lessonMisses` directly.
+- These are already computed from lesson artifacts versus post-lesson rejected findings.
 
 ### 3. Write Evaluation
 
