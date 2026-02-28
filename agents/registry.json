@@ -1,15 +1,5 @@
 {
-  "version": 2,
-  "tiers": {
-    "1": {
-      "projects": ["sidelineiq", "airtip", "dosie", "glossy-sports", "mainline-apps", "mainline-dashboard"],
-      "description": "In-market or ready for users"
-    },
-    "2": {
-      "projects": ["gt-ops", "menu-autopilot"],
-      "description": "Scaffolded, waiting on dependencies"
-    }
-  },
+  "version": 3,
   "projects": {
     "sidelineiq": {
       "path": "/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq",
@@ -17,7 +7,8 @@
       "contextFile": "CLAUDE_CONTEXT.md",
       "owner": "clay",
       "stack": "expo/react-native",
-      "reportDir": "~/Projects/agent-reports/sidelineiq"
+      "reportDir": "~/Projects/agent-reports/sidelineiq",
+      "automationProfile": "core"
     },
     "airtip": {
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
@@ -26,7 +17,8 @@
       "owner": "clay",
       "stack": "next.js",
       "reportDir": "~/Projects/agent-reports/airtip",
-      "note": "AirTip lives at /tips within menu-autopilot. Focus reviews on src/app/tips/ and src/lib/tips/"
+      "note": "AirTip lives at /tips within menu-autopilot. Focus reviews on src/app/tips/ and src/lib/tips/",
+      "automationProfile": "core"
     },
     "dosie": {
       "path": "/Volumes/Lexar/Projects/Personal/Dosie",
@@ -34,7 +26,8 @@
       "contextFile": "CLAUDE.md",
       "owner": "clay",
       "stack": "expo/react-native + next.js + swiftui",
-      "reportDir": "~/Projects/agent-reports/dosie"
+      "reportDir": "~/Projects/agent-reports/dosie",
+      "automationProfile": "core"
     },
     "gt-ops": {
       "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-ops",
@@ -43,7 +36,8 @@
       "owner": "shared",
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/gt-ops",
-      "note": "Has in-project agents for inventory/trends. Central agents still run here. Marketing managed by Kamal/Charlie — exclude marketing/content agents."
+      "note": "Has in-project agents for inventory/trends. Central agents still run here. Marketing managed by Kamal/Charlie \u2014 exclude marketing/content agents.",
+      "automationProfile": "scaffolded"
     },
     "menu-autopilot": {
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
@@ -52,7 +46,8 @@
       "owner": "shared",
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/menu-autopilot",
-      "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)"
+      "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)",
+      "automationProfile": "scaffolded"
     },
     "glossy-sports": {
       "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports",
@@ -62,7 +57,8 @@
       "owner": "clay",
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/glossy-sports",
-      "note": "Mainline Apps project (Bill 75%, Clay 25%). Lives in mainline-apps monorepo under glossy-sports/ subdir."
+      "note": "Mainline Apps project (Bill 75%, Clay 25%). Lives in mainline-apps monorepo under glossy-sports/ subdir.",
+      "automationProfile": "core"
     },
     "mainline-apps": {
       "path": "/Volumes/Lexar/Projects/Mainline Apps",
@@ -71,7 +67,8 @@
       "owner": "shared",
       "stack": "multi-app monorepo",
       "reportDir": "~/Projects/agent-reports/mainline-apps",
-      "note": "Mainline Apps monorepo root. Use for cross-app tasks and repo-level automation."
+      "note": "Mainline Apps monorepo root. Use for cross-app tasks and repo-level automation.",
+      "automationProfile": "core"
     },
     "mainline-dashboard": {
       "path": "/Volumes/Lexar/Projects/Mainline Apps/dashboard",
@@ -81,7 +78,8 @@
       "owner": "shared",
       "stack": "next.js",
       "reportDir": "~/Projects/agent-reports/mainline-dashboard",
-      "note": "Executive dashboard app in mainline-apps monorepo."
+      "note": "Executive dashboard app in mainline-apps monorepo.",
+      "automationProfile": "core"
     },
     "infrastructure": {
       "path": "/Volumes/Lexar/Projects/infrastructure",
@@ -90,7 +88,8 @@
       "owner": "clay",
       "stack": "typescript/github-actions",
       "reportDir": "~/Projects/agent-reports/infrastructure",
-      "note": "Agent infrastructure, orchestrator, sync scripts, agent-learning package."
+      "note": "Agent infrastructure, orchestrator, sync scripts, agent-learning package.",
+      "automationProfile": "ops-only"
     }
   },
   "agents": [
@@ -98,7 +97,15 @@
       "id": "security-review",
       "name": "Security Review",
       "category": "review",
-      "schedule": { "days": ["monday", "friday"], "tiers": [1] },
+      "schedule": {
+        "days": [
+          "monday",
+          "friday"
+        ],
+        "projectProfiles": [
+          "core"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "OWASP top 10, secrets scanning, auth checks, input validation"
@@ -107,7 +114,13 @@
       "id": "ux-layout-review",
       "name": "UX & Layout Review",
       "category": "review",
-      "schedule": { "day": "tuesday", "frequency": "biweekly-even", "tiers": [1] },
+      "schedule": {
+        "day": "tuesday",
+        "frequency": "biweekly-even",
+        "projectProfiles": [
+          "core"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Accessibility, responsive design, user flow, visual consistency"
@@ -116,7 +129,12 @@
       "id": "bug-hunt-review",
       "name": "Bug Hunt Review",
       "category": "review",
-      "schedule": { "day": "wednesday", "tiers": [1] },
+      "schedule": {
+        "day": "wednesday",
+        "projectProfiles": [
+          "core"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Edge cases, error handling, race conditions, data integrity"
@@ -125,7 +143,12 @@
       "id": "content-value-review",
       "name": "Content & Value Review",
       "category": "review",
-      "schedule": { "day": "thursday", "tiers": [1] },
+      "schedule": {
+        "day": "thursday",
+        "projectProfiles": [
+          "core"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Content quality, value proposition, user-facing copy, feature completeness"
@@ -134,7 +157,13 @@
       "id": "polish-brand-review",
       "name": "Polish & Brand Review",
       "category": "review",
-      "schedule": { "day": "friday", "frequency": "biweekly-odd", "tiers": [1] },
+      "schedule": {
+        "day": "friday",
+        "frequency": "biweekly-odd",
+        "projectProfiles": [
+          "core"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Brand consistency, visual polish, micro-interactions, attention to detail"
@@ -143,26 +172,50 @@
       "id": "performance-review",
       "name": "Performance & Efficiency Review",
       "category": "review",
-      "schedule": { "day": "saturday", "frequency": "biweekly-even", "tiers": [1, 2] },
+      "schedule": {
+        "day": "saturday",
+        "frequency": "biweekly-even",
+        "projectProfiles": [
+          "core",
+          "scaffolded"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "Bundle size, dead code, unused deps, re-render hotspots, query efficiency, asset optimization"
     },
     {
       "id": "tier2-rotating-review",
-      "name": "Tier 2 Rotating Review",
+      "name": "Scaffolded Rotating Review",
       "category": "review",
-      "schedule": { "day": "saturday", "tiers": [2] },
+      "schedule": {
+        "day": "saturday",
+        "projectProfiles": [
+          "scaffolded"
+        ]
+      },
       "maxTurns": 50,
       "depth": "adaptive",
-      "rotates": ["security-review", "ux-layout-review", "bug-hunt-review", "content-value-review", "polish-brand-review"],
-      "description": "Cycles through review themes for Tier 2 projects each week"
+      "rotates": [
+        "security-review",
+        "ux-layout-review",
+        "bug-hunt-review",
+        "content-value-review",
+        "polish-brand-review"
+      ],
+      "description": "Cycles through review themes for scaffolded projects each week"
     },
     {
       "id": "weekly-cleanup",
       "name": "Internal Ops & Agent Evaluation",
       "category": "ops",
-      "schedule": { "day": "sunday", "tiers": [1, 2] },
+      "schedule": {
+        "day": "sunday",
+        "projectProfiles": [
+          "core",
+          "scaffolded"
+        ]
+      },
       "maxTurns": 30,
       "description": "Folder hygiene, CLAUDE.md sync, task list dedup, agent performance eval"
     },
@@ -170,7 +223,12 @@
       "id": "business-synthesis",
       "name": "Cross-Project Business Synthesis",
       "category": "ops",
-      "schedule": { "day": "sunday", "tiers": [0] },
+      "schedule": {
+        "day": "sunday",
+        "projectProfiles": [
+          "all"
+        ]
+      },
       "maxTurns": 40,
       "depth": "adaptive",
       "description": "Weekly cross-project synthesis: work item trends, cost analysis, approval rates, neglected projects. Writes one research_request work item as a weekly briefing."
@@ -179,8 +237,19 @@
       "id": "content-writer",
       "name": "Content Writer",
       "category": "specialist",
-      "schedule": { "day": "wednesday", "tiers": [1] },
-      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "schedule": {
+        "day": "wednesday",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "mainline-apps",
+        "mainline-dashboard",
+        "infrastructure"
+      ],
       "maxTurns": 60,
       "description": "Generates SEO blog posts and content. Writes MDX drafts, stores as work items for review."
     },
@@ -188,8 +257,20 @@
       "id": "competitive-intel",
       "name": "Competitive Intelligence",
       "category": "research",
-      "schedule": { "day": "thursday", "frequency": "biweekly-even", "tiers": [1] },
-      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "schedule": {
+        "day": "thursday",
+        "frequency": "biweekly-even",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "mainline-apps",
+        "mainline-dashboard",
+        "infrastructure"
+      ],
       "maxTurns": 80,
       "description": "Competitor analysis, market positioning, industry trends, keyword gap analysis"
     },
@@ -197,17 +278,41 @@
       "id": "creative-provocateur",
       "name": "Creative Provocateur",
       "category": "specialist",
-      "schedule": { "day": "wednesday", "frequency": "biweekly-odd", "tiers": [1] },
-      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "schedule": {
+        "day": "wednesday",
+        "frequency": "biweekly-odd",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "mainline-apps",
+        "mainline-dashboard",
+        "infrastructure"
+      ],
       "maxTurns": 40,
-      "description": "Generates unconventional, trend-aware marketing and content ideas. Deliberately bold — optimizes for shareability and virality over corporate safety."
+      "description": "Generates unconventional, trend-aware marketing and content ideas. Deliberately bold \u2014 optimizes for shareability and virality over corporate safety."
     },
     {
       "id": "aso-retention-review",
       "name": "ASO & Retention Review",
       "category": "review",
-      "schedule": { "day": "tuesday", "frequency": "biweekly-odd", "tiers": [1] },
-      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure"],
+      "schedule": {
+        "day": "tuesday",
+        "frequency": "biweekly-odd",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "mainline-apps",
+        "mainline-dashboard",
+        "infrastructure"
+      ],
       "maxTurns": 50,
       "depth": "adaptive",
       "description": "App Store optimization, retention funnel analysis, social content readiness"
@@ -218,7 +323,7 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 60,
-      "description": "Campaign performance, attribution, content strategy. On-demand — triggered via delegation from other agents."
+      "description": "Campaign performance, attribution, content strategy. On-demand \u2014 triggered via delegation from other agents."
     },
     {
       "id": "legal-advisor",
@@ -226,7 +331,7 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 40,
-      "description": "Privacy policies, terms of service, compliance review. On-demand — triggered via delegation from other agents."
+      "description": "Privacy policies, terms of service, compliance review. On-demand \u2014 triggered via delegation from other agents."
     },
     {
       "id": "business-analyst",
@@ -234,13 +339,18 @@
       "category": "specialist",
       "schedule": null,
       "maxTurns": 60,
-      "description": "KPIs, revenue analysis, growth projections, cohort analysis. On-demand — triggered via delegation from other agents."
+      "description": "KPIs, revenue analysis, growth projections, cohort analysis. On-demand \u2014 triggered via delegation from other agents."
     },
     {
       "id": "strategic-portfolio-audit",
       "name": "Strategic Portfolio Audit",
       "category": "ops",
-      "schedule": { "day": "sunday", "tiers": [0] },
+      "schedule": {
+        "day": "sunday",
+        "projectProfiles": [
+          "all"
+        ]
+      },
       "maxTurns": 80,
       "depth": "adaptive",
       "description": "Monthly cross-entity portfolio audit: 10-dimension assessment for Mainline Apps, reduced scope for GT/Apolis. Produces tactical work items and strategic escalations."
@@ -249,7 +359,12 @@
       "id": "evaluator",
       "name": "Agent Evaluator",
       "category": "ops",
-      "schedule": { "day": "sunday", "tiers": [0] },
+      "schedule": {
+        "day": "sunday",
+        "projectProfiles": [
+          "all"
+        ]
+      },
       "maxTurns": 40,
       "description": "Weekly meta-analysis of agent performance: push-harder flags, calibration drift, cost efficiency, coverage gaps, L3+ override patterns."
     },
@@ -257,8 +372,20 @@
       "id": "app-review-monitor",
       "name": "App Store Review Monitor",
       "category": "ops",
-      "schedule": { "day": "daily", "tiers": [1] },
-      "excludeProjects": ["gt-ops", "menu-autopilot", "mainline-apps", "mainline-dashboard", "infrastructure", "airtip"],
+      "schedule": {
+        "day": "daily",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "mainline-apps",
+        "mainline-dashboard",
+        "infrastructure",
+        "airtip"
+      ],
       "maxTurns": 15,
       "description": "Daily lightweight check for new App Store reviews. Creates work items for negative reviews or rating drops."
     }

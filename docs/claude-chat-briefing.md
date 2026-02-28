@@ -125,8 +125,8 @@ Semi-automated paper trading through Alpaca API (Scout suggests, I approve). On-
 ### Nightly Agent System
 Registry-driven, multi-project automated code review infrastructure:
 - **5 themed reviews** per project (security, UX, bugs, content, polish)
-- **Tier 1** (weekly full rotation): SidelineIQ, AirTip, Dosie
-- **Tier 2** (Saturday rotation): GT-Ops, Menu Autopilot
+- **Core profile** (weekly full rotation): SidelineIQ, AirTip, Dosie
+- **Scaffolded profile** (Saturday rotation): GT-Ops, Menu Autopilot
 - **Sunday ops agent** handles folder hygiene, doc sync, task deduplication
 - **Custom dashboard** (Next.js) for reviewing findings, approving/rejecting, generating task lists
 - **30+ custom skills** for common patterns (build issues, API quirks, marketing attribution, etc.)

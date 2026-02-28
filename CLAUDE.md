@@ -11,7 +11,7 @@ Registry-driven, multi-project agent infrastructure. Runs nightly via GitHub Act
 └── nightly-review.yml          # 7-job pipeline (runs 2am CST daily)
 
 agents/
-├── registry.json               # Project + agent config (tiers, schedules, repos)
+├── registry.json               # Project + agent config (automation profiles, schedules, repos)
 ├── orchestrator/
 │   └── decide-roster.md        # AI orchestrator prompt (builds nightly roster)
 ├── reviews/
@@ -40,7 +40,7 @@ packages/agent-learning/
 
 ## Nightly Pipeline (7 Jobs)
 
-1. **setup** — Determines today's theme + tier from day-of-week
+1. **setup** — Determines today's theme + project scope from day-of-week
 2. **clone-projects** — Clones relevant repos from registry
 3. **orchestrator** — AI builds roster.json (falls back to static if it fails)
 4. **reviews** — Runs `claude -p` for each roster entry sequentially
@@ -50,20 +50,21 @@ packages/agent-learning/
 
 ## Weekly Schedule
 
-| Day | Theme | Tier |
+| Day | Theme | Scope |
 |-----|-------|------|
-| Mon | security-review | 1 (in-market apps) |
-| Tue | ux-layout-review | 1 |
-| Wed | bug-hunt-review | 1 |
-| Thu | content-value-review | 1 |
-| Fri | polish-brand-review | 1 |
-| Sat | Rotating (week % 5) | 2 (scaffolded projects) |
-| Sun | weekly-cleanup + ops | 0 (all) |
+| Mon | security-review | core |
+| Tue | ux-layout-review | core |
+| Wed | bug-hunt-review | core |
+| Thu | content-value-review | core |
+| Fri | polish-brand-review | core |
+| Sat | Rotating (week % 5) | scaffolded |
+| Sun | weekly-cleanup + ops | all |
 
-## Project Tiers
+## Automation Profiles
 
-- **Tier 1** (in-market): sidelineiq, airtip, dosie, glossy-sports, mainline-apps, mainline-dashboard
-- **Tier 2** (scaffolded): gt-ops, menu-autopilot
+- **Core**: sidelineiq, airtip, dosie, glossy-sports, mainline-apps, mainline-dashboard
+- **Scaffolded**: gt-ops, menu-autopilot
+- **Ops-only**: infrastructure
 
 ## Agent Budgets (Updated 2026-02-23)
 
@@ -219,4 +220,3 @@ Preferred path: `docs/knowledge/{canonical|operational|ephemeral}`.
 Archive stale/superseded notes to `docs/knowledge/archive` and update `status`.
 
 Run `/Volumes/Lexar/Projects/scripts/check-stale-docs.sh` before major handoffs.
-
