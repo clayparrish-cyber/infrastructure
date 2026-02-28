@@ -40,6 +40,7 @@ const supabase = createClient(supabaseUrl!, supabaseKey!, {
 async function main() {
   const rosterPath = process.env.ROSTER_PATH || '/tmp/orchestrator-roster.json';
   const knowledgePath = process.env.KNOWLEDGE_PATH || '/tmp/orchestrator-knowledge.json';
+  const runStartedAt = new Date().toISOString();
 
   // Read roster
   if (!fs.existsSync(rosterPath)) {
@@ -101,6 +102,7 @@ async function main() {
       project: 'all',
       trigger: 'orchestrator',
       status: 'completed',
+      started_at: runStartedAt,
       completed_at: new Date().toISOString(),
       findings_count: roster.roster?.length || 0,
       output_summary: roster.reasoning || 'Roster decided',

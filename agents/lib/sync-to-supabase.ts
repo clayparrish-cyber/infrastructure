@@ -393,7 +393,7 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
           const { data: delegationItem, error: delError } = await supabase
             .from('work_items')
             .insert({
-              type: 'delegation',
+              type: 'task',
               project,
               title: delegation.title,
               description: delegation.description || '',
@@ -405,6 +405,7 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
               assigned_to: delegation.specialist,
               decision_category: `delegation-${delegation.specialist}`,
               metadata: {
+                delegation_kind: 'specialist',
                 requesting_agent: agentId,
                 delegation_context: delegation.context,
                 specialist: delegation.specialist,

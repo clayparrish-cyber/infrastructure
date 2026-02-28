@@ -424,6 +424,19 @@ jobs:
           cd ${{ github.workspace }}
           claude -p "$(cat agents/orchestrator/decide-roster.md)" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash"
 
+      - name: Persist orchestrator decision
+        if: always()
+        env:
+          ROSTER_PATH: ${{ github.workspace }}/roster.json
+          KNOWLEDGE_PATH: ${{ github.workspace }}/orchestrator-knowledge.json
+        run: |
+          if [ ! -f "$ROSTER_PATH" ]; then
+            echo "No roster.json produced; skipping Supabase persistence"
+            exit 0
+          fi
+
+          npx tsx ${{ github.workspace }}/agents/lib/write-orchestrator-decision.ts
+
       - name: Determine roster
         id: determine-roster
         env:

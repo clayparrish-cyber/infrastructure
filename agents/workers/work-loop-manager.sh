@@ -17,6 +17,7 @@ LOG_DIR="${LOG_DIR:-logs}"
 NIGHTLY_COST_CAP="${NIGHTLY_COST_CAP:-10.00}"
 CUMULATIVE_COST="0"
 DATE=$(date +%Y-%m-%d)
+RUN_TRIGGER="work_loop_manager"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -186,6 +187,7 @@ PYEOF
 run_worker() {
   local item_json="$1"
   local item_id project project_dir
+  local worker_run_start worker_run_status
 
   item_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
   project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
@@ -198,6 +200,8 @@ run_worker() {
 
   local short_id
   short_id=$(echo "$item_id" | cut -c1-8)
+  worker_run_start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  worker_run_status="completed"
   log "WORKER START: $short_id ($project) — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
 
   # Mark as in_progress + assigned to worker
@@ -224,6 +228,7 @@ run_worker() {
     # Guard against empty output from claude -p
     if [ ! -s "$json_output" ]; then
       log "WORKER FAILED: $short_id (empty output from claude)"
+      worker_run_status="failed"
       update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker received empty response from claude -p\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker received empty response from claude -p"
       cd - > /dev/null
@@ -231,7 +236,7 @@ run_worker() {
         -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
         -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
         -H "Content-Type: application/json" \
-        -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":0,\"cost_estimate\":0}" \
+        -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":0,\"cost_estimate\":0}" \
         "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
       sleep 2
       return 1
@@ -311,6 +316,7 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
     fi
   else
     log "WORKER FAILED: $short_id (timeout or error)"
+    worker_run_status="failed"
     update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker timed out or crashed\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
     insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker timed out or crashed"
   fi
@@ -323,7 +329,7 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Content-Type: application/json" \
-    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
+    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
     "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
 
   # Brief pause between workers
@@ -346,10 +352,36 @@ specialist_prompt_path() {
 
 # Fetch approved delegation work items from Supabase
 fetch_delegation_items() {
-  curl -s \
+  local raw
+  raw=$(curl -s \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&type=eq.delegation&assigned_to=not.is.null&order=created_at.asc&limit=5&select=id,title,description,project,priority,type,source_type,source_id,assigned_to,metadata"
+    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=not.is.null&order=created_at.asc&limit=5&select=id,title,description,project,priority,type,source_type,source_id,assigned_to,metadata,decision_category")
+
+  echo "$raw" | python3 -c "
+import json, sys
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    json.dump([], sys.stdout)
+    sys.exit(0)
+
+if not isinstance(data, list):
+    json.dump([], sys.stdout)
+    sys.exit(0)
+
+filtered = []
+for item in data:
+    if not isinstance(item, dict):
+        continue
+    decision_category = item.get('decision_category') or ''
+    metadata = item.get('metadata') or {}
+    if decision_category.startswith('delegation-') or metadata.get('requesting_agent') or metadata.get('specialist'):
+        filtered.append(item)
+
+json.dump(filtered, sys.stdout)
+"
 }
 
 # Build specialist prompt from templates
@@ -418,6 +450,7 @@ PYEOF
 run_specialist() {
   local item_json="$1"
   local item_id project specialist project_dir
+  local specialist_run_start specialist_run_status
 
   item_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
   project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
@@ -441,6 +474,8 @@ run_specialist() {
 
   local short_id
   short_id=$(echo "$item_id" | cut -c1-8)
+  specialist_run_start=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  specialist_run_status="completed"
   log "SPECIALIST START: $short_id ($project) — $specialist — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
 
   # Mark as in_progress
@@ -566,6 +601,7 @@ for item in items[:3]:  # Max 3 child items
 
   else
     log "SPECIALIST FAILED: $short_id (timeout or error)"
+    specialist_run_status="failed"
     update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Specialist timed out or crashed\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
     insert_event "$item_id" "worker_failed" "in_progress" "review" "Specialist $specialist timed out or crashed"
   fi
@@ -578,7 +614,7 @@ for item in items[:3]:  # Max 3 child items
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Content-Type: application/json" \
-    -d "{\"agent_id\":\"specialist-$specialist\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"github_actions\",\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
+    -d "{\"agent_id\":\"$specialist\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$specialist_run_status\",\"started_at\":\"$specialist_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
     "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
 
   # Brief pause between specialists
@@ -595,7 +631,7 @@ curl -s \
   -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"agent_id\":\"work-loop-manager\",\"project\":\"all\",\"trigger\":\"github_actions\",\"status\":\"running\",\"started_at\":\"$MANAGER_RUN_START\"}" \
+  -d "{\"agent_id\":\"work-loop-manager\",\"project\":\"all\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"running\",\"started_at\":\"$MANAGER_RUN_START\"}" \
   "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
 
 # Fetch approved items
@@ -701,6 +737,6 @@ curl -s -X PATCH \
   -H "Content-Type: application/json" \
   -H "Prefer: return=minimal" \
   -d "{\"status\":\"completed\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"findings_count\":$ITEM_COUNT}" \
-  "$SUPABASE_URL/rest/v1/agent_runs_v2?agent_id=eq.work-loop-manager&started_at=eq.$MANAGER_RUN_START" || true
+  "$SUPABASE_URL/rest/v1/agent_runs_v2?agent_id=eq.work-loop-manager&trigger=eq.$RUN_TRIGGER&started_at=eq.$MANAGER_RUN_START" || true
 
 log "=== Work Loop Manager complete ==="
