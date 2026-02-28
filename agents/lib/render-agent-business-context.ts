@@ -6,6 +6,8 @@ import * as path from 'path';
 
 const ENV_FILE = path.join(process.env.HOME || '', '.claude', '.env');
 const ACTIVE_STATUSES = ['discovered', 'triaged', 'approved', 'assigned', 'in_progress', 'review'];
+const OPERATING_MODE_TYPE = 'insight';
+const OPERATING_MODE_SUBJECT = 'project-operating-mode';
 
 type WorkItemRow = {
   id: string;
@@ -18,6 +20,23 @@ type WorkItemRow = {
   title: string;
   type: string;
   updated_at: string;
+};
+
+type OperatingModeRow = {
+  content: unknown;
+  created_at: string;
+};
+
+type OperatingModeRecord = {
+  mode: string;
+  prioritySummary: string;
+  rationale: string;
+  doMoreOf: string[];
+  avoid: string[];
+  successSignals: string[];
+  reviewBy: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
 };
 
 function loadEnv(): Record<string, string> {
@@ -48,6 +67,14 @@ function loadEnv(): Record<string, string> {
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function firstSentence(value: string | null): string | null {
@@ -108,6 +135,37 @@ function statusRank(status: string): number {
 function titleIncludes(text: string, patterns: string[]): boolean {
   const lower = text.toLowerCase();
   return patterns.some((pattern) => lower.includes(pattern));
+}
+
+function parseOperatingModeRecord(row: OperatingModeRow | null): OperatingModeRecord | null {
+  if (!row) return null;
+
+  const content = toRecord(row.content);
+  const mode = typeof content.mode === 'string' ? content.mode.trim() : '';
+  const prioritySummary = typeof content.priority_summary === 'string'
+    ? content.priority_summary.trim()
+    : '';
+  const rationale = typeof content.rationale === 'string'
+    ? content.rationale.trim()
+    : '';
+
+  if (!mode || !prioritySummary || !rationale) return null;
+
+  return {
+    mode,
+    prioritySummary,
+    rationale,
+    doMoreOf: toStringArray(content.do_more_of),
+    avoid: toStringArray(content.avoid),
+    successSignals: toStringArray(content.success_signals),
+    reviewBy: typeof content.review_by === 'string' ? content.review_by : null,
+    updatedAt: typeof content.updated_at === 'string' ? content.updated_at : row.created_at,
+    updatedBy: typeof content.updated_by === 'string' ? content.updated_by : null,
+  };
+}
+
+function formatModeLabel(mode: string): string {
+  return `${mode.charAt(0).toUpperCase()}${mode.slice(1)} mode`;
 }
 
 function inferOperatingMode(row: WorkItemRow): string {
@@ -185,7 +243,7 @@ async function main() {
     },
   });
 
-  const [initiativeResp, blockerResp] = await Promise.all([
+  const [initiativeResp, blockerResp, operatingModeResp] = await Promise.all([
     supabase
       .from('work_items')
       .select('id, created_at, description, metadata, parent_id, priority, status, title, type, updated_at')
@@ -202,6 +260,15 @@ async function main() {
       .in('status', ACTIVE_STATUSES)
       .order('updated_at', { ascending: false })
       .limit(100),
+    supabase
+      .from('knowledge')
+      .select('content, created_at')
+      .eq('type', OPERATING_MODE_TYPE)
+      .eq('subject', OPERATING_MODE_SUBJECT)
+      .eq('project', project)
+      .is('superseded_by', null)
+      .order('created_at', { ascending: false })
+      .limit(1),
   ]);
 
   const blockerRows = (blockerResp.data || []) as WorkItemRow[];
@@ -232,7 +299,8 @@ async function main() {
     })
     .slice(0, 5);
 
-  if (initiatives.length === 0 && blockers.length === 0) {
+  const explicitMode = parseOperatingModeRecord(((operatingModeResp.data || [])[0] as OperatingModeRow | undefined) || null);
+  if (!explicitMode && initiatives.length === 0 && blockers.length === 0) {
     process.exit(0);
   }
 
@@ -248,12 +316,46 @@ async function main() {
     const team = extractTeam(focus);
     const stageGate = extractStageGate(focus);
 
-    lines.push(`Operating mode: ${inferOperatingMode(focus)}`);
+    lines.push(`Operating mode: ${explicitMode ? formatModeLabel(explicitMode.mode) : inferOperatingMode(focus)}`);
+    if (explicitMode) {
+      lines.push(`Priority window: ${explicitMode.prioritySummary}`);
+      lines.push(`Why now: ${explicitMode.rationale}`);
+    }
     lines.push(`Primary initiative: ${focus.title}`);
     lines.push(`Project priority: ${formatPriority(focus.priority)}`);
     if (stageGate) lines.push(`Stage gate: ${stageGate}`);
     if (team) lines.push(`Owning team: ${team}`);
     if (purpose) lines.push(`Focus: ${purpose}`);
+  } else if (explicitMode) {
+    lines.push(`Operating mode: ${formatModeLabel(explicitMode.mode)}`);
+    lines.push(`Priority window: ${explicitMode.prioritySummary}`);
+    lines.push(`Why now: ${explicitMode.rationale}`);
+  }
+
+  if (explicitMode) {
+    if (explicitMode.doMoreOf.length > 0) {
+      lines.push('');
+      lines.push('Optimize for:');
+      for (const item of explicitMode.doMoreOf.slice(0, 4)) {
+        lines.push(`- ${item}`);
+      }
+    }
+
+    if (explicitMode.avoid.length > 0) {
+      lines.push('');
+      lines.push('Avoid:');
+      for (const item of explicitMode.avoid.slice(0, 4)) {
+        lines.push(`- ${item}`);
+      }
+    }
+
+    if (explicitMode.successSignals.length > 0) {
+      lines.push('');
+      lines.push('Success looks like:');
+      for (const item of explicitMode.successSignals.slice(0, 4)) {
+        lines.push(`- ${item}`);
+      }
+    }
   }
 
   if (visibleBlockers.length > 0) {
@@ -269,6 +371,9 @@ async function main() {
   lines.push('- Tie findings and proposed changes back to the current initiative or listed blockers.');
   lines.push('- If something is valid but not useful right now, lower its priority or leave it out.');
   lines.push(`- ${getAgentGuardrail(agentId)}`);
+  if (explicitMode?.reviewBy) {
+    lines.push(`- Review this operating mode again by ${explicitMode.reviewBy}.`);
+  }
 
   process.stdout.write(`${lines.join('\n')}\n`);
 }
