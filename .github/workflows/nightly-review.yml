@@ -1031,6 +1031,69 @@ jobs:
 
           done <<< "$PROJECTS"
 
+      - name: Run evaluator and business synthesis (Sundays only)
+        if: needs.setup.outputs.dow == '7'
+        timeout-minutes: 30
+        env:
+          DATE: ${{ needs.setup.outputs.date }}
+        run: |
+          WORKSPACE="${{ github.workspace }}"
+          mkdir -p "$WORKSPACE/logs"
+
+          run_meta_agent() {
+            local agent_id="$1"
+            local prompt_file="$2"
+            local log_file="$WORKSPACE/logs/$DATE-$agent_id.json"
+            local started_at
+            started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            echo ""
+            echo "=========================================="
+            echo "Running $agent_id"
+            echo "=========================================="
+
+            if timeout 600 claude -p "$(cat "$prompt_file")" \
+              --max-turns 30 --output-format json \
+              --allowedTools "Read,Glob,Grep,Bash" < /dev/null > "$log_file" 2>&1; then
+              echo "SUCCESS: $agent_id"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"manual\",
+                  \"status\":\"completed\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                  \"findings_count\":1,
+                  \"output_summary\":\"Weekly $agent_id review completed\"
+                }" > /dev/null 2>&1 || true
+            else
+              echo "WARNING: $agent_id failed"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"manual\",
+                  \"status\":\"failed\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                  \"error_details\":\"See $log_file\"
+                }" > /dev/null 2>&1 || true
+            fi
+          }
+
+          cd "$WORKSPACE"
+          run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md"
+          run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md"
+
       - name: Upload reconciliation logs
         if: always() && steps.check-stale.outputs.stale_count != '0'
         uses: actions/upload-artifact@v4

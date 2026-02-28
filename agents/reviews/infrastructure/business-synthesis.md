@@ -28,7 +28,7 @@ Run these queries to collect the week's data. Use `$(date -u -d '7 days ago' +%Y
 ```bash
 WEEK_AGO=$(date -u -d '7 days ago' +%Y-%m-%dT00:00:00Z)
 
-curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&select=id,title,project,status,priority,source_type,category,created_at&order=created_at.desc" \
+curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&select=id,title,project,status,priority,source_type,decision_category,created_at&order=created_at.desc" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -36,7 +36,7 @@ curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&select=id
 #### 1b. Work Items Resolved This Week (done or rejected)
 
 ```bash
-curl -s "${SUPABASE_URL}/rest/v1/work_items?updated_at=gte.${WEEK_AGO}&status=in.(done,rejected)&select=id,title,project,status,priority,source_type,category,rejection_reason,updated_at" \
+curl -s "${SUPABASE_URL}/rest/v1/work_items?updated_at=gte.${WEEK_AGO}&status=in.(done,rejected)&select=id,title,project,status,priority,source_type,decision_category,updated_at,metadata" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -44,7 +44,7 @@ curl -s "${SUPABASE_URL}/rest/v1/work_items?updated_at=gte.${WEEK_AGO}&status=in
 #### 1c. Agent Run Costs This Week
 
 ```bash
-curl -s "${SUPABASE_URL}/rest/v1/agent_runs_v2?created_at=gte.${WEEK_AGO}&select=id,agent_id,project_id,cost_estimate,tokens_used,status,created_at&order=created_at.desc" \
+curl -s "${SUPABASE_URL}/rest/v1/agent_runs_v2?started_at=gte.${WEEK_AGO}&select=id,agent_id,project,cost_estimate,tokens_used,status,started_at&order=started_at.desc" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -60,7 +60,7 @@ curl -s "${SUPABASE_URL}/rest/v1/agent_budget_summary?select=*" \
 #### 1e. Recent Context Items (meeting notes, signals, etc.)
 
 ```bash
-curl -s "${SUPABASE_URL}/rest/v1/context_items?created_at=gte.${WEEK_AGO}&select=id,title,source,project,created_at&order=created_at.desc" \
+curl -s "${SUPABASE_URL}/rest/v1/context_items?created_at=gte.${WEEK_AGO}&select=id,summary,source,project,created_at,source_metadata&order=created_at.desc" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -69,6 +69,14 @@ curl -s "${SUPABASE_URL}/rest/v1/context_items?created_at=gte.${WEEK_AGO}&select
 
 ```bash
 curl -s "${SUPABASE_URL}/rest/v1/work_items?status=in.(approved,triaged)&priority=in.(high,medium)&created_at=lt.${WEEK_AGO}&select=id,title,project,status,priority,created_at&order=priority.asc,created_at.asc&limit=50" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+```
+
+#### 1g. Declared Operating Modes
+
+```bash
+curl -s "${SUPABASE_URL}/rest/v1/knowledge?type=eq.insight&subject=eq.project-operating-mode&select=project,content,created_at&order=created_at.desc" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -112,6 +120,12 @@ Cross-reference the gathered data to produce insights in these categories:
 - Were any meeting notes or context items added this week?
 - Do they suggest strategic shifts that agents should be aware of?
 
+#### 2h. Operating-Mode Alignment
+- For each project, compare the week's work against the declared operating mode.
+- Are `launch` or `hardening` projects spending time on side quests instead of blockers?
+- Are `growth` projects getting real acquisition, attribution, or monetization attention?
+- Are `freeze` or `maintenance` projects staying contained?
+
 ### 3. Write the Weekly Briefing
 
 Compose a structured briefing with these sections:
@@ -141,6 +155,9 @@ Compose a structured briefing with these sections:
 ## Attention Gaps
 (Projects or themes that need more focus next week)
 
+## Operating-Mode Alignment
+(Where the week's work matched or fought the declared business posture)
+
 ## Stale Items Needing Action
 (Top 5 oldest high/medium items with project and title)
 
@@ -165,8 +182,9 @@ curl -X POST "${COMMAND_CENTER_URL}/api/work-items" \
     "description": "'"$(echo "$BRIEFING" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')"'",
     "project": "infrastructure",
     "priority": "medium",
+    "type": "research_request",
     "source_type": "agent",
-    "category": "research_request"
+    "source_id": "business-synthesis"
   }'
 ```
 
@@ -183,42 +201,23 @@ curl -X POST "${SUPABASE_URL}/rest/v1/work_items" \
     "description": "... full briefing ...",
     "project": "infrastructure",
     "priority": "medium",
+    "type": "research_request",
     "source_type": "agent",
-    "category": "research_request",
+    "source_id": "business-synthesis",
     "status": "discovered",
     "created_by": "business-synthesis-agent"
   }'
 ```
 
-### 5. Log the Agent Run
+### 5. Run Logging
 
-```bash
-curl -s -X POST "${SUPABASE_URL}/rest/v1/agent_runs_v2" \
-  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=minimal" \
-  -d '{
-    "agent_id": "business-synthesis",
-    "project_id": "infrastructure",
-    "status": "completed",
-    "findings_count": 1,
-    "metadata": {
-      "type": "weekly_synthesis",
-      "projects_analyzed": PROJECTS_COUNT,
-      "work_items_created": CREATED_COUNT,
-      "work_items_resolved": RESOLVED_COUNT,
-      "total_agent_cost": TOTAL_COST,
-      "stale_items": STALE_COUNT
-    }
-  }'
-```
+Do not insert `agent_runs_v2` directly from this prompt.
 
-Replace the placeholder values with actual numbers from your analysis.
+The workflow runner logs success or failure for `business-synthesis` after the prompt completes.
 
 ## Output
 
-After submitting the work item and logging the run, print a short confirmation:
+After submitting the work item, print a short confirmation:
 
 ```
 SYNTHESIS_COMPLETE

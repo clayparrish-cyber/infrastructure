@@ -31,12 +31,22 @@ curl -s "${SUPABASE_URL}/rest/v1/decision_log?created_at=gte.${TWO_WEEKS}&select
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 
 # Agent runs this week (performance + cost)
-curl -s "${SUPABASE_URL}/rest/v1/agent_runs_v2?created_at=gte.${WEEK_AGO}&select=agent_id,project_id,status,findings_count,cost_estimate,tokens_used,created_at&order=created_at.desc" \
+curl -s "${SUPABASE_URL}/rest/v1/agent_runs_v2?started_at=gte.${WEEK_AGO}&select=agent_id,project,status,findings_count,cost_estimate,tokens_used,started_at&order=started_at.desc" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 
 # Work items created this week (findings quality)
-curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&source_type=eq.agent&select=id,title,project,status,priority,category,source_id&order=created_at.desc" \
+curl -s "${SUPABASE_URL}/rest/v1/work_items?created_at=gte.${WEEK_AGO}&source_type=eq.agent&select=id,title,project,status,priority,decision_category,source_id,created_at,metadata&order=created_at.desc" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+
+# Declared operating modes (current business context)
+curl -s "${SUPABASE_URL}/rest/v1/knowledge?type=eq.insight&subject=eq.project-operating-mode&select=project,content,created_at&order=created_at.desc" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+
+# Stored rejection lessons (latest learning loop context)
+curl -s "${SUPABASE_URL}/rest/v1/context_items?source=eq.manual&select=project,source_account,summary,source_metadata,created_at&order=created_at.desc&limit=200" \
   -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
 ```
@@ -79,6 +89,24 @@ For categories at L3 or L4:
 - If override rate > 10%, flag for potential demotion.
 - If override rate is 0% with 10+ auto-decisions, flag as "performing well."
 
+#### 2f. Operating-Mode Alignment
+
+Use the declared project operating modes from `knowledge` as the business lens for evaluation:
+
+- In `launch` or `hardening` projects, are agents surfacing real blockers, or wasting attention on polish and side quests?
+- In `growth` projects, are agents finding conversion, attribution, and monetization issues, or mostly low-impact cleanup?
+- In `freeze` or `maintenance` projects, are agents still creating net-new scope that should have been filtered out?
+
+Flag any agent/project combinations where accepted work is materially misaligned with the declared mode.
+
+#### 2g. Repeated Lesson Misses
+
+Use stored lesson artifacts from `context_items` where `source_metadata.kind = agent_lessons`:
+
+- Are agents repeating rejection patterns that were already captured in the lesson store?
+- Which agents are still triggering the same rejection tags after lessons were written?
+- Are there projects where the lessons are stale or too weak to change behavior?
+
 ### 3. Write Evaluation
 
 Produce a structured evaluation:
@@ -103,6 +131,12 @@ Produce a structured evaluation:
 ## L3+ Auto-Decision Performance
 (Override analysis for autonomous categories)
 
+## Operating-Mode Alignment
+(Where agent output matches or fights the declared business posture)
+
+## Repeated Lesson Misses
+(Where rejected patterns keep recurring despite the lessons store)
+
 ## Recommendations
 1. (Specific, actionable)
 2. (Specific, actionable)
@@ -122,8 +156,9 @@ curl -X POST "${COMMAND_CENTER_URL}/api/work-items" \
     "description": "'"$(echo "$EVALUATION" | sed '"'"'s/"/\\"/g'"'"' | sed '"'"':a;N;$!ba;s/\n/\\n/g'"'"')"'",
     "project": "infrastructure",
     "priority": "medium",
+    "type": "research_request",
     "source_type": "agent",
-    "category": "research_request"
+    "source_id": "evaluator"
   }'
 ```
 
@@ -139,8 +174,9 @@ curl -X POST "${SUPABASE_URL}/rest/v1/work_items" \
     "description": "... full evaluation ...",
     "project": "infrastructure",
     "priority": "medium",
+    "type": "research_request",
     "source_type": "agent",
-    "category": "research_request",
+    "source_id": "evaluator",
     "status": "discovered",
     "created_by": "evaluator-agent"
   }'
