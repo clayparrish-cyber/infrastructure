@@ -696,28 +696,11 @@ jobs:
             echo "Max turns: $MAX_TURNS"
             echo "Working directory: $PROJECT_DIR"
 
-            # Fetch prior rejections for this project to avoid re-flagging
-            REJECTIONS=$(curl -s \
-              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              "$SUPABASE_URL/rest/v1/work_items?status=eq.rejected&project=eq.$PROJECT_ID&rejection_reason=not.is.null&select=title,rejection_reason&limit=50" \
-              | python3 -c "
-            import json, sys
-            items = json.load(sys.stdin)
-            if not items:
-                print('')
-            else:
-                lines = []
-                for i in items:
-                    lines.append(f'- **{i[\"title\"]}**: {i[\"rejection_reason\"]}')
-                print('\n'.join(lines))
-            " 2>/dev/null || echo "")
-
-            # Build augmented prompt with rejection context
+            # Build augmented prompt with learned rejection context
             BASE_PROMPT=$(cat "$PROMPT_FILE")
-            if [ -n "$REJECTIONS" ]; then
-              REJECTION_SECTION="$(printf '\n\n## Prior Rejections — DO NOT Re-Flag These Patterns\n\nThe following findings were previously flagged and rejected by the team. Do not file similar findings. Learn from these rejection reasons to calibrate your severity thresholds:\n\n%s' "$REJECTIONS")"
-              AUGMENTED_PROMPT="${BASE_PROMPT}${REJECTION_SECTION}"
+            LESSONS_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-lessons.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
+            if [ -n "$LESSONS_SECTION" ]; then
+              AUGMENTED_PROMPT="${BASE_PROMPT}"$'\n\n'"${LESSONS_SECTION}"
             else
               AUGMENTED_PROMPT="$BASE_PROMPT"
             fi
