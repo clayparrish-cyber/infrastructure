@@ -65,6 +65,35 @@ const AGENT_CATEGORY: Record<string, string> = {
   'weekly-cleanup': 'ops',
 };
 
+const PROJECT_TEST_REGISTRY: Record<string, {
+  hasAutomatedTests: boolean;
+  frameworks: string[];
+  confidence: 'high' | 'medium' | 'low';
+}> = {
+  sidelineiq: { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'high' },
+  dosie: { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'high' },
+  'glossy-sports': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'high' },
+  airtip: { hasAutomatedTests: true, frameworks: ['vitest'], confidence: 'medium' },
+  'gt-ops': { hasAutomatedTests: true, frameworks: ['vitest'], confidence: 'high' },
+  'menu-autopilot': { hasAutomatedTests: true, frameworks: ['vitest'], confidence: 'high' },
+  scout: { hasAutomatedTests: false, frameworks: [], confidence: 'high' },
+  'mainline-apps': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'medium' },
+  'mainline-dashboard': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'high' },
+  infrastructure: { hasAutomatedTests: true, frameworks: ['vitest'], confidence: 'high' },
+};
+
+const HIGH_RISK_TERMS = [
+  'auth', 'login', 'signup', 'password', 'token', 'secret', 'security',
+  'billing', 'payment', 'subscription', 'purchase', 'restore', 'entitlement',
+  'revenue', 'app store', 'app review', 'schema', 'migration', 'database',
+  'delete', 'encryption', 'privacy', 'webhook', 'sync',
+];
+const MEDIUM_RISK_TERMS = [
+  'onboarding', 'notification', 'api', 'cache', 'queue', 'worker',
+  'performance', 'navigation', 'routing', 'state', 'store',
+];
+const NO_TEST_NEEDED_TERMS = ['copy', 'content', 'brand', 'visual', 'layout', 'polish', 'typo', 'text'];
+
 // =============================================================================
 // Shadow Recommender — generates system_recommendation for L2+ categories
 // Mirrors dashboard/src/lib/server/shadow-recommender.ts logic
@@ -152,6 +181,197 @@ async function applyRecommendation(
   }
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value as Record<string, unknown>;
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.trim()).filter(Boolean);
+}
+
+function hasAnyTerm(text: string, terms: string[]): boolean {
+  return terms.some((term) => text.includes(term));
+}
+
+function collectItemText(item: any): string {
+  const metadata = toRecord(item.metadata);
+  const parts = [
+    item.title,
+    item.description || '',
+    ...toStringArray(metadata.files),
+    typeof metadata.suggested_fix === 'string' ? metadata.suggested_fix : '',
+    typeof metadata.severity === 'string' ? metadata.severity : '',
+  ];
+
+  return parts.join(' ').toLowerCase();
+}
+
+function deriveBlastRadius(item: any): { level: 'low' | 'medium' | 'high'; reasons: string[] } {
+  const metadata = toRecord(item.metadata);
+  const text = collectItemText(item);
+  const fileCount = toStringArray(metadata.files).length;
+  const reasons: string[] = [];
+  let level: 'low' | 'medium' | 'high' = 'low';
+
+  if (item.priority === 'critical' || item.priority === 'high') {
+    level = 'high';
+    reasons.push(`Priority ${item.priority} findings do not qualify for autonomous approval.`);
+  }
+
+  if (hasAnyTerm(text, HIGH_RISK_TERMS)) {
+    level = 'high';
+    reasons.push('Finding touches a high-risk surface such as auth, billing, subscriptions, data, or security.');
+  }
+
+  if (level !== 'high' && (item.priority === 'medium' || fileCount > 2 || hasAnyTerm(text, MEDIUM_RISK_TERMS))) {
+    level = 'medium';
+  }
+
+  if (level === 'medium') {
+    if (item.priority === 'medium') reasons.push('Medium-priority findings require stronger validation than trivial issues.');
+    if (fileCount > 2) reasons.push(`Finding references ${fileCount} files, so blast radius is not trivial.`);
+    if (hasAnyTerm(text, MEDIUM_RISK_TERMS)) reasons.push('Finding touches product flow or runtime infrastructure that can regress broader behavior.');
+  }
+
+  if (level === 'low' && reasons.length === 0) {
+    reasons.push('Finding looks localized and low-risk based on severity, wording, and file scope.');
+  }
+
+  return { level, reasons };
+}
+
+function deriveTestValidation(item: any, blastRadius: 'low' | 'medium' | 'high') {
+  const metadata = toRecord(item.metadata);
+  const text = collectItemText(item);
+  const profile = PROJECT_TEST_REGISTRY[item.project];
+  const explicitValidation = Boolean(
+    typeof metadata.test_command === 'string'
+    || typeof metadata.verification_command === 'string'
+    || typeof metadata.test_plan === 'string'
+    || typeof metadata.validation_steps === 'string'
+  );
+
+  if (explicitValidation) {
+    return {
+      status: 'verified',
+      passed: true,
+      frameworks: profile?.frameworks || [],
+      reason: 'Finding carries an explicit validation or test command in metadata.',
+    };
+  }
+
+  if (blastRadius === 'low' && hasAnyTerm(text, NO_TEST_NEEDED_TERMS)) {
+    return {
+      status: 'not_required',
+      passed: true,
+      frameworks: profile?.frameworks || [],
+      reason: 'Finding appears to be copy/layout/polish work where automated tests are not the primary safety rail.',
+    };
+  }
+
+  if (profile?.hasAutomatedTests) {
+    return {
+      status: 'available',
+      passed: true,
+      frameworks: profile.frameworks,
+      reason: profile.confidence === 'high'
+        ? `Project has committed ${profile.frameworks.join('/')} coverage that can validate implementation.`
+        : `Project has some ${profile.frameworks.join('/')} coverage, but validation is not comprehensive.`,
+    };
+  }
+
+  return {
+    status: 'missing',
+    passed: blastRadius === 'low',
+    frameworks: [],
+    reason: blastRadius === 'low'
+      ? 'No automated tests are known for this project, but the item still appears low-risk.'
+      : 'No automated tests are known for this project, so higher-risk findings must stay behind a human gate.',
+  };
+}
+
+function assessAutonomySafety(item: any) {
+  const blastRadius = deriveBlastRadius(item);
+  const confidenceScore = typeof item.system_confidence === 'number' ? item.system_confidence : null;
+  const confidenceThreshold = blastRadius.level === 'medium' ? 0.9 : 0.8;
+  const confidencePassed = confidenceScore !== null && confidenceScore >= confidenceThreshold;
+  const testValidation = deriveTestValidation(item, blastRadius.level);
+  const blockers: string[] = [];
+
+  if (blastRadius.level === 'high') blockers.push('Blast radius is high.');
+  if (!confidencePassed) {
+    blockers.push(confidenceScore === null
+      ? 'No shadow confidence exists yet, so the system cannot justify autonomous approval.'
+      : `System confidence ${(confidenceScore * 100).toFixed(0)}% is below the ${(confidenceThreshold * 100).toFixed(0)}% threshold.`);
+  }
+  if (blastRadius.level === 'medium' && testValidation.status !== 'verified' && testValidation.status !== 'available') {
+    blockers.push('Medium-blast findings need a project test harness or explicit validation plan.');
+  }
+
+  const autoApproveEligible = blastRadius.level !== 'high'
+    && confidencePassed
+    && (blastRadius.level === 'low' ? testValidation.passed : (testValidation.status === 'verified' || testValidation.status === 'available'));
+
+  return {
+    version: 1,
+    assessedAt: new Date().toISOString(),
+    autoApproveEligible,
+    summary: autoApproveEligible
+      ? `Safe to auto-approve: ${blastRadius.level} blast radius, ${((confidenceScore || 0) * 100).toFixed(0)}% confidence, ${testValidation.status.replace('_', ' ')} validation.`
+      : `Human gate required: ${blockers[0] || 'safety thresholds were not met.'}`,
+    blockers,
+    confidence: {
+      score: confidenceScore,
+      threshold: confidenceThreshold,
+      passed: confidencePassed,
+      reason: confidenceScore === null
+        ? 'No shadow confidence exists yet, so the system cannot justify autonomous approval.'
+        : confidencePassed
+          ? `System confidence ${(confidenceScore * 100).toFixed(0)}% clears the ${(confidenceThreshold * 100).toFixed(0)}% threshold.`
+          : `System confidence ${(confidenceScore * 100).toFixed(0)}% is below the ${(confidenceThreshold * 100).toFixed(0)}% threshold.`,
+    },
+    blastRadius: {
+      level: blastRadius.level,
+      passed: blastRadius.level !== 'high',
+      reasons: blastRadius.reasons,
+    },
+    testValidation,
+  };
+}
+
+async function assessAndPersistAutonomySafety(
+  supabase: SupabaseClientLike,
+  workItemId: string
+): Promise<any | null> {
+  const { data: item, error: fetchError } = await supabase
+    .from('work_items')
+    .select('id, type, project, title, description, priority, metadata, system_confidence, source_type')
+    .eq('id', workItemId)
+    .single();
+
+  if (fetchError || !item) return null;
+
+  const assessment = assessAutonomySafety(item);
+  const metadata = toRecord(item.metadata);
+  const { error: updateError } = await supabase
+    .from('work_items')
+    .update({
+      metadata: {
+        ...metadata,
+        autonomy_safety: assessment,
+      },
+    })
+    .eq('id', workItemId);
+
+  if (updateError) {
+    console.log(`      Autonomy safety persist error (non-blocking): ${updateError.message}`);
+  }
+
+  return assessment;
+}
+
 // =============================================================================
 // Auto-Approve — auto-approves findings for L3+ categories
 // Mirrors dashboard/src/lib/server/auto-approve.ts logic
@@ -160,7 +380,8 @@ async function applyRecommendation(
 async function maybeAutoApprove(
   supabase: SupabaseClientLike,
   workItemId: string,
-  category: string
+  category: string,
+  assessment?: any
 ): Promise<void> {
   // Delegations are auto-approved by the creating agent — skip
   if (category.startsWith('delegation-')) return;
@@ -172,6 +393,26 @@ async function maybeAutoApprove(
     .single();
 
   if (!rule || (rule.current_level || 1) < 3) return;
+
+  const safety = assessment || await assessAndPersistAutonomySafety(supabase, workItemId);
+  if (!safety?.autoApproveEligible) {
+    await supabase.from('work_item_events').insert({
+      work_item_id: workItemId,
+      event_type: 'auto_approval_blocked',
+      from_status: 'discovered',
+      to_status: 'discovered',
+      actor: 'system',
+      actor_type: 'system',
+      notes: safety?.summary || 'Auto-approval blocked by safety assessment.',
+      metadata: {
+        decision_category: category,
+        autonomy_level: rule.current_level,
+        autonomy_safety: safety,
+      },
+    });
+    console.log(`      Auto-approval blocked: ${safety?.summary || 'safety thresholds were not met'}`);
+    return;
+  }
 
   // Auto-approve
   const { error } = await supabase
@@ -299,6 +540,7 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
           finding_id: finding.id,
           severity: finding.severity,
           files: finding.files,
+          suggested_fix: finding.suggestedFix || null,
           effort: finding.effort,
           source_file: file,
           synced_at: new Date().toISOString()
@@ -370,9 +612,16 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
               console.log(`      Recommendation error (non-blocking): ${e}`);
             }
 
+            let safetyAssessment: any = null;
+            try {
+              safetyAssessment = await assessAndPersistAutonomySafety(supabase, workItem.id);
+            } catch (e) {
+              console.log(`      Autonomy safety error (non-blocking): ${e}`);
+            }
+
             // L3+ Auto-approve — bypasses human gate
             try {
-              await maybeAutoApprove(supabase, workItem.id, decisionCategory);
+              await maybeAutoApprove(supabase, workItem.id, decisionCategory, safetyAssessment);
             } catch (e) {
               console.log(`      Auto-approve error (non-blocking): ${e}`);
             }
