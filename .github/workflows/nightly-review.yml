@@ -30,6 +30,9 @@ env:
   ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   COMMAND_CENTER_URL: ${{ secrets.COMMAND_CENTER_URL }}
   COMMAND_CENTER_API_KEY: ${{ secrets.COMMAND_CENTER_API_KEY }}
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+  ASC_PRIVATE_KEY_B64: ${{ secrets.ASC_PRIVATE_KEY_B64 }}
 
 jobs:
   # ─────────────────────────────────────────────
@@ -1123,6 +1126,80 @@ jobs:
           cd "$WORKSPACE"
           run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md"
           run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md"
+
+      - name: Run daily ops agents (credential check + daily brief)
+        timeout-minutes: 30
+        env:
+          DATE: ${{ needs.setup.outputs.date }}
+          DOW_NAME: ${{ needs.setup.outputs.dow_name }}
+        run: |
+          WORKSPACE="${{ github.workspace }}"
+          mkdir -p "$WORKSPACE/logs"
+
+          run_ops_agent() {
+            local agent_id="$1"
+            local prompt_file="$2"
+            local max_turns="${3:-15}"
+            local log_file="$WORKSPACE/logs/$DATE-$agent_id.log"
+            local started_at
+            started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            echo ""
+            echo "=========================================="
+            echo "Running $agent_id"
+            echo "=========================================="
+
+            if timeout 600 claude -p "$(cat "$prompt_file")" \
+              --max-turns "$max_turns" \
+              --tools "Read,Glob,Grep,Bash" \
+              --disable-slash-commands \
+              --setting-sources "project,local" < /dev/null 2>&1 | tee "$log_file"; then
+              echo "SUCCESS: $agent_id"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"nightly\",
+                  \"status\":\"completed\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                  \"output_summary\":\"Daily $agent_id completed\"
+                }" > /dev/null 2>&1 || true
+            else
+              echo "WARNING: $agent_id failed"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"nightly\",
+                  \"status\":\"failed\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                  \"error_details\":\"See $agent_id log\"
+                }" > /dev/null 2>&1 || true
+            fi
+          }
+
+          cd "$WORKSPACE"
+
+          # Credential expiry check runs Mon/Wed/Fri
+          DOW_NUM=$(date -u +%u)
+          if [ "$DOW_NUM" = "1" ] || [ "$DOW_NUM" = "3" ] || [ "$DOW_NUM" = "5" ]; then
+            run_ops_agent "credential-expiry-check" "$WORKSPACE/agents/reviews/infrastructure/credential-expiry-check.md" 10
+          else
+            echo "SKIP: credential-expiry-check (not Mon/Wed/Fri)"
+          fi
+
+          # Chief of Staff daily brief runs every day
+          run_ops_agent "chief-of-staff-daily-brief" "$WORKSPACE/agents/reviews/infrastructure/chief-of-staff-daily-brief.md" 20
 
       - name: Upload reconciliation logs
         if: always() && steps.check-stale.outputs.stale_count != '0'

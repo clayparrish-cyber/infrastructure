@@ -40,6 +40,14 @@ Apply these rules in priority order:
 ### Daily Agents
 **Daily agents** (e.g., `app-review-monitor`): Agents with `"day": "daily"` run every night regardless of day-of-week. They are designed to be lightweight and cheap (capped at 15 turns). Always include them in the roster unless budget rules exclude them. They do NOT count toward the variety rule (rule 7) since they are expected to run every night.
 
+### Direct-Execution Agents (Do NOT roster these)
+The following agents run as separate workflow steps, NOT through this roster:
+- `post-nightly-health-check` — runs in its own workflow job after reviews
+- `credential-expiry-check` — runs in the reconcile job (Mon/Wed/Fri)
+- `chief-of-staff-daily-brief` — runs in the reconcile job (daily)
+
+Do not include these in the roster output. They are managed by the workflow directly.
+
 ### Multi-Agent Nights
 Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content-writer + creative-provocateur on odd weeks). This is expected. Schedule all that fit within the capacity cap.
 
@@ -54,6 +62,8 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 | Sat | performance-review (even) + tier2-rotating | — |
 | Sun | weekly-cleanup + business-synthesis + evaluator + strategic-portfolio-audit | — |
 | Daily | app-review-monitor (iOS apps only: sidelineiq, dosie, glossy-sports) | — |
+| Daily | chief-of-staff-daily-brief (infrastructure — runs directly, not via roster) | — |
+| M/W/F | credential-expiry-check (infrastructure — runs directly, not via roster) | — |
 
 ## Output
 

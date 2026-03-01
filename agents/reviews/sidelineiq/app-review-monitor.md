@@ -69,30 +69,88 @@ Compare against previous report if one exists. Flag if:
 
 ### 3b. Check Build Submission Status
 
-Query the App Store Connect API for this app's pending versions to track build review progress:
+Query the App Store Connect API for pending build/version status. Uses JWT auth from env vars.
 
 ```bash
-# Check if ASC CLI or API credentials are available
-if command -v asc &>/dev/null; then
-  asc builds list --bundle-id com.sidelineiq.app --limit 3 --format json 2>/dev/null || echo "ASC_UNAVAILABLE"
-elif [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_PRIVATE_KEY" ]; then
-  # Use ASC API directly
-  echo "ASC API credentials found — checking build status..."
-  # Generate JWT and query /v1/builds endpoint
-  curl -s "https://api.appstoreconnect.apple.com/v1/builds?filter[app]=com.sidelineiq.app&limit=3&sort=-uploadedDate" \
-    -H "Authorization: Bearer $ASC_JWT" 2>/dev/null || echo "ASC_UNAVAILABLE"
+if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_PRIVATE_KEY_B64" ]; then
+  python3 << 'PYEOF'
+import json, time, base64, subprocess, urllib.request, os
+
+key_id = os.environ["ASC_KEY_ID"]
+issuer_id = os.environ["ASC_ISSUER_ID"]
+private_key = base64.b64decode(os.environ["ASC_PRIVATE_KEY_B64"]).decode()
+
+# Build JWT (ES256)
+import hashlib, hmac, struct
+header = base64.urlsafe_b64encode(json.dumps({"alg":"ES256","kid":key_id,"typ":"JWT"}).encode()).rstrip(b"=").decode()
+now = int(time.time())
+payload = base64.urlsafe_b64encode(json.dumps({"iss":issuer_id,"iat":now,"exp":now+1200,"aud":"appstoreconnect-v1"}).encode()).rstrip(b"=").decode()
+signing_input = f"{header}.{payload}"
+
+# Use openssl to sign (available in CI)
+import tempfile
+with tempfile.NamedTemporaryFile(mode='w', suffix='.pem', delete=False) as f:
+    f.write(private_key)
+    key_path = f.name
+
+result = subprocess.run(
+    ["openssl", "dgst", "-sha256", "-sign", key_path],
+    input=signing_input.encode(), capture_output=True
+)
+os.unlink(key_path)
+
+if result.returncode != 0:
+    print("ASC JWT signing failed")
+    exit(0)
+
+# Convert DER signature to raw r||s for ES256
+der_sig = result.stdout
+# Parse DER: 0x30 len 0x02 r_len r 0x02 s_len s
+i = 2  # skip 0x30 + length byte
+if der_sig[1] & 0x80:
+    i += (der_sig[1] & 0x7f)
+i += 1  # 0x02
+r_len = der_sig[i]; i += 1
+r = der_sig[i:i+r_len]; i += r_len
+i += 1  # 0x02
+s_len = der_sig[i]; i += 1
+s = der_sig[i:i+s_len]
+r = r[-32:].rjust(32, b'\x00')
+s = s[-32:].rjust(32, b'\x00')
+sig = base64.urlsafe_b64encode(r + s).rstrip(b"=").decode()
+
+token = f"{signing_input}.{sig}"
+
+# Query app versions (filter by app ID 6757969950)
+app_id = "6757969950"
+url = f"https://api.appstoreconnect.apple.com/v1/apps/{app_id}/appStoreVersions?filter[appStoreState]=WAITING_FOR_REVIEW,IN_REVIEW,DEVELOPER_ACTION_NEEDED,REJECTED&limit=5"
+req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+try:
+    resp = urllib.request.urlopen(req, timeout=15)
+    data = json.loads(resp.read())
+    versions = data.get("data", [])
+    if not versions:
+        print("No pending versions in review pipeline")
+    for v in versions:
+        attrs = v.get("attributes", {})
+        state = attrs.get("appStoreState", "UNKNOWN")
+        version = attrs.get("versionString", "?")
+        print(f"  [{state}] v{version}")
+except Exception as e:
+    print(f"ASC API query failed: {e}")
+PYEOF
 else
-  echo "ASC_UNAVAILABLE"
+  echo "ASC build status check skipped — credentials not configured"
 fi
 ```
 
-Interpret build processing states:
+Interpret build/version states:
 - **WAITING_FOR_REVIEW** — note in brief (informational, normal)
 - **IN_REVIEW** — note in brief (informational, progress)
 - **DEVELOPER_ACTION_NEEDED** — create CRITICAL work item with details
 - **REJECTED** — create CRITICAL work item with rejection reason
 
-If ASC API credentials are not available, skip this check and note "ASC build status check skipped — credentials not configured" in output. Do not treat this as a failure.
+If ASC API credentials are not available, skip this check and note it in output. Do not treat this as a failure.
 
 ### 4. Sentiment Themes
 
