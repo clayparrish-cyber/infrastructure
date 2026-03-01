@@ -11,7 +11,9 @@ Registry-driven, multi-project agent infrastructure. Runs nightly via GitHub Act
 └── nightly-review.yml          # 7-job pipeline (runs 2am CST daily)
 
 agents/
-├── registry.json               # Project + agent config (automation profiles, schedules, repos)
+├── registry.json               # Project + agent config (22 agents, automation profiles, schedules)
+├── config/
+│   └── credentials.json        # Token/key registry with expiry dates
 ├── orchestrator/
 │   └── decide-roster.md        # AI orchestrator prompt (builds nightly roster)
 ├── reviews/
@@ -96,11 +98,11 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
-- **2026-02-24** — Added `credit-check` job to nightly pipeline: probes Anthropic API before running agents, gates entire pipeline on credit availability, alerts Command Center on exhaustion.
-- **2026-02-23** — Fixed while-read loop bug: `claude -p` consumed stdin, causing reviews to process only 1 roster entry. Fixed with fd 3 + `< /dev/null`. Updated agent budgets to match actual usage ($38→$60/mo). Diagnosed 5-day outage caused by Anthropic API credit exhaustion.
-- **2026-02-22** — Added ASO & retention review agents, fixed logs artifact download.
-- **2026-02-20** — Added DRY_RUN input, strategic-portfolio-audit agent, business-synthesis agent.
-- **2026-02-17** — Added business-synthesis agent for Sunday weekly briefings.
+- **2026-02-28** — Chief of Staff ops layer: credential-expiry-check (M/W/F), post-nightly-health-check (daily), chief-of-staff-daily-brief (daily). ASC build status checks added to app-review-monitors. Marketing-analyst promoted to biweekly. Health-check job added to nightly workflow.
+- **2026-02-28** — Worker agent context fix: --disable-slash-commands, --setting-sources, --tools flags.
+- **2026-02-24** — Added `credit-check` job to nightly pipeline.
+- **2026-02-23** — Fixed while-read stdin bug. Updated agent budgets ($38→$60/mo).
+- **2026-02-22** — Added ASO & retention review agents.
 
 ## Current Status (2026-01-23)
 
