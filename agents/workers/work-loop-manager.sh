@@ -100,20 +100,81 @@ log() {
 }
 
 # Fetch approved work items from Supabase
+fetch_autonomy_rules() {
+  curl -s \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    "$SUPABASE_URL/rest/v1/autonomy_rules?select=decision_category,current_level,shadow_total,shadow_agreement_rate,metadata&limit=1000"
+}
+
 fetch_approved_items() {
   local raw
+  local autonomy_rules
   raw=$(curl -s \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&system_recommendation=not.is.null&source_type=eq.agent&order=created_at.asc&limit=100&select=id,title,description,project,priority,type,source_type,source_id,metadata")
+    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&system_recommendation=not.is.null&source_type=eq.agent&order=created_at.asc&limit=100&select=id,title,description,project,priority,type,source_type,source_id,decision_category,created_at,metadata")
+  autonomy_rules=$(fetch_autonomy_rules)
 
-  # Sort by priority then take MAX_ITEMS
-  echo "$raw" | python3 -c "
+# Sort by priority, then bias toward L2 categories that are closest to graduation.
+  echo "$raw" | AUTONOMY_RULES_JSON="$autonomy_rules" python3 -c "
 import sys, json
+
 priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, None: 4}
-items = json.load(sys.stdin)
+
+try:
+    items = json.load(sys.stdin)
+except Exception:
+    items = []
+
+try:
+    rules = json.loads(__import__('os').environ.get('AUTONOMY_RULES_JSON') or '[]')
+except Exception:
+    rules = []
+
+rules_by_category = {}
+for rule in rules:
+    if not isinstance(rule, dict):
+        continue
+    category = rule.get('decision_category')
+    if isinstance(category, str) and category:
+        rules_by_category[category] = rule
+
+def safe_human_approvals(rule):
+    metadata = rule.get('metadata') if isinstance(rule, dict) else {}
+    if not isinstance(metadata, dict):
+        return 0
+    safety = metadata.get('safety_metrics')
+    if not isinstance(safety, dict):
+        return 0
+    value = safety.get('safe_human_approvals')
+    return int(value) if isinstance(value, (int, float)) else 0
+
+def graduation_priority(item):
+    category = item.get('decision_category')
+    if not isinstance(category, str) or not category:
+        return (1, 999, 999)
+
+    rule = rules_by_category.get(category)
+    if not isinstance(rule, dict):
+        return (1, 999, 999)
+
+    current_level = int(rule.get('current_level') or 1)
+    shadow_total = int(rule.get('shadow_total') or 0)
+    shadow_rate = float(rule.get('shadow_agreement_rate') or 0)
+    if current_level != 2 or shadow_rate < 0.9:
+        return (1, 999, 999)
+
+    shadow_gap = max(0, 20 - shadow_total)
+    safe_gap = max(0, 10 - safe_human_approvals(rule))
+    return (0, shadow_gap + safe_gap, shadow_gap)
+
 if isinstance(items, list):
-    items.sort(key=lambda x: (priority_order.get(x.get('priority'), 4), x.get('created_at', '')))
+    items.sort(key=lambda x: (
+        priority_order.get(x.get('priority'), 4),
+        graduation_priority(x),
+        x.get('created_at', ''),
+    ))
     json.dump(items[:$MAX_ITEMS], sys.stdout)
 else:
     json.dump([], sys.stdout)
