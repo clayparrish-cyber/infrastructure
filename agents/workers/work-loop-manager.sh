@@ -183,6 +183,93 @@ print(template)
 PYEOF
 }
 
+build_worker_metadata_json() {
+  local item_json="$1"
+  local validation_json="${2:-}"
+
+  ITEM_JSON="$item_json" VALIDATION_JSON="$validation_json" python3 << 'PYEOF'
+import json, os
+from datetime import datetime, timezone
+
+def clean_str(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+def clean_check(value):
+    if not isinstance(value, dict):
+        return None
+    status = value.get('status')
+    if status not in {'passed', 'failed', 'skipped', 'not_applicable'}:
+        return None
+    return {
+        'status': status,
+        'command': clean_str(value.get('command')),
+        'notes': clean_str(value.get('notes')),
+    }
+
+item = json.loads(os.environ.get('ITEM_JSON') or '{}')
+metadata = item.get('metadata') if isinstance(item.get('metadata'), dict) else {}
+raw_validation = (os.environ.get('VALIDATION_JSON') or '').strip()
+
+validation = {}
+if raw_validation:
+    try:
+        validation = json.loads(raw_validation)
+    except Exception:
+        validation = {}
+
+if not isinstance(validation, dict):
+    validation = {}
+
+type_check = clean_check(validation.get('type_check'))
+tests = validation.get('tests') if isinstance(validation.get('tests'), list) else []
+clean_tests = [entry for entry in (clean_check(test) for test in tests) if entry]
+manual_values = validation.get('manual_checks') if isinstance(validation.get('manual_checks'), list) else []
+manual_checks = [
+    step.strip() for step in manual_values
+    if isinstance(step, str) and step.strip()
+]
+
+if type_check or clean_tests or manual_checks:
+    metadata['worker_validation'] = {
+        'captured_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'type_check': type_check,
+        'tests': clean_tests,
+        'manual_checks': manual_checks,
+    }
+
+    test_commands = [entry['command'] for entry in clean_tests if entry.get('command')]
+    if test_commands:
+        metadata['test_command'] = '\n'.join(test_commands[:3])
+
+    if type_check and type_check.get('command'):
+        metadata['verification_command'] = type_check['command']
+
+    validation_steps = []
+    if type_check:
+        line = f"Type check ({type_check['status']}): {type_check.get('command') or 'no command recorded'}"
+        if type_check.get('notes'):
+            line += f" — {type_check['notes']}"
+        validation_steps.append(line)
+
+    for index, test in enumerate(clean_tests, start=1):
+        line = f"Test {index} ({test['status']}): {test.get('command') or 'no command recorded'}"
+        if test.get('notes'):
+            line += f" — {test['notes']}"
+        validation_steps.append(line)
+
+    for step in manual_checks:
+        validation_steps.append(f"Manual: {step}")
+
+    if validation_steps:
+        metadata['validation_steps'] = '\n'.join(f"- {line}" for line in validation_steps)
+
+print(json.dumps(metadata, separators=(',', ':')))
+PYEOF
+}
+
 # Run a worker agent for a single work item
 run_worker() {
   local item_json="$1"
@@ -275,10 +362,12 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
     fi
 
     # Extract markers from output
-    local proposed_diff execution_log branch_name already_resolved
+    local proposed_diff execution_log branch_name already_resolved validation_json metadata_json
     proposed_diff=$(sed -n '/===PROPOSED_DIFF_START===/,/===PROPOSED_DIFF_END===/p' "$output_file" | sed '1d;$d' || echo "")
     execution_log=$(sed -n '/===EXECUTION_LOG_START===/,/===EXECUTION_LOG_END===/p' "$output_file" | sed '1d;$d' || echo "")
     branch_name=$(sed -n '/===BRANCH_NAME_START===/,/===BRANCH_NAME_END===/p' "$output_file" | sed '1d;$d' || echo "")
+    validation_json=$(sed -n '/===VALIDATION_JSON_START===/,/===VALIDATION_JSON_END===/p' "$output_file" | sed '1d;$d' || echo "")
+    metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json")
     already_resolved=$(grep -c '===ALREADY_RESOLVED===' "$output_file" || echo "0")
     human_action=$(grep -c '===HUMAN_ACTION_REQUIRED===' "$output_file" || echo "0")
 
@@ -286,14 +375,14 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       # Finding already fixed in current code — auto-close
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined finding is already resolved}")
-      update_work_item "$item_id" "{\"status\":\"done\",\"execution_log\":$log_escaped,\"assigned_to\":\"worker-agent\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      update_work_item "$item_id" "{\"status\":\"done\",\"execution_log\":$log_escaped,\"assigned_to\":\"worker-agent\",\"metadata\":$metadata_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "auto_closed" "in_progress" "done" "Worker verified finding already resolved in current code"
       log "AUTO-CLOSED: $short_id — already resolved"
     elif [ "$human_action" -gt 0 ]; then
       # Route back to triaged for human pickup
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined this requires human action}")
-      update_work_item "$item_id" "{\"status\":\"triaged\",\"assigned_to\":null,\"execution_log\":$log_escaped,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      update_work_item "$item_id" "{\"status\":\"triaged\",\"assigned_to\":null,\"execution_log\":$log_escaped,\"metadata\":$metadata_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "human_required" "in_progress" "triaged" "Worker determined this item requires human action — routing to triage"
       log "HUMAN-ACTION: $short_id — routed to triage"
     elif [ -n "$proposed_diff" ]; then
@@ -303,14 +392,14 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$execution_log")
 
       # Update work item with diff and set to review
-      update_work_item "$item_id" "{\"status\":\"review\",\"proposed_diff\":$diff_escaped,\"execution_log\":$log_escaped,\"branch_name\":$([ -n "$branch_name" ] && echo "\"$branch_name\"" || echo "null"),\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      update_work_item "$item_id" "{\"status\":\"review\",\"proposed_diff\":$diff_escaped,\"execution_log\":$log_escaped,\"branch_name\":$([ -n "$branch_name" ] && echo "\"$branch_name\"" || echo "null"),\"metadata\":$metadata_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "worker_completed" "in_progress" "review" "Worker generated proposed changes"
       log "REVIEW: $short_id — diff generated, awaiting human review"
     else
       # Worker couldn't generate a diff — escalate
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker produced no output markers}")
-      update_work_item "$item_id" "{\"status\":\"review\",\"proposed_diff\":null,\"execution_log\":$log_escaped,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      update_work_item "$item_id" "{\"status\":\"review\",\"proposed_diff\":null,\"execution_log\":$log_escaped,\"metadata\":$metadata_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker could not generate fix — needs human review"
       log "ESCALATE: $short_id — no diff generated"
     fi

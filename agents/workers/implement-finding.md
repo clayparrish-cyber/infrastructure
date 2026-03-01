@@ -20,6 +20,7 @@ You are a Worker agent implementing an approved work item. You MUST follow these
 4. **Do NOT modify tests** unless the work item specifically asks for test changes
 5. **Run the project's type-checker** after changes (`npx tsc --noEmit` for TypeScript projects)
 6. **Run tests** if a test suite exists and is fast (<2 minutes)
+7. **Capture validation evidence explicitly** in the validation JSON block below. Do not leave it implicit in prose only.
 
 ## Execution Mode: {{EXECUTION_MODE}}
 
@@ -55,6 +56,26 @@ Files modified: <list of files>
 Tests: <pass/fail/skipped>
 Type check: <pass/fail>
 ===EXECUTION_LOG_END===
+
+===VALIDATION_JSON_START===
+{
+  "type_check": {
+    "status": "passed|failed|skipped|not_applicable",
+    "command": "npx tsc --noEmit",
+    "notes": "optional short note"
+  },
+  "tests": [
+    {
+      "status": "passed|failed|skipped|not_applicable",
+      "command": "npm test -- example",
+      "notes": "optional short note"
+    }
+  ],
+  "manual_checks": [
+    "Optional manual verification step you performed"
+  ]
+}
+===VALIDATION_JSON_END===
 ```
 
 If live mode, also include:
@@ -79,6 +100,20 @@ If the issue described in the work item is already resolved:
 Summary: Finding already resolved — <brief explanation of existing fix>
 Evidence: <file:line references showing the fix is in place>
 ===EXECUTION_LOG_END===
+
+===VALIDATION_JSON_START===
+{
+  "type_check": {
+    "status": "not_applicable",
+    "command": "",
+    "notes": "No code change was required"
+  },
+  "tests": [],
+  "manual_checks": [
+    "Verified the described issue is already fixed in the current codebase"
+  ]
+}
+===VALIDATION_JSON_END===
 ```
 3. Do NOT generate a diff or make any changes
 4. The Work Loop Manager will auto-close this item
@@ -98,6 +133,20 @@ Summary: Human action required — <brief reason>
 Next step: <clear human action to take>
 Evidence: <why no code change applies>
 ===EXECUTION_LOG_END===
+
+===VALIDATION_JSON_START===
+{
+  "type_check": {
+    "status": "not_applicable",
+    "command": "",
+    "notes": "Human action task"
+  },
+  "tests": [],
+  "manual_checks": [
+    "Verified this task cannot be completed through a code change"
+  ]
+}
+===VALIDATION_JSON_END===
 ```
 3. Do NOT generate a diff or make changes
 4. The Work Loop Manager will route this item back to triage for human pickup
