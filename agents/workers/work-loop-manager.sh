@@ -18,6 +18,29 @@ NIGHTLY_COST_CAP="${NIGHTLY_COST_CAP:-10.00}"
 CUMULATIVE_COST="0"
 DATE=$(date +%Y-%m-%d)
 RUN_TRIGGER="work_loop_manager"
+SCRIPT_ROOT="$(pwd)"
+
+resolve_repo_relative_path() {
+  local path_value="$1"
+
+  PATH_VALUE="$path_value" SCRIPT_ROOT_VALUE="$SCRIPT_ROOT" python3 << 'PYEOF'
+import os
+from pathlib import Path
+
+path_value = os.environ.get('PATH_VALUE', '').strip()
+script_root = Path(os.environ.get('SCRIPT_ROOT_VALUE', '.')).resolve()
+
+if not path_value:
+    print(str(script_root))
+    raise SystemExit(0)
+
+path = Path(path_value)
+if path.is_absolute():
+    print(str(path))
+else:
+    print(str((script_root / path).resolve()))
+PYEOF
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -38,6 +61,10 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+LOG_DIR="$(resolve_repo_relative_path "$LOG_DIR")"
+REGISTRY="$(resolve_repo_relative_path "$REGISTRY")"
+WORKER_PROMPT="$(resolve_repo_relative_path "$WORKER_PROMPT")"
 
 mkdir -p "$LOG_DIR"
 
@@ -97,6 +124,70 @@ fi
 
 log() {
   echo "[$(date +%H:%M:%S)] $1" | tee -a "$LOG_DIR/$DATE-work-loop.log"
+}
+
+run_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$timeout_seconds" "$@"
+    return $?
+  fi
+
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$timeout_seconds" "$@"
+    return $?
+  fi
+
+  python3 - "$timeout_seconds" "$@" << 'PYEOF'
+import subprocess
+import sys
+
+timeout_seconds = int(sys.argv[1])
+command = sys.argv[2:]
+
+try:
+    completed = subprocess.run(
+        command,
+        timeout=timeout_seconds,
+        check=False,
+        stdin=subprocess.DEVNULL,
+    )
+    raise SystemExit(completed.returncode)
+except subprocess.TimeoutExpired:
+    raise SystemExit(124)
+PYEOF
+}
+
+resolve_project_dir() {
+  local project_slug="$1"
+
+  PROJECT_SLUG="$project_slug" REGISTRY_PATH="$REGISTRY" PROJECTS_ROOT="$PROJECTS_DIR" python3 << 'PYEOF'
+import json, os
+from pathlib import Path
+
+project = os.environ.get('PROJECT_SLUG', '').strip()
+registry_path = os.environ.get('REGISTRY_PATH', '').strip()
+projects_root = os.environ.get('PROJECTS_ROOT', 'projects').strip() or 'projects'
+
+fallback = str(Path(projects_root) / project)
+
+if registry_path:
+    path = Path(registry_path)
+    if path.is_file():
+        try:
+            registry = json.loads(path.read_text())
+            project_entry = ((registry or {}).get('projects') or {}).get(project) or {}
+            resolved = project_entry.get('path')
+            if isinstance(resolved, str) and resolved.strip():
+                print(resolved.strip())
+                raise SystemExit(0)
+        except Exception:
+            pass
+
+print(fallback)
+PYEOF
 }
 
 # Fetch approved work items from Supabase
@@ -212,12 +303,11 @@ insert_event() {
 build_worker_prompt() {
   local item_json="$1"
 
-  # Use Python for template substitution — safe with any characters in title/description
-  # Pass JSON via stdin to avoid shell escaping issues
-  echo "$item_json" | python3 << 'PYEOF'
+  # Use Python for template substitution — safe with any characters in title/description.
+  ITEM_JSON="$item_json" python3 << 'PYEOF'
 import json, sys, os
 
-item = json.load(sys.stdin)
+item = json.loads(os.environ.get('ITEM_JSON') or '{}')
 prompt_path = os.environ.get('WORKER_PROMPT', 'agents/workers/implement-finding.md')
 exec_mode = os.environ.get('EXECUTION_MODE', 'dry_run')
 
@@ -339,7 +429,7 @@ run_worker() {
 
   item_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
   project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
-  project_dir="$PROJECTS_DIR/$project"
+  project_dir=$(resolve_project_dir "$project")
 
   if [ ! -d "$project_dir" ]; then
     log "SKIP $item_id: project directory not found: $project_dir"
@@ -372,7 +462,7 @@ run_worker() {
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
-  if timeout 600 claude -p "$prompt" --max-turns 30 --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+  if run_with_timeout 600 claude -p "$prompt" --max-turns 30 --output-format json --permission-mode bypassPermissions --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
     # Guard against empty output from claude -p
     if [ ! -s "$json_output" ]; then
       log "WORKER FAILED: $short_id (empty output from claude)"
@@ -538,10 +628,10 @@ json.dump(filtered, sys.stdout)
 build_specialist_prompt() {
   local item_json="$1"
 
-  echo "$item_json" | python3 << 'PYEOF'
+  ITEM_JSON="$item_json" python3 << 'PYEOF'
 import json, sys, os
 
-item = json.load(sys.stdin)
+item = json.loads(os.environ.get('ITEM_JSON') or '{}')
 
 specialist_id = item.get('assigned_to', '')
 metadata = item.get('metadata', {}) or {}
@@ -605,7 +695,7 @@ run_specialist() {
   item_id=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
   project=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])")
   specialist=$(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('assigned_to','unknown'))")
-  project_dir="$PROJECTS_DIR/$project"
+  project_dir=$(resolve_project_dir "$project")
 
   if [ ! -d "$project_dir" ]; then
     log "SKIP DELEGATION $item_id: project directory not found: $project_dir"
@@ -648,7 +738,7 @@ run_specialist() {
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-specialist-$short_id-output.json"
-  if timeout 600 claude -p "$prompt" --max-turns 20 --output-format json --allowedTools "Read,Glob,Grep" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+  if run_with_timeout 600 claude -p "$prompt" --max-turns 20 --output-format json --permission-mode bypassPermissions --allowedTools "Read,Glob,Grep" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
     # Extract text content from JSON for marker parsing
     python3 -c "
 import json, sys
