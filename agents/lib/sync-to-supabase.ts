@@ -431,6 +431,11 @@ async function maybeAutoApprove(
     actor: 'system',
     actor_type: 'system',
     notes: `Autonomy L${rule.current_level}: auto-approved for category ${category}`,
+    metadata: {
+      autonomy_level: rule.current_level,
+      decision_category: category,
+      autonomy_safety: safety,
+    } as any,
   });
 
   // Update autonomy metrics
