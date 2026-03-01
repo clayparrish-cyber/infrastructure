@@ -65,6 +65,7 @@ done
 LOG_DIR="$(resolve_repo_relative_path "$LOG_DIR")"
 REGISTRY="$(resolve_repo_relative_path "$REGISTRY")"
 WORKER_PROMPT="$(resolve_repo_relative_path "$WORKER_PROMPT")"
+export WORKER_PROMPT
 
 mkdir -p "$LOG_DIR"
 
@@ -450,6 +451,13 @@ run_worker() {
   local prompt
   prompt=$(build_worker_prompt "$item_json")
 
+  if [ -z "$prompt" ] || [ ${#prompt} -lt 100 ]; then
+    log "WORKER FAILED: $short_id (prompt too short: ${#prompt} chars)"
+    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker prompt generation failed — prompt was ${#prompt} chars\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker prompt generation failed"
+    return 1
+  fi
+
   # Run claude -p with timeout (10 minutes max per item)
   local output_file="$LOG_DIR/$DATE-worker-$short_id.log"
   local start_time end_time duration
@@ -462,7 +470,15 @@ run_worker() {
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
-  if run_with_timeout 600 claude -p "$prompt" --max-turns 30 --output-format json --permission-mode bypassPermissions --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+  if run_with_timeout 600 claude -p "$prompt" \
+    --max-turns 15 \
+    --output-format json \
+    --permission-mode bypassPermissions \
+    --tools "Read,Write,Edit,Glob,Grep,Bash" \
+    --no-session-persistence \
+    --disable-slash-commands \
+    --setting-sources "project,local" \
+    < /dev/null > "$json_output" 2>"$output_file.stderr"; then
     # Guard against empty output from claude -p
     if [ ! -s "$json_output" ]; then
       log "WORKER FAILED: $short_id (empty output from claude)"
@@ -726,6 +742,14 @@ run_specialist() {
   local prompt
   prompt=$(build_specialist_prompt "$item_json")
 
+  if [ -z "$prompt" ] || [ ${#prompt} -lt 100 ]; then
+    log "SPECIALIST FAILED: $short_id (prompt too short: ${#prompt} chars)"
+    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Specialist prompt generation failed — prompt was ${#prompt} chars\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "worker_failed" "in_progress" "review" "Specialist prompt generation failed"
+    cd - > /dev/null
+    return 1
+  fi
+
   # Run claude -p with timeout (10 minutes max per specialist)
   local output_file="$LOG_DIR/$DATE-specialist-$short_id.log"
   local start_time end_time duration
@@ -738,7 +762,15 @@ run_specialist() {
   cd "$project_dir"
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-specialist-$short_id-output.json"
-  if run_with_timeout 600 claude -p "$prompt" --max-turns 20 --output-format json --permission-mode bypassPermissions --allowedTools "Read,Glob,Grep" < /dev/null > "$json_output" 2>"$output_file.stderr"; then
+  if run_with_timeout 600 claude -p "$prompt" \
+    --max-turns 10 \
+    --output-format json \
+    --permission-mode bypassPermissions \
+    --tools "Read,Glob,Grep" \
+    --no-session-persistence \
+    --disable-slash-commands \
+    --setting-sources "project,local" \
+    < /dev/null > "$json_output" 2>"$output_file.stderr"; then
     # Extract text content from JSON for marker parsing
     python3 -c "
 import json, sys
