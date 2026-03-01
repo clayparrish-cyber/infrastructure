@@ -321,9 +321,20 @@
       "id": "marketing-analyst",
       "name": "Marketing Analysis",
       "category": "specialist",
-      "schedule": null,
+      "schedule": {
+        "day": "wednesday",
+        "frequency": "biweekly-even",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "excludeProjects": [
+        "gt-ops",
+        "menu-autopilot",
+        "infrastructure"
+      ],
       "maxTurns": 60,
-      "description": "Campaign performance, attribution, content strategy. On-demand \u2014 triggered via delegation from other agents."
+      "description": "Campaign performance, attribution, content strategy. Biweekly scheduled + on-demand via delegation. Queries Meta Ads API when available."
     },
     {
       "id": "legal-advisor",
@@ -388,6 +399,56 @@
       ],
       "maxTurns": 15,
       "description": "Daily lightweight check for new App Store reviews. Creates work items for negative reviews or rating drops."
+    },
+    {
+      "id": "credential-expiry-check",
+      "name": "Credential Expiry Check",
+      "category": "ops",
+      "schedule": {
+        "days": [
+          "monday",
+          "wednesday",
+          "friday"
+        ]
+      },
+      "maxTurns": 10,
+      "description": "Checks credential registry for expiring tokens, PATs, and certificates. Alerts at 30/14/7/3/1 day thresholds."
+    },
+    {
+      "id": "post-nightly-health-check",
+      "name": "Post-Nightly Health Check",
+      "category": "ops",
+      "schedule": {
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ]
+      },
+      "maxTurns": 15,
+      "description": "Verifies nightly pipeline succeeded, checks agent coverage, service reachability, and stale work items."
+    },
+    {
+      "id": "chief-of-staff-daily-brief",
+      "name": "Chief of Staff Daily Brief",
+      "category": "ops",
+      "schedule": {
+        "days": [
+          "monday",
+          "tuesday",
+          "wednesday",
+          "thursday",
+          "friday",
+          "saturday",
+          "sunday"
+        ]
+      },
+      "maxTurns": 20,
+      "description": "Morning operations brief aggregating credentials, pipeline status, backlog, spend readiness, and agent signals into one report."
     }
   ]
 }

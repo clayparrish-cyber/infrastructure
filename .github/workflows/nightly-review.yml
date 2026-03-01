@@ -1134,11 +1134,90 @@ jobs:
           if-no-files-found: ignore
 
   # ─────────────────────────────────────────────
-  # Job 8: Post nightly summary to dashboard
+  # Job 8: Post-nightly health check
+  # ─────────────────────────────────────────────
+  health-check:
+    runs-on: ubuntu-latest
+    needs: [setup, reviews]
+    if: always() && needs.setup.result == 'success'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run post-nightly health check
+        env:
+          DATE: ${{ needs.setup.outputs.date }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          WORKSPACE="${{ github.workspace }}"
+          LOG_FILE="$WORKSPACE/logs/health-check-${DATE}.log"
+          mkdir -p "$WORKSPACE/logs"
+
+          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          cd "$WORKSPACE"
+          if timeout 600 claude -p "$(cat "$WORKSPACE/agents/reviews/infrastructure/post-nightly-health-check.md")" \
+            --max-turns 15 \
+            --tools "Read,Glob,Grep,Bash" \
+            --disable-slash-commands \
+            --setting-sources "project,local" < /dev/null 2>&1 | tee "$LOG_FILE"; then
+            echo "SUCCESS: post-nightly-health-check"
+            curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{
+                \"agent_id\":\"post-nightly-health-check\",
+                \"project\":\"infrastructure\",
+                \"trigger\":\"nightly\",
+                \"status\":\"completed\",
+                \"started_at\":\"$STARTED_AT\",
+                \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"output_summary\":\"Post-nightly health check completed\"
+              }" > /dev/null 2>&1 || true
+          else
+            echo "WARNING: post-nightly-health-check failed"
+            curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{
+                \"agent_id\":\"post-nightly-health-check\",
+                \"project\":\"infrastructure\",
+                \"trigger\":\"nightly\",
+                \"status\":\"failed\",
+                \"started_at\":\"$STARTED_AT\",
+                \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+                \"error_details\":\"See health-check log\"
+              }" > /dev/null 2>&1 || true
+          fi
+
+      - name: Upload health check logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-check-logs
+          path: logs/health-check-*
+          retention-days: 1
+          if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────
+  # Job 9: Post nightly summary to dashboard
   # ─────────────────────────────────────────────
   notify:
     runs-on: ubuntu-latest
-    needs: [setup, reviews, sync, workers, reconcile]
+    needs: [setup, reviews, sync, workers, reconcile, health-check]
     if: always() && needs.setup.result == 'success'
     steps:
       - name: Post nightly summary
@@ -1149,14 +1228,15 @@ jobs:
           SYNC_RESULT: ${{ needs.sync.result }}
           WORKERS_RESULT: ${{ needs.workers.result }}
           RECONCILE_RESULT: ${{ needs.reconcile.result }}
+          HEALTH_CHECK_RESULT: ${{ needs.health-check.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # Build status emoji and summary
           FAILURES=""
           SUCCESSES=0
-          TOTAL=4
+          TOTAL=5
 
-          for JOB_PAIR in "reviews:$REVIEWS_RESULT" "sync:$SYNC_RESULT" "workers:$WORKERS_RESULT" "reconcile:$RECONCILE_RESULT"; do
+          for JOB_PAIR in "reviews:$REVIEWS_RESULT" "sync:$SYNC_RESULT" "workers:$WORKERS_RESULT" "reconcile:$RECONCILE_RESULT" "health-check:$HEALTH_CHECK_RESULT"; do
             JOB_NAME="${JOB_PAIR%%:*}"
             JOB_RESULT="${JOB_PAIR##*:}"
             if [ "$JOB_RESULT" = "success" ]; then

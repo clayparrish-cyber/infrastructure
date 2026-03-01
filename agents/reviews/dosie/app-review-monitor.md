@@ -67,6 +67,31 @@ Compare against previous report if one exists. Flag if:
 - A 1-star review was posted
 - Review volume spiked (3x normal daily volume)
 
+### 3b. Check Build Submission Status
+
+Query the App Store Connect API for this app's pending versions to track build review progress:
+
+```bash
+# Check if ASC CLI or API credentials are available
+if command -v asc &>/dev/null; then
+  asc builds list --bundle-id com.dosieapp.dosie --limit 3 --format json 2>/dev/null || echo "ASC_UNAVAILABLE"
+elif [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_PRIVATE_KEY" ]; then
+  echo "ASC API credentials found — checking build status..."
+  curl -s "https://api.appstoreconnect.apple.com/v1/builds?filter[app]=com.dosieapp.dosie&limit=3&sort=-uploadedDate" \
+    -H "Authorization: Bearer $ASC_JWT" 2>/dev/null || echo "ASC_UNAVAILABLE"
+else
+  echo "ASC_UNAVAILABLE"
+fi
+```
+
+Interpret build processing states:
+- **WAITING_FOR_REVIEW** — note in brief (informational, normal)
+- **IN_REVIEW** — note in brief (informational, progress)
+- **DEVELOPER_ACTION_NEEDED** — create CRITICAL work item with details
+- **REJECTED** — create CRITICAL work item with rejection reason
+
+If ASC API credentials are not available, skip this check and note "ASC build status check skipped — credentials not configured" in output. Do not treat this as a failure.
+
 ### 4. Sentiment Themes
 
 If there are negative reviews (1-2 stars), categorize the complaints:
