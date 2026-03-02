@@ -81,6 +81,46 @@ Write to `reports/YYYY-MM-DD-content-writer.json`:
 
 **CRITICAL**: Finding IDs MUST follow format `siq-cw-YYYY-MM-DD-NNN` (e.g., `siq-cw-2026-02-25-001`). IDs must be globally unique.
 
+### Social Post Work Items
+
+After writing the blog post, create 2-3 social media post work items via the Command Center API. These will appear in the content queue for human review before publishing.
+
+For each social post, run:
+
+```bash
+curl -s -X POST "${COMMAND_CENTER_URL}/api/work-items" \
+  -H "Authorization: Bearer ${COMMAND_CENTER_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Social: {short headline for the post}",
+    "project": "sidelineiq",
+    "type": "task",
+    "source_type": "agent",
+    "source_id": "content-writer-{YYYY-MM-DD}-social-{N}",
+    "priority": "medium",
+    "allow_duplicate": true,
+    "decision_category": "marketing_content",
+    "metadata": {
+      "content_type": "social_post",
+      "format": "image",
+      "caption": "{Full caption text with line breaks}",
+      "hashtags": "{#hashtag1 #hashtag2 ...}",
+      "platform": "{instagram|twitter|tiktok}",
+      "product": "sidelineiq",
+      "blog_slug": "{slug of the blog post this promotes}",
+      "scheduled_time": "{ISO datetime, spread across the week after publish}"
+    }
+  }'
+```
+
+**Social post guidelines:**
+- Create posts for at least 2 platforms (Instagram + Twitter recommended)
+- Each post should promote the blog post with a different angle or hook
+- Captions should match the brand voice (friendly, no-judgment, encouraging)
+- Include a CTA linking to the blog post or the app
+- Use relevant sports hashtags + #SidelineIQ
+- Set `scheduled_time` values spread across the next 3-5 days after the blog publish date
+
 ### Topic Selection
 
 If no approved work_item specifies a topic, select one using this priority:
