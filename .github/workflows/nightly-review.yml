@@ -900,6 +900,7 @@ jobs:
           LOG_DIR: ${{ github.workspace }}/logs
           MAX_WORKER_ITEMS: '5'
           EXECUTION_MODE: 'live'
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           chmod +x ${{ github.workspace }}/agents/workers/work-loop-manager.sh
           ${{ github.workspace }}/agents/workers/work-loop-manager.sh
@@ -1009,6 +1010,82 @@ jobs:
           except Exception as e:
               print(f'Evaluation response: {e}')
           " 2>/dev/null || echo "Autonomy evaluation skipped (API not reachable)"
+
+      - name: Reconcile auto-merge PRs
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          echo "Checking for merged auto-merge PRs..."
+
+          ITEMS=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/work_items?status=eq.review&select=id,metadata")
+
+          echo "$ITEMS" | python3 -c "
+          import json, sys, subprocess, os, urllib.request
+
+          url = os.environ['SUPABASE_URL']
+          key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+
+          items = json.load(sys.stdin)
+          checked = 0
+          merged = 0
+
+          for item in items:
+              meta = item.get('metadata') or {}
+              pr_url = meta.get('pr_url')
+              auto_merge = meta.get('auto_merge_requested', False)
+              if not pr_url or not auto_merge:
+                  continue
+
+              checked += 1
+              result = subprocess.run(
+                  ['gh', 'pr', 'view', pr_url, '--json', 'state', '-q', '.state'],
+                  capture_output=True, text=True, timeout=10
+              )
+              state = result.stdout.strip()
+
+              if state == 'MERGED':
+                  merged += 1
+                  item_id = item['id']
+                  print(f'  MERGED: {item_id} — {pr_url}')
+
+                  patch_url = f'{url}/rest/v1/work_items?id=eq.{item_id}'
+                  data = json.dumps({
+                      'status': 'done',
+                      'execution_log': f'PR auto-merged: {pr_url}'
+                  }).encode()
+                  req = urllib.request.Request(patch_url, data=data, method='PATCH', headers={
+                      'apikey': key,
+                      'Authorization': f'Bearer {key}',
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal',
+                  })
+                  urllib.request.urlopen(req)
+
+                  event_url = f'{url}/rest/v1/work_item_events'
+                  event = json.dumps({
+                      'work_item_id': item_id,
+                      'event_type': 'auto_merged',
+                      'from_status': 'review',
+                      'to_status': 'done',
+                      'actor': 'pr-reconcile',
+                      'actor_type': 'agent',
+                      'notes': f'PR auto-merged successfully: {pr_url}',
+                  }).encode()
+                  req2 = urllib.request.Request(event_url, data=event, headers={
+                      'apikey': key,
+                      'Authorization': f'Bearer {key}',
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal',
+                  })
+                  urllib.request.urlopen(req2)
+              elif state == 'CLOSED':
+                  print(f'  CLOSED (not merged): {item[\"id\"]} — {pr_url}')
+
+          print(f'PR reconcile: checked={checked}, merged={merged}')
+          " || echo "PR reconcile skipped (error)"
 
       - name: Create logs directory
         if: steps.check-stale.outputs.stale_count != '0'

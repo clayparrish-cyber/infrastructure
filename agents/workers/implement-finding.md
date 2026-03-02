@@ -37,9 +37,10 @@ You are a Worker agent implementing an approved work item. You MUST follow these
 2. Make changes
 3. Run linter and tests
 4. Commit with message: `fix: {{TITLE}} (work item {{WORK_ITEM_ID_SHORT}})`
-5. Write the branch name to stdout prefixed with `===BRANCH_NAME_START===` and `===BRANCH_NAME_END===`
-6. Write the diff to stdout (same markers as dry_run)
-7. Write execution log (same markers as dry_run)
+5. Push the branch: `git push origin worker/{{WORK_ITEM_ID_SHORT}}`
+6. Write the branch name to stdout prefixed with `===BRANCH_NAME_START===` and `===BRANCH_NAME_END===`
+7. Write the diff to stdout (same markers as dry_run)
+8. Write execution log (same markers as dry_run)
 
 ## Output Format
 
