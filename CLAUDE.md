@@ -98,11 +98,11 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
+- **2026-03-02** — Automated loop closure: workers push branches, create PRs via gh CLI, L3+ auto-merge. PR reconcile step in nightly workflow marks merged items as done.
 - **2026-02-28** — Chief of Staff ops layer: credential-expiry-check (M/W/F), post-nightly-health-check (daily), chief-of-staff-daily-brief (daily). ASC build status checks added to app-review-monitors. Marketing-analyst promoted to biweekly. Health-check job added to nightly workflow.
 - **2026-02-28** — Worker agent context fix: --disable-slash-commands, --setting-sources, --tools flags.
 - **2026-02-24** — Added `credit-check` job to nightly pipeline.
 - **2026-02-23** — Fixed while-read stdin bug. Updated agent budgets ($38→$60/mo).
-- **2026-02-22** — Added ASO & retention review agents.
 
 ## Current Status (2026-01-23)
 
