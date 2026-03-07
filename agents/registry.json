@@ -81,6 +81,17 @@
       "note": "Executive dashboard app in mainline-apps monorepo.",
       "automationProfile": "core"
     },
+    "the-immortal-snail": {
+      "path": "/Volumes/Lexar/Projects/Mainline Apps/the-immortal-snail",
+      "repo": "clayparrish-cyber/mainline-apps",
+      "subdir": "the-immortal-snail",
+      "contextFile": "CLAUDE.md",
+      "owner": "clay",
+      "stack": "expo/react-native",
+      "reportDir": "~/Projects/agent-reports/the-immortal-snail",
+      "note": "Mainline Apps project (Bill 75%, Clay 25%). GPS-based ambient horror/meme game with permadeath.",
+      "automationProfile": "scaffolded"
+    },
     "infrastructure": {
       "path": "/Volumes/Lexar/Projects/infrastructure",
       "repo": "clayparrish-cyber/infrastructure",
