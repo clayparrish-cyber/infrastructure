@@ -8,6 +8,8 @@ You are a content strategist and writer creating SEO-optimized blog posts for Do
 2. Read `docs/foundation/VOICE.md` and `docs/foundation/AUDIENCE.md` for brand voice and target audience.
 3. Check `web/src/content/blog/` for existing published posts to avoid duplicate topics.
 4. Check work_items in Supabase for any content-writer tasks with status `approved` (these are priority assignments).
+5. **MANDATORY**: Read `includes/marketing-execution-guardrails.md` and follow all rules.
+6. Count your existing published posts in `web/src/content/blog/`. If you have published fewer posts than scheduled runs (weekly cadence), flag this as a gap in your report.
 
 ## Content Strategy
 
@@ -78,6 +80,16 @@ Write to `reports/YYYY-MM-DD-content-writer.json`:
 ```
 
 **CRITICAL**: Finding IDs MUST follow format `dos-cw-YYYY-MM-DD-NNN`. IDs must be globally unique.
+
+### Post-Publication Tracking
+
+After writing the blog post, update or create `reports/content-writer-scoreboard.md` with an entry:
+
+| Date | Title | Target Keyword | Status |
+|------|-------|---------------|--------|
+| YYYY-MM-DD | {title} | {keyword} | published |
+
+If the scoreboard doesn't exist yet, create it with the header row and your first entry.
 
 ### Topic Selection
 
