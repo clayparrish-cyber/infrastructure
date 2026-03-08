@@ -703,7 +703,16 @@ jobs:
             BASE_PROMPT=$(cat "$PROMPT_FILE")
             BUSINESS_CONTEXT_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-business-context.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
             LESSONS_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-lessons.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
+            # Inject shared marketing guardrails for marketing-related agents
+            GUARDRAILS_FILE="$WORKSPACE/agents/includes/marketing-execution-guardrails.md"
+            GUARDRAILS_SECTION=""
+            if [[ "$AGENT_ID" =~ (aso-retention|content-value|content-writer|creative-provocateur|marketing) ]] && [ -f "$GUARDRAILS_FILE" ]; then
+              GUARDRAILS_SECTION=$(cat "$GUARDRAILS_FILE")
+            fi
             AUGMENTED_PROMPT="$BASE_PROMPT"
+            if [ -n "$GUARDRAILS_SECTION" ]; then
+              AUGMENTED_PROMPT="${AUGMENTED_PROMPT}"$'\n\n'"${GUARDRAILS_SECTION}"
+            fi
             if [ -n "$BUSINESS_CONTEXT_SECTION" ]; then
               AUGMENTED_PROMPT="${AUGMENTED_PROMPT}"$'\n\n'"${BUSINESS_CONTEXT_SECTION}"
             fi
