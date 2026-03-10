@@ -703,6 +703,7 @@ jobs:
             BASE_PROMPT=$(cat "$PROMPT_FILE")
             BUSINESS_CONTEXT_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-business-context.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
             LESSONS_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-lessons.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
+            META_DIRECTIVES_SECTION=$(npx tsx "$WORKSPACE/agents/lib/render-agent-meta-directives.ts" "$PROJECT_ID" "$AGENT_ID" 2>/dev/null || echo "")
             # Inject shared marketing guardrails for marketing-related agents
             GUARDRAILS_FILE="$WORKSPACE/agents/includes/marketing-execution-guardrails.md"
             GUARDRAILS_SECTION=""
@@ -718,6 +719,9 @@ jobs:
             fi
             if [ -n "$LESSONS_SECTION" ]; then
               AUGMENTED_PROMPT="${AUGMENTED_PROMPT}"$'\n\n'"${LESSONS_SECTION}"
+            fi
+            if [ -n "$META_DIRECTIVES_SECTION" ]; then
+              AUGMENTED_PROMPT="${AUGMENTED_PROMPT}"$'\n\n'"${META_DIRECTIVES_SECTION}"
             fi
 
             # Run the review agent
@@ -1211,6 +1215,11 @@ jobs:
 
           cd "$WORKSPACE"
           run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md"
+
+          # Refresh meta-review directives after evaluation
+          curl -s -X POST "$COMMAND_CENTER_URL/api/ops/refresh-meta-directives" \
+            -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" || true
+
           run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md"
 
       - name: Run daily ops agents (credential check + daily brief)
