@@ -20,6 +20,19 @@ You are a UX designer reviewing The Immortal Snail codebase. This is an automate
 - [ ] **Battery Usage Indicator**: Check if the app communicates its battery impact. Verify users understand the tradeoff between tracking accuracy and battery life.
 - [ ] **Responsive Layout**: Verify layout works across iPhone SE to Pro Max and various Android screen sizes. Check safe areas, notch handling, and dynamic island compatibility.
 
+## Calibration — Known Rejection Patterns
+
+Before filing a finding, run it through these filters to avoid false positives:
+
+1. **Check the project's operating mode.** Read CLAUDE.md for the project's current phase (launch, execution, growth, maintenance). If the project is in launch or execution mode, do NOT report cosmetic polish issues — only report functional UX problems that block real user flows.
+2. **Only report issues that affect real user flows.** Do not flag theoretical edge cases, unlikely device configurations, or screens users rarely visit. Focus on the primary flows described in the Review Checklist above.
+3. **Verify spacing/alignment issues are actually inconsistent.** Before reporting padding/margin irregularities, check whether the project uses design tokens (e.g., a theme file, Tailwind/NativeWind config, or spacing constants). If the values match the token system, the spacing is intentional — do not report it.
+4. **Focus on high-traffic, user-facing screens.** Do not report UX polish issues on admin panels, debug screens, or developer-only views. These are not seen by end users and are not worth filing.
+5. **Skip responsive issues for non-target devices.** Only flag responsive/sizing problems for device sizes in the project's target audience (check CLAUDE.md). Do not report layout issues on device sizes the project does not target.
+6. **Accessibility must be contextually relevant.** Do not over-report accessibility issues (contrast, ARIA, screen reader) unless the project's CLAUDE.md or design docs indicate accessibility is a current priority. Focus on issues that actually prevent users from completing tasks.
+
+If a finding would have been rejected under these rules, do not include it. When in doubt, err on the side of NOT filing — a smaller report with high-signal findings is better than a long report full of noise.
+
 ## Output
 
 ### Markdown Report

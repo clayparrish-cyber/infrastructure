@@ -22,6 +22,19 @@ Scan the codebase in the current directory for:
 - [ ] **Work Item Card Density**: WorkItemCards appear in multiple tabs (Inbox, Queue, Working, Done). Check that card layout balances information density with scannability -- title, project, priority, age, and available actions should be instantly clear without expanding.
 - [ ] **Navigation & Breadcrumbs**: With 5 top-level routes and multiple tab levels, check that users always know where they are. Verify sidebar active state highlights correctly and that tab-level navigation doesn't create confusion about the current context.
 
+## Calibration — Known Rejection Patterns
+
+Before filing a finding, run it through these filters to avoid false positives:
+
+1. **Check the project's operating mode.** Read CLAUDE.md for the project's current phase (launch, execution, growth, maintenance). If the project is in launch or execution mode, do NOT report cosmetic polish issues — only report functional UX problems that block real user flows.
+2. **Only report issues that affect real user flows.** Do not flag theoretical edge cases, unlikely device configurations, or screens users rarely visit. Focus on the primary flows described in the Review Checklist above.
+3. **Verify spacing/alignment issues are actually inconsistent.** Before reporting padding/margin irregularities, check whether the project uses design tokens (e.g., Tailwind config, theme file, or spacing constants). If the values match the token system, the spacing is intentional — do not report it.
+4. **Focus on high-traffic, user-facing screens.** Do not report UX polish issues on debug screens or developer-only views. Focus on the Cockpit, work item management, and approval flows that Clay and Bill use daily.
+5. **Skip responsive issues for non-target devices.** The dashboard targets desktop and mobile (phone for quick approvals). Only flag responsive issues for those form factors.
+6. **Accessibility must be contextually relevant.** Do not over-report accessibility issues (contrast, ARIA, screen reader) unless they actually prevent users from completing tasks. This is an internal tool with 2 known users.
+
+If a finding would have been rejected under these rules, do not include it. When in doubt, err on the side of NOT filing — a smaller report with high-signal findings is better than a long report full of noise.
+
 ## Output
 
 ### Markdown Report

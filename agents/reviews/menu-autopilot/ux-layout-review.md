@@ -28,6 +28,20 @@ Menu Autopilot: Blue (#3B82F6) primary, Green (#10B981) accent, White (#FFFFFF) 
 - [ ] **Empty States**: New account, no data yet. Guided onboarding to connect data sources?
 - [ ] **Error States**: API connection failures, import errors. Helpful messages that a restaurant manager can act on.
 
+## Calibration — Known Rejection Patterns
+
+Before filing a finding, run it through these filters to avoid false positives:
+
+1. **This is an internal tool.** Menu Autopilot is used by a small set of restaurant operators and internal team members. Skip cosmetic polish findings (spacing tweaks, color refinements, animation smoothness, visual hierarchy nitpicks) unless they cause actual confusion or workflow friction. Only report functional UX issues that slow down or block real workflows.
+2. **Check the project's operating mode.** Read CLAUDE.md for the project's current phase (launch, execution, growth, maintenance). If the project is in launch or execution mode, do NOT report cosmetic polish issues — only report functional UX problems that block real user flows.
+3. **Only report issues that affect real user flows.** Do not flag theoretical edge cases, unlikely device configurations, or screens users rarely visit. Focus on the primary flows described in the Review Checklist above.
+4. **Verify spacing/alignment issues are actually inconsistent.** Before reporting padding/margin irregularities, check whether the project uses design tokens (e.g., Tailwind config, theme file, or spacing constants). If the values match the token system, the spacing is intentional — do not report it.
+5. **Focus on high-traffic screens.** Do not report UX polish issues on settings pages, debug screens, or rarely-used admin views. Focus on dashboard, menu management, recipe builder, and report flows.
+6. **Skip responsive issues for non-target devices.** Menu Autopilot targets desktop (primary) and tablet. Do not report phone-specific layout issues unless CLAUDE.md explicitly lists mobile as a target.
+7. **Accessibility is low priority for internal tools.** Do not report accessibility issues (contrast, ARIA, screen reader) unless they actually prevent someone from completing a task.
+
+If a finding would have been rejected under these rules, do not include it. When in doubt, err on the side of NOT filing — a smaller report with high-signal findings is better than a long report full of noise.
+
 ## Output
 
 ### Markdown Report

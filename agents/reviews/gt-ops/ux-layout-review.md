@@ -24,6 +24,20 @@ Gallant Tiger brand: `#41AD48` Gallant Green (primary), `#30190B` Deep Brown (al
 - [ ] **Error States**: Failed API calls, validation errors. Helpful messages?
 - [ ] **Navigation**: Is the sidebar/nav structure logical for the 3 main areas (CRM, Inventory, POs)?
 
+## Calibration — Known Rejection Patterns
+
+Before filing a finding, run it through these filters to avoid false positives:
+
+1. **This is an internal tool.** GT-Ops is not user-facing — it is used by the internal team. Skip ALL cosmetic polish findings (spacing tweaks, color refinements, animation smoothness, visual hierarchy nitpicks). Only report functional UX issues that slow down or block internal workflows.
+2. **Check the project's operating mode.** Read CLAUDE.md for the project's current phase (launch, execution, growth, maintenance). If the project is in launch or execution mode, do NOT report cosmetic polish issues — only report functional UX problems that block real user flows.
+3. **Only report issues that affect real user flows.** Do not flag theoretical edge cases, unlikely device configurations, or screens users rarely visit. Focus on the primary flows described in the Review Checklist above.
+4. **Verify spacing/alignment issues are actually inconsistent.** Before reporting padding/margin irregularities, check whether the project uses design tokens (e.g., Tailwind config, theme file, or spacing constants). If the values match the token system, the spacing is intentional — do not report it.
+5. **Focus on high-traffic screens.** Do not report UX polish issues on admin panels, debug screens, or rarely-used settings pages. Focus on dashboard, CRM, inventory, and PO flows.
+6. **Skip responsive issues for non-target devices.** GT-Ops targets desktop and tablet only. Do not report mobile phone layout issues.
+7. **Accessibility is low priority for internal tools.** Do not report accessibility issues (contrast, ARIA, screen reader) unless they actually prevent someone from completing a task. Internal tools have a known user base.
+
+If a finding would have been rejected under these rules, do not include it. When in doubt, err on the side of NOT filing — a smaller report with high-signal findings is better than a long report full of noise.
+
 ## Output
 
 ### Markdown Report
