@@ -37,7 +37,7 @@
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/gt-ops",
       "note": "Has in-project agents for inventory/trends. Central agents still run here. Marketing managed by Kamal/Charlie \u2014 exclude marketing/content agents.",
-      "automationProfile": "scaffolded"
+      "automationProfile": "core-lite"
     },
     "menu-autopilot": {
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
@@ -114,7 +114,8 @@
           "friday"
         ],
         "projectProfiles": [
-          "core"
+          "core",
+          "core-lite"
         ]
       },
       "maxTurns": 50,
@@ -157,7 +158,8 @@
       "schedule": {
         "day": "thursday",
         "projectProfiles": [
-          "core"
+          "core",
+          "core-lite"
         ]
       },
       "maxTurns": 50,
@@ -224,6 +226,7 @@
         "day": "sunday",
         "projectProfiles": [
           "core",
+          "core-lite",
           "scaffolded"
         ]
       },

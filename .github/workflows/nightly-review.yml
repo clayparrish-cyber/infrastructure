@@ -287,9 +287,13 @@ jobs:
           if scope == 'all':
               projects = list(reg['projects'].keys())
           else:
+              # 'core' scope includes 'core-lite' projects
+              match_profiles = [scope]
+              if scope == 'core':
+                  match_profiles.append('core-lite')
               projects = [
                   slug for slug, proj in reg['projects'].items()
-                  if proj.get('automationProfile') == scope
+                  if proj.get('automationProfile') in match_profiles
               ]
           for p in projects:
               proj = reg['projects'][p]
@@ -488,9 +492,13 @@ jobs:
           elif project_scope == 'all':
               projects = list(reg['projects'].keys())
           else:
+              # 'core' scope includes 'core-lite' projects
+              match_profiles = [project_scope]
+              if project_scope == 'core':
+                  match_profiles.append('core-lite')
               projects = [
                   slug for slug, proj in reg['projects'].items()
-                  if proj.get('automationProfile') == project_scope
+                  if proj.get('automationProfile') in match_profiles
               ]
 
           # Build roster: run the theme agent on each project

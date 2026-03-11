@@ -54,11 +54,11 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 **Updated schedule reference:**
 | Day | Primary | Secondary (biweekly) |
 |-----|---------|---------------------|
-| Mon | security-review | — |
-| Tue | ux-layout-review (even) | aso-retention-review (odd) |
-| Wed | bug-hunt-review + content-writer | creative-provocateur (odd) |
-| Thu | content-value-review | competitive-intel (even) |
-| Fri | security-review | polish-brand-review (odd) |
+| Mon | security-review (core + core-lite) | — |
+| Tue | ux-layout-review (even, core) | aso-retention-review (odd, core) |
+| Wed | bug-hunt-review (core) + content-writer | creative-provocateur (odd) |
+| Thu | content-value-review (core + core-lite) | competitive-intel (even, core) |
+| Fri | security-review (core + core-lite) | polish-brand-review (odd, core) |
 | Sat | performance-review (even) + tier2-rotating | — |
 | Sun | weekly-cleanup + business-synthesis + evaluator + strategic-portfolio-audit | — |
 | Daily | app-review-monitor (iOS apps only: sidelineiq, dosie, glossy-sports) | — |
