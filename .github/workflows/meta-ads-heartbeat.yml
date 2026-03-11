@@ -2,7 +2,8 @@
 # Accumulates Marketing API calls to meet Meta's 1,500-call / 15-day threshold
 # for Ads Management Standard Access.
 #
-# Runs every hour → 5 calls/hour × 24 = 120 calls/day → 1,500 in ~13 days
+# Temporarily every 10 min to hit 1,500 threshold faster (720 calls/day)
+# Once Standard Access granted, dial back to every 4 hours as safety net
 #
 # To start: Add these GitHub secrets:
 #   META_ADS_ACCESS_TOKEN  — Long-lived token from SidelineIQ FB App (874168382262397)
@@ -14,7 +15,7 @@ name: Meta Ads Heartbeat
 
 on:
   schedule:
-    - cron: '17 * * * *'  # Every hour at :17
+    - cron: '*/10 * * * *'  # Every 10 min — temporary burst to hit 1,500
   workflow_dispatch: {}     # Manual trigger
 
 jobs:
