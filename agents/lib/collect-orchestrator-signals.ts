@@ -77,6 +77,82 @@ async function main() {
     signals.budget_summaries = {};
   }
 
+  // 2b. Auto-adjust budgets (self-learning)
+  try {
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    const { data: costData } = await supabase
+      .from('agent_runs_v2')
+      .select('agent_id, cost_estimate, started_at')
+      .gte('started_at', threeMonthsAgo.toISOString())
+      .not('cost_estimate', 'is', null);
+
+    const { data: agentRows } = await supabase
+      .from('agents')
+      .select('id, budget_monthly')
+      .eq('status', 'active');
+
+    if (costData && agentRows) {
+      // Group costs by agent_id and month
+      const monthlyCosts: Record<string, Record<string, number>> = {};
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      for (const run of costData) {
+        const agentId = run.agent_id as string;
+        const cost = (run.cost_estimate as number) || 0;
+        const runDate = new Date(run.started_at as string);
+        const monthKey = `${runDate.getFullYear()}-${String(runDate.getMonth() + 1).padStart(2, '0')}`;
+
+        if (!monthlyCosts[agentId]) monthlyCosts[agentId] = {};
+        monthlyCosts[agentId][monthKey] = (monthlyCosts[agentId][monthKey] || 0) + cost;
+      }
+
+      const budgetAdjustments: Record<string, { current: number; recommended: number; reason: string }> = {};
+
+      for (const agent of agentRows) {
+        const agentId = agent.id as string;
+        const currentBudget = (agent.budget_monthly as number) || 0;
+        const agentMonths = monthlyCosts[agentId];
+        if (!agentMonths || Object.keys(agentMonths).length === 0) continue;
+
+        // Calculate average monthly spend
+        const monthlyTotals = Object.values(agentMonths);
+        const avgMonthly = monthlyTotals.reduce((sum, v) => sum + v, 0) / monthlyTotals.length;
+
+        // Current month cost (may be partial)
+        const currentMonthCost = agentMonths[currentMonthKey] || 0;
+
+        // recommended = max(avg * 1.5, current_month * 1.2), rounded up to nearest dollar
+        const recommended = Math.ceil(Math.max(avgMonthly * 1.5, currentMonthCost * 1.2));
+
+        // Only adjust if differs by more than 20%
+        if (currentBudget === 0 || Math.abs(recommended - currentBudget) / currentBudget > 0.2) {
+          budgetAdjustments[agentId] = {
+            current: currentBudget,
+            recommended,
+            reason: `avg_monthly=$${avgMonthly.toFixed(2)}, current_month=$${currentMonthCost.toFixed(2)}`,
+          };
+
+          // Update the agents table
+          await supabase
+            .from('agents')
+            .update({ budget_monthly: recommended })
+            .eq('id', agentId);
+        }
+      }
+
+      signals.budget_adjustments = budgetAdjustments;
+      if (Object.keys(budgetAdjustments).length > 0) {
+        console.log(`  Budget auto-adjusted: ${JSON.stringify(budgetAdjustments)}`);
+      }
+    }
+  } catch (err) {
+    console.error('Budget auto-adjust failed:', err);
+    signals.budget_adjustments = {};
+  }
+
   // 3. Staleness (days since last run per agent-project)
   try {
     const { data: agents } = await supabase

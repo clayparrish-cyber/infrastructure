@@ -23,7 +23,7 @@ Apply these rules in priority order:
 ### Prioritization Rules
 3. **Active projects first**: Projects with 5+ commits in the last 7 days get priority for bug-hunt-review and security-review.
 4. **Quiet projects deprioritized**: Projects with 0 commits in 14+ days get at most 1 agent per night (ops/cleanup only).
-5. **Budget respect**: If an agent has used >80% of budget_monthly, skip it unless a must-run rule applies. If >95%, always skip.
+5. **Budget awareness (soft signal only)**: Note budget_pct_used in your reasoning, but NEVER hard-skip an agent solely because of budget. Budget values are auto-calculated from trailing spend — they inform prioritization, not gating. If budget_pct_used > 200%, mention it in reasoning but still schedule the agent if signals warrant it. The only valid skip reasons are: inactive status, project exclusion, frequency gate, or capacity cap.
 6. **Day-of-week affinity**: Prefer agents scheduled for today based on their `schedule.day` or `schedule.days` array. You CAN override if signals warrant it.
 7. **Variety**: Don't run the same agent on the same project two nights in a row (check staleness data).
 8. **Capacity cap**: Maximum 8 agent-project runs per night to stay within API budget soft limits.
