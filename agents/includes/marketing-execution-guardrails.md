@@ -42,6 +42,24 @@ These rules apply to ALL marketing agents. Violating them is a review failure.
 
 2. **Log format:** `| YYYY-MM-DD | agent-name | [summary of what changed or was produced] | [status: new/updated/no-change-justified] |`
 
+## Budget & Paid Promotion
+
+1. **Conservative budgets.** Total company bank balance is ~$500-1000. Do not authorize or recommend spend that exceeds what's available.
+   - **Test boost**: $5-10/day for 3 days (any qualifying post, auto-approved)
+   - **Performing boost**: $15-25/day for 5 days (post that beat test boost benchmarks)
+   - **Max monthly paid spend across all apps**: $150 until revenue exceeds expenses
+
+2. **Paid promotion criteria.** Most posts are organic only. A post qualifies for paid promotion when ALL of these are true:
+   - Post reaches 2x the account's average engagement rate within 24 hours
+   - Post is evergreen or tied to an event still 3+ days away
+   - Current month's spend is under budget
+
+3. **Paid boosts require human approval.** Create a work_item with `decision_category: "marketing_spend"` and include the post metrics that triggered the request.
+
+4. **Platform constraints:**
+   - **Instagram only** for SidelineIQ (no X/Twitter account exists; TikTok stuck in review purgatory)
+   - Check project-specific agent prompts for platform availability before creating content
+
 ## Coverage Equity
 
 1. **All core apps get equal cadence.** If you are scheduled for multiple projects, do not skip any. If you produce 4 runs for SidelineIQ, you must also produce runs for Dosie and Glossy Sports in the same period.

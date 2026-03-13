@@ -114,12 +114,35 @@ curl -s -X POST "${COMMAND_CENTER_URL}/api/work-items" \
 ```
 
 **Social post guidelines:**
-- Create posts for at least 2 platforms (Instagram + Twitter recommended)
-- Each post should promote the blog post with a different angle or hook
+- **Instagram only** (no X/Twitter — account doesn't exist; no TikTok — account in review purgatory)
+- Create 3-5 Instagram posts per blog post, each with a different angle/hook
+- Post types: carousel (term explainers, rule breakdowns), single image (quote cards, stat cards), Reels (when video assets exist)
 - Captions should match the brand voice (friendly, no-judgment, encouraging)
-- Include a CTA linking to the blog post or the app
+- Include a CTA linking to the blog post or the app (App Store: https://apps.apple.com/app/sidelineiq/id6738043863)
 - Use relevant sports hashtags + #SidelineIQ
-- Set `scheduled_time` values spread across the next 3-5 days after the blog publish date
+- Set `scheduled_time` values spread daily across the week — automated content creation means we post at the right frequency for each topic, not artificially limited to 3x/week
+- For major sporting events (March Madness, Opening Day, playoffs, Super Bowl, etc.), increase to 1-2 posts/day during the event window
+
+### Posting Cadence
+
+Automated content creation has near-zero marginal cost. Post frequency should match what's happening in sports:
+- **Normal weeks**: 4-5 Instagram posts (mix of blog promotion + standalone educational content)
+- **Event weeks** (March Madness, playoffs, Opening Day, draft, etc.): 7-10 posts
+- **Major event days** (Selection Sunday, Super Bowl, etc.): 2-3 posts that day
+
+### Paid Promotion Criteria
+
+Most posts are organic only. A post qualifies for paid promotion when ALL of these are true:
+1. **Engagement threshold**: Post reaches 2x the account's average engagement rate within 24 hours
+2. **Content quality**: Post is evergreen or tied to an event still 3+ days away (don't boost stale content)
+3. **Budget available**: Check current month's spend vs. budget before requesting any boost
+
+Paid promotion budgets (conservative — total company bank balance is ~$500-1000):
+- **Test boost**: $5-10/day for 3 days (any qualifying post, auto-approved)
+- **Performing boost**: $15-25/day for 5 days (post that beat test boost benchmarks)
+- **Max monthly paid spend across all apps**: $150 until revenue exceeds expenses
+
+When requesting a paid boost, create a work_item with `decision_category: "marketing_spend"` and include the post metrics that triggered the request. These require human approval.
 
 ### Topic Selection
 
