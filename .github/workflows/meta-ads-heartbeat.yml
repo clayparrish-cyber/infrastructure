@@ -31,6 +31,64 @@ jobs:
           sparse-checkout: agents/scripts/meta-ads-heartbeat.sh
           sparse-checkout-cone-mode: false
 
+      - name: Debug token attribution
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_ADS_ACCOUNT_ID: ${{ secrets.META_ADS_ACCOUNT_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+        run: |
+          TOKEN="${META_ADS_ACCESS_TOKEN}"
+          ACCOUNT="act_${META_ADS_ACCOUNT_ID}"
+          BASE="https://graph.facebook.com/v21.0"
+
+          echo "=== Token Debug ==="
+          if [[ -n "${META_APP_SECRET:-}" ]]; then
+            echo "Checking /debug_token..."
+            curl -s "${BASE}/debug_token?input_token=${TOKEN}&access_token=874168382262397|${META_APP_SECRET}" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          if 'data' in data:
+            d = data['data']
+            print(f\"  app_id: {d.get('app_id', 'MISSING')}\")
+            print(f\"  is_valid: {d.get('is_valid', 'MISSING')}\")
+            print(f\"  type: {d.get('type', 'MISSING')}\")
+            print(f\"  expires_at: {d.get('expires_at', 'MISSING')}\")
+            print(f\"  scopes: {d.get('scopes', [])}\")
+            if str(d.get('app_id')) != '874168382262397':
+              print('  WARNING: TOKEN IS FOR WRONG APP! Expected 874168382262397')
+            else:
+              print('  OK: Token is for correct app (SidelineIQ)')
+          else:
+            print(f\"  Error: {data}\")
+          "
+          else
+            echo "  META_APP_SECRET not set - skipping debug_token check"
+            echo "  Falling back to /me check..."
+            curl -s "${BASE}/me?access_token=${TOKEN}" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          print(f\"  user_id: {data.get('id', 'MISSING')}\")
+          print(f\"  name: {data.get('name', 'MISSING')}\")
+          "
+          fi
+
+          echo ""
+          echo "=== Ad Account Data Check ==="
+          CAMPAIGNS=$(curl -s "${BASE}/${ACCOUNT}/campaigns?fields=id,name,status&limit=5&access_token=${TOKEN}")
+          echo "Campaigns response:"
+          echo "${CAMPAIGNS}" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          items = data.get('data', [])
+          if not items:
+            print('  WARNING: ZERO CAMPAIGNS - empty responses likely not counted by Meta')
+          else:
+            print(f'  OK: {len(items)} campaign(s) found:')
+            for c in items:
+              print(f\"    - {c.get('name', '?')} ({c.get('status', '?')})\")
+          "
+
       - name: Run heartbeat
         env:
           META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
