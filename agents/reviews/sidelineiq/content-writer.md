@@ -81,46 +81,53 @@ Write to `reports/YYYY-MM-DD-content-writer.json`:
 
 **CRITICAL**: Finding IDs MUST follow format `siq-cw-YYYY-MM-DD-NNN` (e.g., `siq-cw-2026-02-25-001`). IDs must be globally unique.
 
-### Social Post Work Items
+### Social Post Plan (ContentPlan JSON)
 
-After writing the blog post, create 2-3 social media post work items via the Command Center API. These will appear in the content queue for human review before publishing.
+After writing the blog post, generate a `ContentPlan` JSON file that the content pipeline will process (render images via Remotion, upload, create work items automatically).
 
-For each social post, run:
+Write the plan to `scripts/content-plans/sidelineiq-{YYYY-MM-DD}.json` with this schema:
 
-```bash
-curl -s -X POST "${COMMAND_CENTER_URL}/api/work-items" \
-  -H "Authorization: Bearer ${COMMAND_CENTER_API_KEY}" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Social: {short headline for the post}",
-    "project": "sidelineiq",
-    "type": "task",
-    "source_type": "agent",
-    "source_id": "content-writer-{YYYY-MM-DD}-social-{N}",
-    "priority": "medium",
-    "allow_duplicate": true,
-    "decision_category": "marketing_content",
-    "metadata": {
-      "content_type": "social_post",
+```json
+{
+  "brand": "sidelineiq",
+  "week": "YYYY-MM-DD",
+  "posts": [
+    {
+      "id": "cw-{YYYY-MM-DD}-{N}",
+      "composition": "QuoteCard | RelatablePost | PhotoOverlay",
+      "headline": "Main text displayed on the image",
+      "caption": "Full Instagram caption text",
+      "hashtags": "#SidelineIQ #LearnSports ...",
+      "platform": "instagram",
+      "scheduledTime": "ISO datetime",
       "format": "image",
-      "caption": "{Full caption text with line breaks}",
-      "hashtags": "{#hashtag1 #hashtag2 ...}",
-      "platform": "{instagram|twitter|tiktok}",
-      "product": "sidelineiq",
-      "blog_slug": "{slug of the blog post this promotes}",
-      "scheduled_time": "{ISO datetime, spread across the week after publish}"
+      "quote": "(QuoteCard only) the quote text",
+      "topText": "(RelatablePost only) top text",
+      "bottomText": "(RelatablePost only) bottom text",
+      "emoji": "(RelatablePost only) optional emoji",
+      "variant": "(QuoteCard only) optional variant name",
+      "subheadline": "(PhotoOverlay only) secondary text",
+      "ctaText": "(optional) CTA button text",
+      "imagePrompt": "(PhotoOverlay only) Gemini image generation prompt"
     }
-  }'
+  ]
+}
 ```
+
+**Composition selection rules:**
+- **Prefer QuoteCard and RelatablePost** — these use Remotion (free, $0 cost) and work great for educational/list content
+- **Only use PhotoOverlay** for posts that genuinely need a photo background (max 2 per plan — each costs ~$0.04 in Gemini API)
+- QuoteCard: best for tips, stats, motivational sports quotes, rule highlights
+- RelatablePost: best for "when you..." memes, relatable fan moments, beginner struggles
+- PhotoOverlay: best for event announcements, hero images, premium brand posts
 
 **Social post guidelines:**
 - **Instagram only** (no X/Twitter — account doesn't exist; no TikTok — account in review purgatory)
 - Create 3-5 Instagram posts per blog post, each with a different angle/hook
-- Post types: carousel (term explainers, rule breakdowns), single image (quote cards, stat cards), Reels (when video assets exist)
 - Captions should match the brand voice (friendly, no-judgment, encouraging)
 - Include a CTA linking to the blog post or the app (App Store: https://apps.apple.com/app/sidelineiq/id6738043863)
 - Use relevant sports hashtags + #SidelineIQ
-- Set `scheduled_time` values spread daily across the week — automated content creation means we post at the right frequency for each topic, not artificially limited to 3x/week
+- Set `scheduledTime` values spread daily across the week
 - For major sporting events (March Madness, Opening Day, playoffs, Super Bowl, etc.), increase to 1-2 posts/day during the event window
 
 ### Posting Cadence
