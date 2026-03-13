@@ -15,7 +15,7 @@ name: Meta Ads Heartbeat
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Every 10 min — temporary burst to hit 1,500
+    - cron: '*/2 * * * *'  # Every 2 min — aggressive burst to rebuild 15-day window fast
   workflow_dispatch: {}     # Manual trigger
 
 jobs:
