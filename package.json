@@ -7,7 +7,10 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "lint:shell": "bash -n scripts/*.sh agents/lib/*.sh",
+    "test:registry": "node scripts/validate-registry.mjs",
+    "test:agent-learning:esm": "npm --prefix packages/agent-learning run build && node scripts/validate-agent-learning-esm.mjs",
+    "test": "npm run lint:shell && npm run test:registry && npm run test:agent-learning:esm"
   },
   "repository": {
     "type": "git",
