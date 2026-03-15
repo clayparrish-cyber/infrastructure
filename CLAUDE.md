@@ -98,6 +98,7 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
+- **2026-03-14** — Added `content-autonomy.ts` module: L1-L4 agent promotion tiers for content pipeline. Wired into sync-to-supabase for content-writer agents. CLI diagnostic mode included.
 - **2026-03-10** — Added `core-lite` automation profile for GT. security-review (Mon/Fri) + content-value-review (Thu) + weekly-cleanup (Sun) now cover core-lite projects. Workflow filtering updated.
 - **2026-03-02** — Automated loop closure: workers push branches, create PRs via gh CLI, L3+ auto-merge. PR reconcile step in nightly workflow marks merged items as done.
 - **2026-02-28** — Chief of Staff ops layer: credential-expiry-check (M/W/F), post-nightly-health-check (daily), chief-of-staff-daily-brief (daily). ASC build status checks added to app-review-monitors. Marketing-analyst promoted to biweekly. Health-check job added to nightly workflow.
