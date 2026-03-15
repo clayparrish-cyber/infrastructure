@@ -17,6 +17,7 @@
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { canAutoPublish, evaluatePromotion } from './content-autonomy.js';
 
 type SupabaseClientLike = any;
 
@@ -629,6 +630,25 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
               await maybeAutoApprove(supabase, workItem.id, decisionCategory, safetyAssessment);
             } catch (e) {
               console.log(`      Auto-approve error (non-blocking): ${e}`);
+            }
+
+            // Content autonomy — for content-writer agents, check if auto-publish is allowed
+            if (agentId === 'content-writer' || agentId.startsWith('content-')) {
+              try {
+                const autoPublish = await canAutoPublish(supabase, agentId, project);
+                if (autoPublish) {
+                  console.log(`      Content autonomy: auto-publish allowed for ${agentId}`);
+                } else {
+                  console.log(`      Content autonomy: human approval required for ${agentId}`);
+                }
+                // Evaluate if agent is ready for promotion after each sync
+                const promotion = await evaluatePromotion(supabase, agentId);
+                if (promotion.promoted) {
+                  console.log(`      Content autonomy: ${agentId} PROMOTED L${promotion.previousLevel} -> L${promotion.newLevel}`);
+                }
+              } catch (e) {
+                console.log(`      Content autonomy check (non-blocking): ${e}`);
+              }
             }
           }
         }
