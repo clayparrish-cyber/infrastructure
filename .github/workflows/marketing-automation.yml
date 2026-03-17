@@ -31,6 +31,7 @@ on:
           - sidelineiq
           - dosie
           - glossy-sports
+          - snail
         default: all
       dry_run:
         description: 'Dry run — generate but do not publish'
@@ -69,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        brand: [sidelineiq, dosie, glossy-sports]
+        brand: [sidelineiq, dosie, glossy-sports, snail]
 
     steps:
       - name: Checkout dashboard repo
