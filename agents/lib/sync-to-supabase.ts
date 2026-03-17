@@ -775,6 +775,54 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
         console.log(`    Error logging agent_runs_v2 for ${file}: ${runError.message}`);
       }
 
+      // Upsert agent_state with run summary
+      try {
+        const runSummary = {
+          date,
+          findings_count: report.findings.length,
+          key_findings: report.findings.slice(0, 3).map((f: any) => f.title),
+          summary: report.findings.length === 0
+            ? 'No findings this run.'
+            : `Found ${report.findings.length} issue(s): ${report.findings.slice(0, 2).map((f: any) => f.title).join(', ')}${report.findings.length > 2 ? '...' : ''}`
+        };
+
+        // Get current finding IDs that are still open
+        const { data: openFindings } = await supabase
+          .from('work_items')
+          .select('id')
+          .eq('project', project)
+          .eq('source_id', agentId)
+          .in('status', ['discovered', 'triaged', 'approved', 'in_progress', 'review']);
+
+        const activeFindings = (openFindings || []).map((f: any) => f.id);
+
+        // Get existing state
+        const { data: existingState } = await supabase
+          .from('agent_state')
+          .select('run_summaries, suppressed_patterns')
+          .eq('agent_id', agentId)
+          .eq('project', project)
+          .single();
+
+        const prevSummaries = (existingState?.run_summaries as any[]) || [];
+        const newSummaries = [...prevSummaries, runSummary].slice(-5); // Keep last 5
+
+        await supabase
+          .from('agent_state')
+          .upsert({
+            agent_id: agentId,
+            project,
+            run_summaries: newSummaries,
+            active_findings: activeFindings,
+            suppressed_patterns: existingState?.suppressed_patterns || [],
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'agent_id,project' });
+
+        console.log(`    Agent state updated for ${agentId}/${project}`);
+      } catch (e) {
+        console.log(`    Agent state upsert error (non-blocking): ${e}`);
+      }
+
     } catch (e) {
       console.log(`    Error processing ${file}:`, e);
     }

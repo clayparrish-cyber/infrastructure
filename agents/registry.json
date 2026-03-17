@@ -2,6 +2,7 @@
   "version": 3,
   "projects": {
     "sidelineiq": {
+      "entity": "personal",
       "path": "/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq",
       "repo": "clayparrish-cyber/sidelineiq",
       "contextFile": "CLAUDE_CONTEXT.md",
@@ -11,6 +12,7 @@
       "automationProfile": "core"
     },
     "airtip": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
@@ -21,6 +23,7 @@
       "automationProfile": "core"
     },
     "dosie": {
+      "entity": "personal",
       "path": "/Volumes/Lexar/Projects/Personal/Dosie",
       "repo": "clayparrish-cyber/dosie",
       "contextFile": "CLAUDE.md",
@@ -30,6 +33,7 @@
       "automationProfile": "core"
     },
     "gt-ops": {
+      "entity": "gt",
       "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-ops",
       "repo": "clayparrish-cyber/gt-ims",
       "contextFile": "CLAUDE.md",
@@ -40,6 +44,7 @@
       "automationProfile": "core-lite"
     },
     "menu-autopilot": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
@@ -50,6 +55,7 @@
       "automationProfile": "scaffolded"
     },
     "glossy-sports": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "glossy-sports",
@@ -61,6 +67,7 @@
       "automationProfile": "core"
     },
     "mainline-apps": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Mainline Apps",
       "repo": "clayparrish-cyber/mainline-apps",
       "contextFile": "README.md",
@@ -71,6 +78,7 @@
       "automationProfile": "core"
     },
     "mainline-dashboard": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Mainline Apps/dashboard",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "dashboard",
@@ -82,6 +90,7 @@
       "automationProfile": "core"
     },
     "the-immortal-snail": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/Mainline Apps/the-immortal-snail",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "the-immortal-snail",
@@ -93,6 +102,7 @@
       "automationProfile": "scaffolded"
     },
     "gt-website": {
+      "entity": "gt",
       "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-website",
       "repo": "clayparrish-cyber/gt-website",
       "contextFile": "CLAUDE.md",
@@ -103,6 +113,7 @@
       "automationProfile": "scaffolded"
     },
     "infrastructure": {
+      "entity": "mainline",
       "path": "/Volumes/Lexar/Projects/infrastructure",
       "repo": "clayparrish-cyber/infrastructure",
       "contextFile": "CLAUDE.md",

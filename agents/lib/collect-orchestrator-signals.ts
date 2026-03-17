@@ -77,6 +77,48 @@ async function main() {
     signals.budget_summaries = {};
   }
 
+  // 2a. Budget alerts (threshold crossing detection)
+  try {
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const budgetAlerts: Array<{ agent_id: string; threshold: number; pct_used: number }> = [];
+
+    const budgetSummaries = signals.budget_summaries as Record<string, { pct_used: number; budget_monthly: number; cost_this_month: number }>;
+
+    for (const [agentId, summary] of Object.entries(budgetSummaries)) {
+      const pct = summary.pct_used || 0;
+
+      for (const threshold of [75, 90]) {
+        if (pct >= threshold) {
+          // Check if alert already exists
+          const { data: existing } = await supabase
+            .from('agent_budget_alerts')
+            .select('id')
+            .eq('agent_id', agentId)
+            .eq('month', currentMonth)
+            .eq('threshold', threshold)
+            .single();
+
+          if (!existing) {
+            await supabase.from('agent_budget_alerts').insert({
+              agent_id: agentId,
+              month: currentMonth,
+              threshold,
+              cost_at_trigger: summary.cost_this_month,
+              budget_at_trigger: summary.budget_monthly,
+            });
+            budgetAlerts.push({ agent_id: agentId, threshold, pct_used: pct });
+            console.log(`  Budget alert: ${agentId} crossed ${threshold}% (at ${pct.toFixed(1)}%)`);
+          }
+        }
+      }
+    }
+
+    signals.budget_alerts = budgetAlerts;
+  } catch (err) {
+    console.error('Budget alert generation failed:', err);
+    signals.budget_alerts = [];
+  }
+
   // 2b. Auto-adjust budgets (self-learning)
   try {
     const threeMonthsAgo = new Date();
@@ -217,6 +259,27 @@ async function main() {
     day_number: now.getDay(), // 0=Sun, 6=Sat
     week_number: Math.ceil((now.getDate() - now.getDay() + 1) / 7),
   };
+
+  // 7. Entity cost rollup (per-entity monthly costs)
+  try {
+    const { data: entityCosts } = await supabase
+      .from('entity_budget_summary')
+      .select('*')
+      .eq('month', new Date().toISOString().slice(0, 7));
+
+    signals.entity_costs = (entityCosts || []).reduce((acc: Record<string, unknown>, e: Record<string, unknown>) => {
+      acc[e.entity_id as string] = {
+        entity_name: e.entity_name,
+        total_cost: e.total_cost,
+        total_runs: e.total_runs,
+        total_tokens: e.total_tokens,
+        agents_used: e.agents_used,
+      };
+      return acc;
+    }, {});
+  } catch {
+    signals.entity_costs = {};
+  }
 
   // 6. Active agents (for the orchestrator to reference)
   try {
