@@ -88,6 +88,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install tsx globally
+        run: npm install -g tsx
+
       - name: Determine dry-run flag
         id: flags
         env:
@@ -112,7 +115,7 @@ jobs:
         run: |
           echo "=== Marketing Automation: ${{ matrix.brand }} ==="
           echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
-          npx --yes tsx scripts/marketing-automation-worker.ts \
+          tsx scripts/marketing-automation-worker.ts \
             --brand ${{ matrix.brand }} \
             ${{ steps.flags.outputs.dry_run_flag }}
 
@@ -142,6 +145,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install tsx globally
+        run: npm install -g tsx
+
       - name: Determine dry-run flag
         id: flags
         env:
@@ -167,6 +173,6 @@ jobs:
         run: |
           echo "=== Marketing Automation: ${BRAND} ==="
           echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
-          npx --yes tsx scripts/marketing-automation-worker.ts \
+          tsx scripts/marketing-automation-worker.ts \
             --brand "${BRAND}" \
             ${{ steps.flags.outputs.dry_run_flag }}
