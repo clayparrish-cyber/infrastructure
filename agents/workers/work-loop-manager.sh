@@ -1092,6 +1092,68 @@ for item in items:
   fi
 fi
 
+# ── Phase 3: Process ops work items (deploy, comms) ──
+
+SKIP_PHASE3=false
+if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+  log "Phase 3 SKIPPED: cost cap already reached (\$$CUMULATIVE_COST >= \$$NIGHTLY_COST_CAP)"
+  SKIP_PHASE3=true
+fi
+
+if [ "$SKIP_PHASE3" = "false" ]; then
+  # Fetch approved ops items (decision_category starts with ops-)
+  OPS_ITEMS=$(curl -s \
+    -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+    -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+    "$SUPABASE_URL/rest/v1/work_items?status=eq.approved&assigned_to=is.null&decision_category=like.ops-*&order=created_at.asc&limit=5&select=id,title,description,project,priority,type,source_type,source_id,decision_category,created_at,metadata")
+  OPS_COUNT=$(echo "$OPS_ITEMS" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d) if isinstance(d,list) else 0)" 2>/dev/null || echo 0)
+
+  if [ "$OPS_COUNT" -gt 0 ]; then
+    log "Phase 3: Processing $OPS_COUNT ops work item(s)"
+
+    OPS_FILE=$(mktemp)
+    echo "$OPS_ITEMS" | python3 -c "
+import sys, json
+items = json.load(sys.stdin)
+for item in items:
+    print(json.dumps(item))
+" > "$OPS_FILE"
+
+    while IFS= read -r ops_json; do
+      [ -z "$ops_json" ] && continue
+      local_category=$(echo "$ops_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('decision_category',''))")
+
+      # Route to correct prompt based on category
+      case "$local_category" in
+        ops-deploy*) export WORKER_PROMPT="agents/workers/deploy-ops.md" ;;
+        ops-comm*) export WORKER_PROMPT="agents/workers/communications.md" ;;
+        *) export WORKER_PROMPT="agents/workers/deploy-ops.md" ;;
+      esac
+
+      log "Phase 3: $local_category → $(basename "$WORKER_PROMPT")"
+      run_worker "$ops_json" || true
+
+      # Accumulate cost
+      LAST_COST=$(cat "$COST_FILE" 2>/dev/null || echo "0")
+      CUMULATIVE_COST=$(python3 -c "print(round($CUMULATIVE_COST + ${LAST_COST:-0}, 4))" 2>/dev/null || echo "$CUMULATIVE_COST")
+      echo "0" > "$COST_FILE"
+
+      # Check cost cap
+      if python3 -c "import sys; sys.exit(0 if $CUMULATIVE_COST >= $NIGHTLY_COST_CAP else 1)" 2>/dev/null; then
+        log "COST CAP: Cumulative cost \$$CUMULATIVE_COST exceeds nightly cap \$$NIGHTLY_COST_CAP — stopping ops items"
+        break
+      fi
+    done < "$OPS_FILE"
+
+    rm -f "$OPS_FILE"
+  else
+    log "Phase 3: No ops work items to process"
+  fi
+
+  # Restore default worker prompt
+  export WORKER_PROMPT="agents/workers/implement-finding.md"
+fi
+
 rm -f "$COST_FILE"
 
 log "Cumulative total cost: \$$CUMULATIVE_COST (cap: \$$NIGHTLY_COST_CAP)"
