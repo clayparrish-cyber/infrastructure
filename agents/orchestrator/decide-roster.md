@@ -59,11 +59,11 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 | Day | Primary | Secondary (biweekly) |
 |-----|---------|---------------------|
 | Mon | security-review (core + core-lite) | — |
-| Tue | ux-layout-review (even, core) | aso-retention-review (odd, core) |
+| Tue | ux-layout-review (even, core) | aso-retention-review (odd, core), a11y-review (even, core) |
 | Wed | bug-hunt-review (core) + content-writer | creative-provocateur (odd) |
-| Thu | content-value-review (core + core-lite) | competitive-intel (even, core) |
+| Thu | content-value-review (core + core-lite) | competitive-intel (even, core), devops-audit (odd, core) |
 | Fri | security-review (core + core-lite) | polish-brand-review (odd, core) |
-| Sat | performance-review (even, core+scaffolded) + tier2-rotating (scaffolded) | — |
+| Sat | performance-review (even, core+scaffolded) + tier2-rotating (scaffolded) | data-integrity-check (odd, core) |
 | Sun | project-facing reviews only; Sunday ops suite runs directly in workflow | — |
 | Daily | app-review-monitor (iOS apps only: sidelineiq, dosie, glossy-sports) | — |
 | Daily | chief-of-staff-daily-brief (infrastructure — runs directly, not via roster) | — |

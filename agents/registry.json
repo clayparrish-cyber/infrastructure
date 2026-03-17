@@ -342,6 +342,51 @@
       "description": "App Store optimization, retention funnel analysis, social content readiness"
     },
     {
+      "id": "devops-audit",
+      "name": "DevOps Audit",
+      "category": "review",
+      "schedule": {
+        "day": "thursday",
+        "frequency": "biweekly-odd",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "CI/CD pipeline health, deployment configs, GitHub Actions efficiency, infrastructure drift"
+    },
+    {
+      "id": "a11y-review",
+      "name": "Accessibility Review",
+      "category": "review",
+      "schedule": {
+        "day": "tuesday",
+        "frequency": "biweekly-even",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "WCAG compliance, screen reader compatibility, color contrast, keyboard navigation, semantic HTML"
+    },
+    {
+      "id": "data-integrity-check",
+      "name": "Data Integrity Check",
+      "category": "review",
+      "schedule": {
+        "day": "saturday",
+        "frequency": "biweekly-odd",
+        "projectProfiles": [
+          "core"
+        ]
+      },
+      "maxTurns": 50,
+      "depth": "adaptive",
+      "description": "Schema consistency, migration safety, orphaned records, foreign key integrity, data validation rules"
+    },
+    {
       "id": "marketing-analyst",
       "name": "Marketing Analysis",
       "category": "specialist",
