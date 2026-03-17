@@ -81,6 +81,15 @@ const AGENT_CATEGORY: Record<string, string> = {
   'data-integrity-check': 'engineering',
 };
 
+// Agents that produce specific sub-category overrides instead of the default
+// `category-severity` pattern. The agent's findings will use this exact category
+// (bypassing the severity suffix) so Phase 3 of work-loop-manager can route them
+// to the correct worker prompts (deploy-ops.md, communications.md).
+const AGENT_CATEGORY_OVERRIDE: Record<string, string> = {
+  'post-nightly-health-check': 'ops-deploy',
+  'chief-of-staff-daily-brief': 'ops-communications',
+};
+
 const PROJECT_TEST_REGISTRY: Record<string, {
   hasAutomatedTests: boolean;
   frameworks: string[];
@@ -590,7 +599,13 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
         // --- NEW: Insert into work_items table ---
         if (!existingWorkItem) {
           const priority = SEVERITY_TO_PRIORITY[severity] || 'low';
-          const decisionCategory = `${agentCategory}-${severity}`;
+          // Category resolution order:
+          // 1. Finding-level override (finding.decision_category) — agent prompt can tag specific findings
+          // 2. Agent-level override (AGENT_CATEGORY_OVERRIDE) — entire agent always produces a sub-category
+          // 3. Default pattern: agentCategory-severity
+          const decisionCategory = finding.decision_category
+            || AGENT_CATEGORY_OVERRIDE[agentId]
+            || `${agentCategory}-${severity}`;
 
           const { data: workItem, error: wiError } = await supabase
             .from('work_items')

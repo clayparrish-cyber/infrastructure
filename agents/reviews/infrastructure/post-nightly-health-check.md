@@ -180,7 +180,8 @@ curl -s -X POST "$SUPABASE_URL/rest/v1/work_items" \
     "type": "research_request",
     "status": "discovered",
     "source_type": "agent",
-    "created_by": "post-nightly-health-check"
+    "created_by": "post-nightly-health-check",
+    "decision_category": "ops-deploy"
   }'
 ```
 

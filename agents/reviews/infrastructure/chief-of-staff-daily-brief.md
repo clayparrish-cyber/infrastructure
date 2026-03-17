@@ -201,7 +201,8 @@ curl -s -X POST "$SUPABASE_URL/rest/v1/work_items" \
     "type": "research_request",
     "status": "done",
     "source_type": "agent",
-    "created_by": "chief-of-staff-daily-brief"
+    "created_by": "chief-of-staff-daily-brief",
+    "decision_category": "ops-communications"
   }'
 ```
 
