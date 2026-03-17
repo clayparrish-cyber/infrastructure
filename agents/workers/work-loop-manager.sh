@@ -8,13 +8,13 @@
 
 set -euo pipefail
 
-MAX_ITEMS="${MAX_WORKER_ITEMS:-5}"
+MAX_ITEMS="${MAX_WORKER_ITEMS:-7}"
 EXECUTION_MODE="${EXECUTION_MODE:-dry_run}"
 PROJECTS_DIR="${PROJECTS_DIR:-projects}"
 WORKER_PROMPT="${WORKER_PROMPT:-agents/workers/implement-finding.md}"
 REGISTRY="${REGISTRY:-agents/registry.json}"
 LOG_DIR="${LOG_DIR:-logs}"
-NIGHTLY_COST_CAP="${NIGHTLY_COST_CAP:-10.00}"
+NIGHTLY_COST_CAP="${NIGHTLY_COST_CAP:-15.00}"
 CUMULATIVE_COST="0"
 DATE=$(date +%Y-%m-%d)
 RUN_TRIGGER="work_loop_manager"
