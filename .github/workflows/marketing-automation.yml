@@ -112,7 +112,7 @@ jobs:
         run: |
           echo "=== Marketing Automation: ${{ matrix.brand }} ==="
           echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
-          ./node_modules/.bin/tsx scripts/marketing-automation-worker.ts \
+          npx --yes tsx scripts/marketing-automation-worker.ts \
             --brand ${{ matrix.brand }} \
             ${{ steps.flags.outputs.dry_run_flag }}
 
@@ -167,6 +167,6 @@ jobs:
         run: |
           echo "=== Marketing Automation: ${BRAND} ==="
           echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
-          ./node_modules/.bin/tsx scripts/marketing-automation-worker.ts \
+          npx --yes tsx scripts/marketing-automation-worker.ts \
             --brand "${BRAND}" \
             ${{ steps.flags.outputs.dry_run_flag }}
