@@ -76,7 +76,7 @@ jobs:
       - name: Checkout dashboard repo
         uses: actions/checkout@v4
         with:
-          repository: mainline-apps/dashboard
+          repository: clayparrish-cyber/mainline-apps
           token: ${{ secrets.GH_PAT }}
 
       - name: Setup Node.js
@@ -130,7 +130,7 @@ jobs:
       - name: Checkout dashboard repo
         uses: actions/checkout@v4
         with:
-          repository: mainline-apps/dashboard
+          repository: clayparrish-cyber/mainline-apps
           token: ${{ secrets.GH_PAT }}
 
       - name: Setup Node.js
