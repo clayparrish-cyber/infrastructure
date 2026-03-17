@@ -90,7 +90,51 @@ else
 fi
 ```
 
-### 5. Stale In-Progress Items
+### 5. Autonomy Pipeline Health
+
+Check that the autonomy graduation system is functioning:
+
+```bash
+# Check if L2+ categories are accumulating shadow data
+curl -s "$SUPABASE_URL/rest/v1/autonomy_rules?current_level=gte.2&select=decision_category,current_level,shadow_total,total_decisions,auto_decisions&order=decision_category" \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  | python3 -c "
+import json, sys
+rules = json.load(sys.stdin)
+issues = []
+
+for r in rules:
+    cat = r['decision_category']
+    level = r['current_level']
+    shadow = r['shadow_total'] or 0
+    total = r['total_decisions'] or 0
+    auto = r['auto_decisions'] or 0
+
+    # L2+ with 10+ decisions but 0 shadow data = pipeline stalled
+    if level >= 2 and total >= 10 and shadow == 0:
+        issues.append(f'STALLED: {cat} (L{level}, {total} decisions, 0 shadow)')
+
+    # L3 with 0 auto-decisions after 20+ total = auto-approve not firing
+    if level >= 3 and total >= 20 and auto == 0:
+        issues.append(f'NO_AUTO: {cat} (L{level}, {total} decisions, 0 auto-approved)')
+
+if issues:
+    print(f'AUTONOMY ISSUES ({len(issues)}):')
+    for i in issues:
+        print(f'  {i}')
+else:
+    print('Autonomy pipeline: healthy')
+    l2_count = sum(1 for r in rules if r['current_level'] == 2)
+    l3_count = sum(1 for r in rules if r['current_level'] == 3)
+    l4_count = sum(1 for r in rules if r['current_level'] >= 4)
+    print(f'  L2: {l2_count}, L3: {l3_count}, L4: {l4_count}')
+"
+```
+
+If any STALLED or NO_AUTO issues found, flag as YELLOW.
+
+### 6. Stale In-Progress Items
 
 Check for work items stuck in `in_progress` for more than 24 hours (likely crashed workers):
 
@@ -116,8 +160,8 @@ else:
 
 ### Determine Overall Status
 
-- **GREEN**: All checks pass, nightly succeeded, no stale items, services reachable
-- **YELLOW**: Minor issues (1-2 stale items, nightly had warnings but no failures)
+- **GREEN**: All checks pass, nightly succeeded, no stale items, services reachable, autonomy healthy
+- **YELLOW**: Minor issues (1-2 stale items, autonomy pipeline stalls, nightly had warnings)
 - **RED**: Nightly failed, services unreachable, or 3+ stale items
 
 ### If YELLOW or RED — Create Work Item
@@ -153,6 +197,7 @@ Status: GREEN / YELLOW / RED
   Agent runs (24h): N runs, N agents, N failures
   Command Center: [UP/DOWN]
   Supabase: [UP/DOWN]
+  Autonomy: [healthy / N issues]
   Stale items: N
 ```
 
