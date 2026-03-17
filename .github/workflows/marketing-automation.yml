@@ -74,7 +74,7 @@ jobs:
 
     steps:
       - name: Checkout dashboard repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: clayparrish-cyber/mainline-apps
           token: ${{ secrets.GH_PAT }}
@@ -128,7 +128,7 @@ jobs:
 
     steps:
       - name: Checkout dashboard repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: clayparrish-cyber/mainline-apps
           token: ${{ secrets.GH_PAT }}

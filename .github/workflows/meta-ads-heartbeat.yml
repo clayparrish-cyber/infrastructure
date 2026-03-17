@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 2
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: agents/scripts/meta-ads-heartbeat.sh
           sparse-checkout-cone-mode: false

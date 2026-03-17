@@ -18,7 +18,7 @@ jobs:
     name: Contract check (command-center auth header)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Enforce Authorization Bearer for command-center calls
         run: |
           if grep -RIn 'x-api-key: \$COMMAND_CENTER_API_KEY' .github scripts agents; then
@@ -33,7 +33,7 @@ jobs:
       run:
         working-directory: agents/lib
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -52,7 +52,7 @@ jobs:
       run:
         working-directory: packages/agent-learning
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
