@@ -1,0 +1,171 @@
+# Marketing Automation Worker
+# Runs daily content generation + publishing for Mainline Apps brands.
+# Uses the dashboard repo's marketing-automation-worker.ts script.
+#
+# Gate: Only publishes if GitHub variable MARKETING_PUBLISH_ENABLED == 'true',
+# otherwise forces --dry-run mode.
+#
+# Required secrets:
+#   GEMINI_API_KEY, COMMAND_CENTER_API_KEY, NEXT_PUBLIC_SUPABASE_URL,
+#   SUPABASE_SERVICE_ROLE_KEY, META_ADS_ACCESS_TOKEN, META_ADS_ACCOUNT_ID,
+#   INSTAGRAM_BUSINESS_ACCOUNT_ID, INSTAGRAM_PAGE_ACCESS_TOKEN,
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_PRIVATE_KEY_B64,
+#   APPLE_SEARCH_ADS_ORG_ID, APPLE_SEARCH_ADS_KEY_ID,
+#   APPLE_SEARCH_ADS_CLIENT_ID, APPLE_SEARCH_ADS_TEAM_ID,
+#   APPLE_SEARCH_ADS_PRIVATE_KEY, GH_PAT
+
+name: Marketing Automation
+
+on:
+  schedule:
+    # 6am CT = 11:00 UTC
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    inputs:
+      brand:
+        description: 'Brand to run (or all)'
+        required: true
+        type: choice
+        options:
+          - all
+          - sidelineiq
+          - dosie
+          - glossy-sports
+        default: all
+      dry_run:
+        description: 'Dry run — generate but do not publish'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+  COMMAND_CENTER_API_KEY: ${{ secrets.COMMAND_CENTER_API_KEY }}
+  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+  META_ADS_ACCOUNT_ID: ${{ secrets.META_ADS_ACCOUNT_ID }}
+  INSTAGRAM_BUSINESS_ACCOUNT_ID: ${{ secrets.INSTAGRAM_BUSINESS_ACCOUNT_ID }}
+  INSTAGRAM_PAGE_ACCESS_TOKEN: ${{ secrets.INSTAGRAM_PAGE_ACCESS_TOKEN }}
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+  ASC_PRIVATE_KEY_B64: ${{ secrets.ASC_PRIVATE_KEY_B64 }}
+  APPLE_SEARCH_ADS_ORG_ID: ${{ secrets.APPLE_SEARCH_ADS_ORG_ID }}
+  APPLE_SEARCH_ADS_KEY_ID: ${{ secrets.APPLE_SEARCH_ADS_KEY_ID }}
+  APPLE_SEARCH_ADS_CLIENT_ID: ${{ secrets.APPLE_SEARCH_ADS_CLIENT_ID }}
+  APPLE_SEARCH_ADS_TEAM_ID: ${{ secrets.APPLE_SEARCH_ADS_TEAM_ID }}
+  APPLE_SEARCH_ADS_PRIVATE_KEY: ${{ secrets.APPLE_SEARCH_ADS_PRIVATE_KEY }}
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Matrix job: runs when brand == 'all' or on schedule
+  # ─────────────────────────────────────────────
+  run-all-brands:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.brand == 'all')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        brand: [sidelineiq, dosie, glossy-sports]
+
+    steps:
+      - name: Checkout dashboard repo
+        uses: actions/checkout@v4
+        with:
+          repository: mainline-apps/dashboard
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine dry-run flag
+        id: flags
+        env:
+          PUBLISH_ENABLED: ${{ vars.MARKETING_PUBLISH_ENABLED }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          DRY_RUN=""
+          # Force dry-run if publish gate is not enabled
+          if [[ "$PUBLISH_ENABLED" != "true" ]]; then
+            echo "MARKETING_PUBLISH_ENABLED is not 'true' — forcing --dry-run"
+            DRY_RUN="--dry-run"
+          fi
+          # Force dry-run if manual trigger with dry_run=true
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INPUT_DRY_RUN" == "true" ]]; then
+            echo "Manual trigger with dry_run=true — forcing --dry-run"
+            DRY_RUN="--dry-run"
+          fi
+          echo "dry_run_flag=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+
+      - name: Run marketing automation — ${{ matrix.brand }}
+        run: |
+          echo "=== Marketing Automation: ${{ matrix.brand }} ==="
+          echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
+          npx tsx scripts/marketing-automation-worker.ts \
+            --brand ${{ matrix.brand }} \
+            ${{ steps.flags.outputs.dry_run_flag }}
+
+  # ─────────────────────────────────────────────
+  # Single brand job: runs when a specific brand is selected
+  # ─────────────────────────────────────────────
+  run-single-brand:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.brand != 'all'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout dashboard repo
+        uses: actions/checkout@v4
+        with:
+          repository: mainline-apps/dashboard
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Determine dry-run flag
+        id: flags
+        env:
+          PUBLISH_ENABLED: ${{ vars.MARKETING_PUBLISH_ENABLED }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          DRY_RUN=""
+          # Force dry-run if publish gate is not enabled
+          if [[ "$PUBLISH_ENABLED" != "true" ]]; then
+            echo "MARKETING_PUBLISH_ENABLED is not 'true' — forcing --dry-run"
+            DRY_RUN="--dry-run"
+          fi
+          # Force dry-run if manual trigger with dry_run=true
+          if [[ "$INPUT_DRY_RUN" == "true" ]]; then
+            echo "Manual trigger with dry_run=true — forcing --dry-run"
+            DRY_RUN="--dry-run"
+          fi
+          echo "dry_run_flag=${DRY_RUN}" >> "$GITHUB_OUTPUT"
+
+      - name: Run marketing automation — single brand
+        env:
+          BRAND: ${{ github.event.inputs.brand }}
+        run: |
+          echo "=== Marketing Automation: ${BRAND} ==="
+          echo "Dry-run flag: ${{ steps.flags.outputs.dry_run_flag }}"
+          npx tsx scripts/marketing-automation-worker.ts \
+            --brand "${BRAND}" \
+            ${{ steps.flags.outputs.dry_run_flag }}
