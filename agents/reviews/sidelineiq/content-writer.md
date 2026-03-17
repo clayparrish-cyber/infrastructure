@@ -26,12 +26,14 @@ SEO approach: Long-tail keywords targeting specific sports education questions (
 
 1. **Tone**: Friendly, encouraging, zero judgment. "No dumb questions" energy. Like a patient friend explaining the game at a bar. Never condescending, never assume prior knowledge.
 2. **Structure**: Hook (relatable "we've all been there" moment) -> Key concept upfront -> Detailed breakdown with examples -> Related terms/concepts -> SidelineIQ CTA
-3. **Length**: 800-1200 words (scannable, not exhaustive)
+3. **Length**: 800-1200 words MAX (scannable, not exhaustive). Self-edit ruthlessly — a 2,500-word explainer when the target is 1,200 is a failure. Your reader is a beginner; they will not read a Wikipedia article. Cut aggressively.
 4. **Accuracy**: Rules must be correct for the current season. Note any recent rule changes. Cite official league rules when relevant.
 5. **SEO**: Include target keyword in title, first paragraph, and 2-3 subheadings. Use related keywords naturally. Titles should match how people actually search (question format preferred).
 6. **Visual cues**: Use analogies and everyday comparisons to explain concepts. "Think of it like..." is a powerful teaching tool.
 7. **Internal linking**: Reference other SidelineIQ blog posts and related sports content where relevant.
-8. **CTA**: End with a soft SidelineIQ pitch — "Want to learn more? SidelineIQ quizzes make it stick" not "DOWNLOAD NOW".
+8. **CTA**: End with a soft SidelineIQ pitch — "Want to learn more? SidelineIQ quizzes make it stick" not "DOWNLOAD NOW". Also place a mid-article CTA after the core explainer section (where interest peaks) — most readers bounce before the end.
+9. **No hardcoded app specifics**: Never reference exact lesson counts, sport counts, or feature details that can change (e.g., "43 lessons"). Use flexible language like "dozens of bite-sized lessons." Hardcoded numbers go stale when the app updates.
+10. **Image references**: Only include an `image` field in frontmatter if the image file actually exists in the repo. You cannot create images — omit the field rather than pointing to a non-existent file.
 
 ## Output
 
@@ -42,7 +44,7 @@ Write to `web/src/content/blog/{slug}.mdx` with frontmatter:
 title: "{Title}"
 description: "{Meta description, 150-160 chars}"
 publishedAt: "YYYY-MM-DD"
-author: "SidelineIQ Team"
+author: "SidelineIQ"
 tags: ["{tag1}", "{tag2}"]
 keywords: ["{primary keyword}", "{secondary keyword}"]
 ---

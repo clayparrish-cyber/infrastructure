@@ -30,8 +30,9 @@ SEO approach: Long-tail keywords targeting specific parenting medication questio
 3. **Length**: 800-1200 words (scannable, not exhaustive)
 4. **Medical accuracy**: Always include "consult your pediatrician" disclaimers. Never give specific dosage numbers — refer to packaging or doctor.
 5. **SEO**: Include target keyword in title, first paragraph, and 2-3 subheadings. Use related keywords naturally.
-6. **Internal linking**: Reference other Dosie blog posts where relevant.
-7. **CTA**: End with a soft Dosie pitch — "Dosie can help you track this" not "DOWNLOAD NOW".
+6. **Internal linking**: Reference other Dosie blog posts where relevant. At least one internal link per post is expected — check `web/src/content/blog/` for existing posts.
+7. **CTA**: End with a soft Dosie pitch — "Dosie can help you track this" not "DOWNLOAD NOW". Also place a mid-article CTA after the section where reader interest peaks (e.g., after the comparison table or key explainer) — most readers never reach the bottom.
+8. **Medical claims**: Never say "yes, generally" or similar affirmative language about drug interactions or safety. Always defer to "check with your pediatrician or pharmacist" — even for common combinations like Tylenol + antihistamines.
 
 ## Output
 

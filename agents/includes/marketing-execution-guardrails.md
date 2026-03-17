@@ -63,3 +63,35 @@ These rules apply to ALL marketing agents. Violating them is a review failure.
 ## Coverage Equity
 
 1. **All core apps get equal cadence.** If you are scheduled for multiple projects, do not skip any. If you produce 4 runs for SidelineIQ, you must also produce runs for Dosie and Glossy Sports in the same period.
+
+## Content Quality Standards (Added 2026-03-16)
+
+These rules come from a human review of all marketing agent output. Follow them strictly.
+
+### Distribution > Generation
+
+1. **Content without distribution is waste.** If you generate a blog post, social batch, or email template, verify it can actually be published. Reference real image assets (not placeholder paths), real platform accounts, and real app features.
+2. **Track publication status.** If a prior run's content was never posted, flag it in your report. Don't generate new content when old content is sitting unpublished.
+3. **One-shot generation isn't a pipeline.** Each run should reference and extend prior runs. "Week 1 batch" with no Weeks 2-52 is a failure. Build continuity.
+
+### Length & Self-Editing
+
+4. **Respect your word count targets.** If the prompt says 800-1200 words, stay under 1200. A 2,500-word blog post when the target is 1,200 means you aren't self-editing. Cut ruthlessly — the reader who needs "what is March Madness" explained isn't going to read 2,500 words.
+5. **Place CTAs at peak interest, not just at the bottom.** After the section where the reader's engagement peaks (typically the core explainer), add a mid-article CTA. Most readers never reach the bottom.
+
+### Accuracy & Freshness
+
+6. **Never hardcode app-specific numbers that can change.** Don't write "43 lessons" or "12 sports" — use flexible language like "dozens of lessons" or "every major sport." Hardcoded specifics rot when the app updates.
+7. **Never reference images that don't exist.** If you include an image path in frontmatter, verify the file exists in the repo. AI agents cannot create images — omit the image field rather than pointing to a non-existent file.
+8. **Frontmatter must match the spec exactly.** Use the field names specified in your prompt (`publishedAt` not `date`, include `author` and `tags`). Mismatched frontmatter breaks the content pipeline.
+
+### Platform Compliance
+
+9. **Read and obey platform constraints before generating content.** If the guardrails say "Instagram only" for a project, do not generate TikTok or X/Twitter content for that project. This is not optional. Check the guardrails FIRST, then generate.
+10. **AI video prompts must be technically feasible.** Do not write Veo/Sora prompts that require multi-scene cuts, split screens, precise text overlays, or timed transitions — current AI video tools cannot reliably produce these. Keep prompts to single continuous scenes. For multi-scene content, use Zebracat or flag for human editing.
+
+### Social Content Substance
+
+11. **Social copy must be postable as-is.** A hook + one generic sentence is a placeholder, not content. Each social post must contain enough substance to actually post — a specific claim, fact, talking point, or joke. "Openers, names, vibes. You'll be fine." is not a post.
+12. **Every social batch must reference current sports events.** Check today's date and name the specific games, matchups, teams, or events happening this week. Generic "the game" references add zero value for an audience that needs specific talking points.
+13. **Use niche hashtags for discovery.** Brand hashtags (#glossysports, #SidelineIQ) are for tracking, not discovery. Every post needs 3-5 niche hashtags the target audience actually follows (e.g., #sportsconfused #newtofoootball #footballforwives, not #nfl #football).

@@ -28,12 +28,14 @@ SEO approach: Long-tail keywords targeting non-fan search queries (e.g., "how to
 
 1. **Tone**: Witty, self-aware, conspiratorial. Like texting a friend who gets it — "we're all in this together." Light self-deprecating humor about not knowing sports. Never mean-spirited toward sports fans, never makes the reader feel stupid.
 2. **Structure**: Relatable hook (the awkward moment) -> The cheat code -> Specific scripts/phrases to use -> What to avoid saying -> Glossy CTA
-3. **Length**: 600-1000 words (shorter than educational content — these are cheat sheets, not textbooks)
+3. **Length**: 600-1000 words (shorter than educational content — these are cheat sheets, not textbooks). Every word must earn its spot.
 4. **Accuracy**: Any sports facts mentioned must be correct. The humor comes from the framing, not from getting things wrong. Verify team names, player references, and basic rules.
 5. **SEO**: Include target keyword in title, first paragraph, and 2-3 subheadings. Titles should be conversational and match how non-fans actually search.
 6. **Relatability**: Lead with the social anxiety — "You know the feeling..." — then deliver the solution. Readers should feel seen, not lectured.
 7. **Internal linking**: Reference other Glossy Sports blog posts and related guides where relevant.
 8. **CTA**: End with a soft Glossy pitch — "Glossy sends you a 2-minute briefing before every big game so you never get caught off guard" not "DOWNLOAD NOW".
+9. **Social content must be postable, not placeholder.** If you generate social copy, each post must contain a specific talking point, fact, or joke — not just a vague hook + generic one-liner. "Openers, names, vibes. You'll be fine." is not a real social post. Write something someone would actually screenshot and share.
+10. **Name current events.** Every batch must reference specific games, teams, matchups, or moments happening this week. Your audience needs "what to say about Lakers vs Celtics tonight" — not "what to say about the game."
 
 ## Output
 
