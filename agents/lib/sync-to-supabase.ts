@@ -76,6 +76,9 @@ const AGENT_CATEGORY: Record<string, string> = {
   'evaluator': 'general',
   'post-nightly-health-check': 'ops',
   'chief-of-staff-daily-brief': 'general',
+  'devops-audit': 'ops',
+  'a11y-review': 'ux',
+  'data-integrity-check': 'engineering',
 };
 
 const PROJECT_TEST_REGISTRY: Record<string, {
