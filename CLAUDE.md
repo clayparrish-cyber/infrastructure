@@ -32,6 +32,7 @@ agents/
 └── lib/
     ├── collect-orchestrator-signals.ts
     ├── sync-to-supabase.ts
+    ├── build-agent-context.ts     # Persistent memory context injection
     └── git-activity-scanner.sh
 
 packages/agent-learning/
@@ -94,10 +95,12 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 - **`claude -p` in while-read loops**: Must use fd 3 (`read -u 3`, `done 3<<<`) and `< /dev/null` to prevent stdin consumption. See skill: `claude-p-while-read-stdin-consumption`.
 - **Static fallback**: If orchestrator AI fails, workflow falls back to naive static roster. Check `"source": "static-fallback"` in roster JSON.
 - **Worker directory mismatch**: Workers look for projects at `projects/{name}` — monorepo subdirectories must be extracted correctly in clone step.
-- **Budget view uses current month**: `agent_budget_summary` resets monthly. Runs from prior months don't count against current budget.
+- **Budget view uses current month**: `agent_budget_summary` resets monthly. Runs from prior months don't count against current budget. View now includes `effective_budget` (base + overrides) and `budget_enforcement_mode` (observe/warn/enforce). All agents default to `observe` while calibrating.
+- **Entity grouping**: `entities` and `project_entities` tables map projects to GT/Mainline/Personal. `entity_budget_summary` view rolls up costs per entity per month.
 
 ## Recent Changes
 
+- **2026-03-17** — Agent infra upgrade: budget observability (alerts/overrides/enforcement_mode, default observe), entity grouping (GT/Mainline/Personal with cost rollup), persistent agent memory (agent_state table, build-agent-context.ts injects prior runs + suppressed patterns into prompts, rejections auto-suppress).
 - **2026-03-17** — Wired ops-deploy and ops-communications categories into agent pipeline. AGENT_CATEGORY_OVERRIDE map in sync-to-supabase.ts routes health-check→ops-deploy, chief-of-staff→ops-communications. Finding-level decision_category override supported. Review prompts updated with decision_category in direct curl inserts.
 - **2026-03-17** — Agent registry fix: reactivated marketing-analyst/legal-advisor/business-analyst in Supabase. Registered gt-website (scaffolded). Fixed Saturday clone scope (scaffolded->all) so performance-review runs on core projects. Fixed strategic-portfolio-audit working dir. Added skip logging to run_meta_agent. Added the-immortal-snail + gt-website to tier2-rotating and performance-review projects.
 - **2026-03-14** — Added `content-autonomy.ts` module: L1-L4 agent promotion tiers for content pipeline. Wired into sync-to-supabase for content-writer agents. CLI diagnostic mode included.
