@@ -1114,6 +1114,86 @@ jobs:
           print(f'PR reconcile: checked={checked}, merged={merged}')
           " || echo "PR reconcile skipped (error)"
 
+      - name: Recycle stale in_progress items
+        run: |
+          echo "Recycling stale in_progress items back to approved..."
+          CUTOFF=$(date -u -d '3 days ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          # Find in_progress items older than 3 days with no PR or worker engagement
+          STALE=$(curl -s \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/rest/v1/work_items?status=eq.in_progress&updated_at=lt.$CUTOFF&select=id,title,project,metadata")
+
+          echo "$STALE" | python3 -c "
+          import json, sys, urllib.request, os
+          from datetime import datetime, timezone
+
+          url = os.environ['SUPABASE_URL']
+          key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
+          items = json.load(sys.stdin)
+          recycled = 0
+          skipped = 0
+
+          for item in items:
+              meta = item.get('metadata') or {}
+              # Skip if item has a PR (worker made progress)
+              if meta.get('pr_url'):
+                  skipped += 1
+                  continue
+              # Skip if item has a proposed diff (worker made progress)
+              if meta.get('proposed_diff'):
+                  skipped += 1
+                  continue
+
+              # Recycle: set back to approved, clear assigned_to
+              item_id = item['id']
+              now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+              data = json.dumps({
+                  'status': 'approved',
+                  'assigned_to': None,
+                  'updated_at': now,
+              }).encode()
+              req = urllib.request.Request(
+                  f'{url}/rest/v1/work_items?id=eq.{item_id}',
+                  data=data, method='PATCH',
+                  headers={
+                      'apikey': key,
+                      'Authorization': f'Bearer {key}',
+                      'Content-Type': 'application/json',
+                      'Prefer': 'return=minimal',
+                  })
+              urllib.request.urlopen(req)
+
+              # Log event
+              event_data = json.dumps({
+                  'work_item_id': item_id,
+                  'event_type': 'recycled',
+                  'from_status': 'in_progress',
+                  'to_status': 'approved',
+                  'actor': 'reconcile-recycler',
+                  'actor_type': 'agent',
+                  'notes': 'Stale in_progress (3+ days, no PR/diff) — recycled to approved',
+              }).encode()
+              req2 = urllib.request.Request(
+                  f'{url}/rest/v1/work_item_events',
+                  data=event_data, method='POST',
+                  headers={
+                      'apikey': key,
+                      'Authorization': f'Bearer {key}',
+                      'Content-Type': 'application/json',
+                  })
+              try:
+                  urllib.request.urlopen(req2)
+              except Exception:
+                  pass
+
+              recycled += 1
+              print(f'  RECYCLED: [{item[\"project\"]}] {item[\"title\"][:60]}')
+
+          print(f'Stale recycler: {recycled} recycled, {skipped} skipped (have PRs/diffs)')
+          " || echo "Stale recycler skipped (error)"
+
       - name: Create logs directory
         if: steps.check-stale.outputs.stale_count != '0'
         run: mkdir -p logs
