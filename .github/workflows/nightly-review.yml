@@ -220,10 +220,12 @@ jobs:
             5) THEME="security-review";       PROJECT_SCOPE="core" ;;  # 2x/week security
             6)
               # Saturday: rotating theme based on week number
+              # Scope is 'all' because performance-review (biweekly-even) runs on core+scaffolded
+              # and tier2-rotating runs on scaffolded — orchestrator needs all projects cloned
               THEMES=("security-review" "ux-layout-review" "bug-hunt-review" "content-value-review" "polish-brand-review")
               INDEX=$(( WEEK_NUM % 5 ))
               THEME="${THEMES[$INDEX]}"
-              PROJECT_SCOPE="scaffolded"
+              PROJECT_SCOPE="all"
               ;;
             7) THEME="weekly-cleanup";        PROJECT_SCOPE="all" ;;
           esac
@@ -1190,11 +1192,39 @@ jobs:
 
             if [ ! -f "$prompt_file" ]; then
               echo "SKIP: missing prompt $prompt_file"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"manual\",
+                  \"status\":\"cancelled\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$started_at\",
+                  \"error_details\":\"SKIP: missing prompt $prompt_file\"
+                }" > /dev/null 2>&1 || true
               return 0
             fi
 
             if [ ! -d "$working_dir" ]; then
               echo "SKIP: missing working dir $working_dir"
+              curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "Prefer: return=minimal" \
+                -d "{
+                  \"agent_id\":\"$agent_id\",
+                  \"project\":\"infrastructure\",
+                  \"trigger\":\"manual\",
+                  \"status\":\"cancelled\",
+                  \"started_at\":\"$started_at\",
+                  \"completed_at\":\"$started_at\",
+                  \"error_details\":\"SKIP: missing working dir $working_dir\"
+                }" > /dev/null 2>&1 || true
               return 0
             fi
 
@@ -1249,7 +1279,7 @@ jobs:
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" || true
 
           run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md" "$WORKSPACE" 30
-          run_meta_agent "strategic-portfolio-audit" "$WORKSPACE/agents/reviews/infrastructure/strategic-portfolio-audit.md" "$WORKSPACE/projects/infrastructure" 80
+          run_meta_agent "strategic-portfolio-audit" "$WORKSPACE/agents/reviews/infrastructure/strategic-portfolio-audit.md" "$WORKSPACE" 80
 
       - name: Run daily ops agents (credential check + daily brief)
         timeout-minutes: 30

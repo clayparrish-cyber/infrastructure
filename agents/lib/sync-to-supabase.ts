@@ -96,6 +96,8 @@ const PROJECT_TEST_REGISTRY: Record<string, {
   'mainline-apps': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'medium' },
   'mainline-dashboard': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'high' },
   infrastructure: { hasAutomatedTests: true, frameworks: ['vitest'], confidence: 'high' },
+  'the-immortal-snail': { hasAutomatedTests: true, frameworks: ['jest'], confidence: 'medium' },
+  'gt-website': { hasAutomatedTests: false, frameworks: [], confidence: 'high' },
 };
 
 const HIGH_RISK_TERMS = [

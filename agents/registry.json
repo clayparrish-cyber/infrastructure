@@ -92,6 +92,16 @@
       "note": "Mainline Apps project (Bill 75%, Clay 25%). GPS-based ambient horror/meme game with permadeath.",
       "automationProfile": "scaffolded"
     },
+    "gt-website": {
+      "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-website",
+      "repo": "clayparrish-cyber/gt-website",
+      "contextFile": "CLAUDE.md",
+      "owner": "shared",
+      "stack": "squarespace",
+      "reportDir": "~/Projects/agent-reports/gt-website",
+      "note": "Gallant Tiger Squarespace website. Static site — focus reviews on content, SEO, and security headers.",
+      "automationProfile": "scaffolded"
+    },
     "infrastructure": {
       "path": "/Volumes/Lexar/Projects/infrastructure",
       "repo": "clayparrish-cyber/infrastructure",
