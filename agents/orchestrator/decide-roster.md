@@ -42,6 +42,10 @@ Apply these rules in priority order:
 
 ### Direct-Execution Agents (Do NOT roster these)
 The following agents run as separate workflow steps, NOT through this roster:
+- `weekly-cleanup` — runs in the Sunday ops step
+- `evaluator` — runs in the Sunday ops step
+- `business-synthesis` — runs in the Sunday ops step
+- `strategic-portfolio-audit` — runs in the Sunday ops step
 - `post-nightly-health-check` — runs in its own workflow job after reviews
 - `credential-expiry-check` — runs in the reconcile job (Mon/Wed/Fri)
 - `chief-of-staff-daily-brief` — runs in the reconcile job (daily)
@@ -60,7 +64,7 @@ Some nights have multiple agents scheduled (e.g., Wednesday = bug-hunt + content
 | Thu | content-value-review (core + core-lite) | competitive-intel (even, core) |
 | Fri | security-review (core + core-lite) | polish-brand-review (odd, core) |
 | Sat | performance-review (even) + tier2-rotating | — |
-| Sun | weekly-cleanup + business-synthesis + evaluator + strategic-portfolio-audit | — |
+| Sun | project-facing reviews only; Sunday ops suite runs directly in workflow | — |
 | Daily | app-review-monitor (iOS apps only: sidelineiq, dosie, glossy-sports) | — |
 | Daily | chief-of-staff-daily-brief (infrastructure — runs directly, not via roster) | — |
 | M/W/F | credential-expiry-check (infrastructure — runs directly, not via roster) | — |

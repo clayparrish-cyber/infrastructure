@@ -1162,18 +1162,23 @@ jobs:
 
           done <<< "$PROJECTS"
 
-      - name: Run evaluator and business synthesis (Sundays only)
+      - name: Run Sunday ops agents
         if: needs.setup.outputs.dow == '7'
-        timeout-minutes: 30
+        timeout-minutes: 60
         env:
           DATE: ${{ needs.setup.outputs.date }}
         run: |
           WORKSPACE="${{ github.workspace }}"
           mkdir -p "$WORKSPACE/logs"
 
+          # Sunday/global ops agents do not fit the normal review roster because the
+          # orchestrator emits project=all and there is no projects/all workspace.
+          # Run them explicitly here so cadence + ingest stay truthful.
           run_meta_agent() {
             local agent_id="$1"
             local prompt_file="$2"
+            local working_dir="$3"
+            local max_turns="${4:-30}"
             local log_file="$WORKSPACE/logs/$DATE-$agent_id.json"
             local started_at
             started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -1183,8 +1188,19 @@ jobs:
             echo "Running $agent_id"
             echo "=========================================="
 
+            if [ ! -f "$prompt_file" ]; then
+              echo "SKIP: missing prompt $prompt_file"
+              return 0
+            fi
+
+            if [ ! -d "$working_dir" ]; then
+              echo "SKIP: missing working dir $working_dir"
+              return 0
+            fi
+
+            cd "$working_dir"
             if timeout 600 claude -p "$(cat "$prompt_file")" \
-              --max-turns 30 --output-format json \
+              --max-turns "$max_turns" --output-format json \
               --allowedTools "Read,Glob,Grep,Bash" < /dev/null > "$log_file" 2>&1; then
               echo "SUCCESS: $agent_id"
               curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
@@ -1219,16 +1235,21 @@ jobs:
                   \"error_details\":\"See $log_file\"
                 }" > /dev/null 2>&1 || true
             fi
+
+            cd "$WORKSPACE"
           }
 
           cd "$WORKSPACE"
-          run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md"
+          mkdir -p "$WORKSPACE/reports"
+          run_meta_agent "weekly-cleanup" "$WORKSPACE/agents/ops/weekly-cleanup.md" "$WORKSPACE" 30
+          run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md" "$WORKSPACE" 30
 
           # Refresh meta-review directives after evaluation
           curl -s -X POST "$COMMAND_CENTER_URL/api/ops/refresh-meta-directives" \
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" || true
 
-          run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md"
+          run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md" "$WORKSPACE" 30
+          run_meta_agent "strategic-portfolio-audit" "$WORKSPACE/agents/reviews/infrastructure/strategic-portfolio-audit.md" "$WORKSPACE/projects/infrastructure" 80
 
       - name: Run daily ops agents (credential check + daily brief)
         timeout-minutes: 30
