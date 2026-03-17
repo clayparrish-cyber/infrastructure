@@ -64,6 +64,18 @@ const AGENT_CATEGORY: Record<string, string> = {
   'performance-review': 'performance',
   'tier2-rotating-review': 'general',
   'weekly-cleanup': 'ops',
+  'aso-retention-review': 'marketing',
+  'creative-provocateur': 'marketing',
+  'marketing-analyst': 'marketing',
+  'content-writer': 'content',
+  'competitive-intel': 'general',
+  'business-synthesis': 'general',
+  'strategic-portfolio-audit': 'general',
+  'app-review-monitor': 'ops',
+  'credential-expiry-check': 'ops',
+  'evaluator': 'general',
+  'post-nightly-health-check': 'ops',
+  'chief-of-staff-daily-brief': 'general',
 };
 
 const PROJECT_TEST_REGISTRY: Record<string, {
