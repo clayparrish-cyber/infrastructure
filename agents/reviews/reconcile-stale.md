@@ -75,9 +75,44 @@ curl -s -X PATCH "${SUPABASE_URL}/rest/v1/work_items?id=in.(${IDS})" \
   -d '{"status":"done","updated_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
 ```
 
-### 4. Log Run Summary
+### 4. Close Stale Sprint Initiatives
 
-After processing all items, log the agent run:
+Sprint initiatives (`type=initiative`, `metadata->project_kind=sprint`) are organizational
+containers, not actionable items. They go stale when:
+- They have no children at all (created as containers but nothing was parented to them)
+- All their children are already done/rejected
+
+Fetch active sprint initiatives older than 7 days for this project:
+
+```bash
+curl -s "${SUPABASE_URL}/rest/v1/work_items?type=eq.initiative&project=eq.${PROJECT}&status=in.(discovered,triaged,approved,in_progress,review)&metadata->>project_kind=eq.sprint&created_at=lt.${CUTOFF}&select=id,title,status,metadata&limit=50" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+```
+
+For each sprint initiative:
+1. Check if it has any active children:
+```bash
+curl -s "${SUPABASE_URL}/rest/v1/work_items?parent_id=eq.${INIT_ID}&status=in.(discovered,triaged,approved,in_progress,review)&select=id&limit=1" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}"
+```
+
+2. If no active children exist, close the sprint initiative with status `done`:
+```bash
+curl -s -X PATCH "${SUPABASE_URL}/rest/v1/work_items?id=eq.${INIT_ID}" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -H "Prefer: return=minimal" \
+  -d '{"status":"done","updated_at":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+```
+
+Log the event with notes: `"Auto-closed: stale sprint container with no active children"`
+
+### 5. Log Run Summary
+
+After processing all items (findings + sprint initiatives), log the agent run:
 
 ```bash
 curl -s -X POST "${SUPABASE_URL}/rest/v1/agent_runs_v2" \
@@ -95,6 +130,7 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/agent_runs_v2" \
       "obsolete": OBSOLETE_COUNT,
       "still_open": STILL_OPEN_COUNT,
       "uncertain": UNCERTAIN_COUNT,
+      "stale_sprints_closed": SPRINT_CLOSED_COUNT,
       "closed_ids": ["id1", "id2"]
     }
   }'
@@ -102,18 +138,19 @@ curl -s -X POST "${SUPABASE_URL}/rest/v1/agent_runs_v2" \
 
 Replace TOTAL_CHECKED, FIXED_COUNT, etc. with actual numbers.
 
-### 5. Output Summary
+### 6. Output Summary
 
 Print a summary table at the end:
 
 ```
 Reconciliation Summary for ${PROJECT}
 =====================================
-Total checked:  XX
-Fixed (closed): XX
-Obsolete (closed): XX
-Still open:     XX
-Uncertain:      XX
+Findings checked:       XX
+Fixed (closed):         XX
+Obsolete (closed):      XX
+Still open:             XX
+Uncertain:              XX
+Stale sprints closed:   XX
 ```
 
 ## Decision Criteria
