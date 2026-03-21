@@ -43,6 +43,8 @@ export function registerWorkItems(program: Command) {
     .option('-p, --project <project>', 'Filter by project')
     .option('-s, --status <status>', 'Filter by status (comma-separated)', 'discovered,triaged,approved,in_progress,review')
     .option('-l, --limit <n>', 'Max results', '50')
+    .option('--type <type>', 'Filter by type (comma-separated)')
+    .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
     .action(async (opts) => {
       try {
         const client = createClient(program.opts().url);
@@ -50,6 +52,11 @@ export function registerWorkItems(program: Command) {
         if (opts.project) params.set('project', opts.project);
         if (opts.status) params.set('status', opts.status);
         if (opts.limit) params.set('limit', opts.limit);
+        if (opts.type) {
+          params.set('type', opts.type);
+        } else if (!opts.includeInitiatives) {
+          params.set('exclude_type', 'initiative');
+        }
 
         const data = await client.get<ListResponse>(`/api/work-items?${params}`);
 
