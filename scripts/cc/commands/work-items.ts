@@ -16,6 +16,42 @@ interface WorkItem {
   updated_at: string;
 }
 
+const UUID_LENGTH = 36;
+
+/**
+ * Resolve a short ID prefix (e.g. "5d5bf4fe") to a full UUID by fetching
+ * the work item list and matching by prefix. Returns the ID unchanged if
+ * it's already a full UUID.
+ */
+async function resolveId(client: ReturnType<typeof createClient>, shortId: string): Promise<string> {
+  if (shortId.length >= UUID_LENGTH) return shortId;
+
+  const data = await client.get<ListResponse>('/api/work-items?limit=200');
+  const matches = data.items.filter(i => i.id.startsWith(shortId));
+
+  if (matches.length === 0) {
+    throw new Error(`No work item found matching short ID "${shortId}"`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`Ambiguous short ID "${shortId}" — matches ${matches.length} items. Use a longer prefix.`);
+  }
+  return matches[0].id;
+}
+
+async function resolveIds(client: ReturnType<typeof createClient>, ids: string[]): Promise<string[]> {
+  const needsResolve = ids.some(id => id.length < UUID_LENGTH);
+  if (!needsResolve) return ids;
+
+  const data = await client.get<ListResponse>('/api/work-items?limit=200');
+  return ids.map(shortId => {
+    if (shortId.length >= UUID_LENGTH) return shortId;
+    const matches = data.items.filter(i => i.id.startsWith(shortId));
+    if (matches.length === 0) throw new Error(`No work item found matching short ID "${shortId}"`);
+    if (matches.length > 1) throw new Error(`Ambiguous short ID "${shortId}" — matches ${matches.length} items.`);
+    return matches[0].id;
+  });
+}
+
 interface ListResponse {
   items: WorkItem[];
   count: number;
@@ -193,7 +229,8 @@ export function registerWorkItems(program: Command) {
     .action(async (opts) => {
       try {
         const client = createClient(program.opts().url);
-        const body: Record<string, unknown> = { ids: [opts.id] };
+        const fullId = await resolveId(client, opts.id);
+        const body: Record<string, unknown> = { ids: [fullId] };
         if (opts.status) body.status = opts.status;
         if (opts.assignedTo) body.assigned_to = opts.assignedTo;
         if (opts.notes) body.notes = opts.notes;
@@ -228,8 +265,9 @@ export function registerWorkItems(program: Command) {
     .action(async (ids, opts) => {
       try {
         const client = createClient(program.opts().url);
+        const fullIds = await resolveIds(client, ids);
         const data = await client.patch<UpdateResponse>('/api/work-items', {
-          ids,
+          ids: fullIds,
           status: opts.status,
           notes: opts.notes,
           actor: opts.actor,
