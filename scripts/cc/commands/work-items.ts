@@ -186,7 +186,7 @@ export function registerWorkItems(program: Command) {
     .action(async (opts) => {
       try {
         const client = createClient(program.opts().url);
-        const body: Record<string, string> = { id: opts.id };
+        const body: Record<string, unknown> = { ids: [opts.id] };
         if (opts.status) body.status = opts.status;
         if (opts.assignedTo) body.assigned_to = opts.assignedTo;
         if (opts.notes) body.notes = opts.notes;
