@@ -562,15 +562,18 @@ async function syncProject(supabase: SupabaseClientLike, project: string, date: 
         }
 
         const severity = finding.severity?.toLowerCase() || 'info';
-        const description = [
-          finding.description,
-          finding.files?.length ? `\n\n**Files:** ${finding.files.join(', ')}` : '',
-          finding.suggestedFix ? `\n\n**Suggested fix:** ${finding.suggestedFix}` : '',
-          finding.effort ? `\n\n**Effort:** ${finding.effort}` : ''
-        ].join('');
+        const descriptionSections = [
+          finding.plainEnglish ? `**In plain English:** ${finding.plainEnglish}` : '',
+          finding.description || '',
+          finding.files?.length ? `**Files:** ${finding.files.join(', ')}` : '',
+          finding.suggestedFix ? `**Suggested fix:** ${finding.suggestedFix}` : '',
+          finding.effort ? `**Effort:** ${finding.effort}` : ''
+        ].filter(Boolean);
+        const description = descriptionSections.join('\n\n');
         const metadata = {
           finding_id: finding.id,
           severity: finding.severity,
+          plain_english: finding.plainEnglish || null,
           files: finding.files,
           suggested_fix: finding.suggestedFix || null,
           effort: finding.effort,

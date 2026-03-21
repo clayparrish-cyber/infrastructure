@@ -9,7 +9,8 @@
       "owner": "clay",
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/sidelineiq",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "airtip": {
       "entity": "mainline",
@@ -20,7 +21,8 @@
       "stack": "next.js",
       "reportDir": "~/Projects/agent-reports/airtip",
       "note": "AirTip lives at /tips within menu-autopilot. Focus reviews on src/app/tips/ and src/lib/tips/",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "dosie": {
       "entity": "personal",
@@ -30,7 +32,8 @@
       "owner": "clay",
       "stack": "expo/react-native + next.js + swiftui",
       "reportDir": "~/Projects/agent-reports/dosie",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "gt-ops": {
       "entity": "gt",
@@ -41,7 +44,8 @@
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/gt-ops",
       "note": "Has in-project agents for inventory/trends. Central agents still run here. Marketing managed by Kamal/Charlie \u2014 exclude marketing/content agents.",
-      "automationProfile": "core-lite"
+      "automationProfile": "core-lite",
+      "phase": "active-dev"
     },
     "menu-autopilot": {
       "entity": "mainline",
@@ -52,7 +56,8 @@
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/menu-autopilot",
       "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)",
-      "automationProfile": "scaffolded"
+      "automationProfile": "scaffolded",
+      "phase": "active-dev"
     },
     "glossy-sports": {
       "entity": "mainline",
@@ -64,7 +69,8 @@
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/glossy-sports",
       "note": "Mainline Apps project (Bill 75%, Clay 25%). Lives in mainline-apps monorepo under glossy-sports/ subdir.",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "mainline-apps": {
       "entity": "mainline",
@@ -75,7 +81,8 @@
       "stack": "multi-app monorepo",
       "reportDir": "~/Projects/agent-reports/mainline-apps",
       "note": "Mainline Apps monorepo root. Use for cross-app tasks and repo-level automation.",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "mainline-dashboard": {
       "entity": "mainline",
@@ -87,7 +94,8 @@
       "stack": "next.js",
       "reportDir": "~/Projects/agent-reports/mainline-dashboard",
       "note": "Executive dashboard app in mainline-apps monorepo.",
-      "automationProfile": "core"
+      "automationProfile": "core",
+      "phase": "active-dev"
     },
     "the-immortal-snail": {
       "entity": "mainline",
@@ -99,7 +107,8 @@
       "stack": "expo/react-native",
       "reportDir": "~/Projects/agent-reports/the-immortal-snail",
       "note": "Mainline Apps project (Bill 75%, Clay 25%). GPS-based ambient horror/meme game with permadeath.",
-      "automationProfile": "scaffolded"
+      "automationProfile": "scaffolded",
+      "phase": "maintenance"
     },
     "gt-website": {
       "entity": "gt",
@@ -110,7 +119,8 @@
       "stack": "squarespace",
       "reportDir": "~/Projects/agent-reports/gt-website",
       "note": "Gallant Tiger Squarespace website. Static site — focus reviews on content, SEO, and security headers.",
-      "automationProfile": "scaffolded"
+      "automationProfile": "scaffolded",
+      "phase": "maintenance"
     },
     "infrastructure": {
       "entity": "mainline",
@@ -121,7 +131,8 @@
       "stack": "typescript/github-actions",
       "reportDir": "~/Projects/agent-reports/infrastructure",
       "note": "Agent infrastructure, orchestrator, sync scripts, agent-learning package.",
-      "automationProfile": "ops-only"
+      "automationProfile": "ops-only",
+      "phase": "active-dev"
     }
   },
   "agents": [

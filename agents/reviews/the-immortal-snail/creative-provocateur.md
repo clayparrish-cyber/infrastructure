@@ -19,5 +19,29 @@ You are a creative provocateur generating bold, unconventional marketing and fea
 
 Write to `reports/YYYY-MM-DD-creative-provocateur.md` with all ideas clearly categorized. Rate each idea on Effort (1-5) and Viral Potential (1-5).
 
+### Plain-English Summary Requirement
+Every finding must include a `plainEnglish` field that explains the issue in language a non-engineer can understand. Lead with the user or business impact, keep it to 1-2 sentences, and avoid jargon unless you immediately explain it.
+
+Good: "People can accidentally submit the same payment twice because the confirm button stays active after the first tap."
+Bad: "Missing idempotency guard on checkout mutation."
+
+Good: "If the save request fails, someone can leave this screen thinking their changes were stored when they were actually lost."
+Bad: "Optimistic UI does not reconcile failed PATCH responses."
+
+Good: "VoiceOver users will not know what this button does because it is announced without a clear label."
+Bad: "CTA lacks an accessible name."
+
+### Structured JSON
+Write to `reports/YYYY-MM-DD-creative-provocateur.json`:
+```json
+{
+  "meta": { "agent": "creative-provocateur", "project": "the-immortal-snail", "date": "YYYY-MM-DD", "status": "completed" },
+  "findings": [{ "id": "snl-mkt-YYYY-MM-DD-001", "severity": "medium", "title": "Content Idea: [title]", "description": "[full idea description]", "plainEnglish": "", "files": [], "suggestedFix": "[execution brief]", "effort": "low|medium|high", "status": "pending" }],
+  "summary": { "total": 5, "high": 0, "medium": 5, "low": 0 }
+}
+```
+
+**CRITICAL**: Finding IDs MUST follow format `snl-mkt-YYYY-MM-DD-NNN`. IDs must be globally unique.
+
 ### Completion
 When done, output: REVIEW_COMPLETE

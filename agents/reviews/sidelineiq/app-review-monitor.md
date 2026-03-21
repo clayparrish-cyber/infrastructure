@@ -177,12 +177,24 @@ Write to `reports/YYYY-MM-DD-app-review-monitor.md` with:
 - Sentiment summary
 - Any flagged issues
 
+### Plain-English Summary Requirement
+Every finding must include a `plainEnglish` field that explains the issue in language a non-engineer can understand. Lead with the user or business impact, keep it to 1-2 sentences, and avoid jargon unless you immediately explain it.
+
+Good: "People can accidentally submit the same payment twice because the confirm button stays active after the first tap."
+Bad: "Missing idempotency guard on checkout mutation."
+
+Good: "If the save request fails, someone can leave this screen thinking their changes were stored when they were actually lost."
+Bad: "Optimistic UI does not reconcile failed PATCH responses."
+
+Good: "VoiceOver users will not know what this button does because it is announced without a clear label."
+Bad: "CTA lacks an accessible name."
+
 ### Structured JSON
 Write to `reports/YYYY-MM-DD-app-review-monitor.json`:
 ```json
 {
   "meta": { "agent": "app-review-monitor", "project": "sidelineiq", "date": "YYYY-MM-DD", "status": "completed" },
-  "findings": [],
+  "findings": [{ "id": "sidelineiq-rev-YYYY-MM-DD-001", "severity": "medium", "title": "", "description": "", "plainEnglish": "", "files": [], "suggestedFix": "", "effort": "", "status": "pending" }],
   "summary": { "total": 0, "high": 0, "medium": 0, "low": 0 },
   "metrics": {
     "app_store_id": null,
@@ -195,6 +207,8 @@ Write to `reports/YYYY-MM-DD-app-review-monitor.json`:
   }
 }
 ```
+
+If there are no actionable issues, return `"findings": []` and keep the summary counts at zero.
 
 **CRITICAL**: Finding IDs MUST follow format `sidelineiq-rev-YYYY-MM-DD-NNN` (e.g., `sidelineiq-rev-2026-02-25-001`). IDs must be globally unique.
 

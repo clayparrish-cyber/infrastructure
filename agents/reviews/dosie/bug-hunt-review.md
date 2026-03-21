@@ -46,12 +46,24 @@ Before filing a finding, check it against these categories. Findings matching th
 ### Markdown Report
 Write to `reports/YYYY-MM-DD-bug-hunt-review.md`
 
+### Plain-English Summary Requirement
+Every finding must include a `plainEnglish` field that explains the issue in language a non-engineer can understand. Lead with the user or business impact, keep it to 1-2 sentences, and avoid jargon unless you immediately explain it.
+
+Good: "People can accidentally submit the same payment twice because the confirm button stays active after the first tap."
+Bad: "Missing idempotency guard on checkout mutation."
+
+Good: "If the save request fails, someone can leave this screen thinking their changes were stored when they were actually lost."
+Bad: "Optimistic UI does not reconcile failed PATCH responses."
+
+Good: "VoiceOver users will not know what this button does because it is announced without a clear label."
+Bad: "CTA lacks an accessible name."
+
 ### Structured JSON
 Write to `reports/YYYY-MM-DD-bug-hunt-review.json`:
 ```json
 {
   "meta": { "agent": "bug-hunt-review", "project": "dosie", "date": "YYYY-MM-DD", "status": "completed" },
-  "findings": [{ "id": "dos-bug-YYYY-MM-DD-001", "severity": "", "title": "", "description": "", "files": [], "suggestedFix": "", "effort": "", "status": "pending" }],
+  "findings": [{ "id": "dos-bug-YYYY-MM-DD-001", "severity": "", "title": "", "description": "", "plainEnglish": "", "files": [], "suggestedFix": "", "effort": "", "status": "pending" }],
   "summary": { "total": 0, "high": 0, "medium": 0, "low": 0 }
 }
 ```
@@ -86,6 +98,7 @@ Add a `delegations` array to your findings JSON output. Each delegation creates 
       "title": "User profile collects age without consent gate",
       "severity": "high",
       "description": "The onboarding flow collects date of birth at src/app/onboarding/page.tsx:45 without checking age or requesting parental consent.",
+      "plainEnglish": "",
       "files": ["src/app/onboarding/page.tsx"],
       "suggestedFix": "Add age check before profile creation. If under 13, require parental consent per COPPA."
     }
