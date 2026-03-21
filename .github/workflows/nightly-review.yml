@@ -408,12 +408,20 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Update business priorities
+        continue-on-error: true
+        env:
+          PRIORITIES_PATH: ${{ github.workspace }}/agents/priorities.json
+        run: |
+          npx tsx ${{ github.workspace }}/agents/lib/update-priorities.ts
+
       - name: Collect orchestrator signals
         continue-on-error: true
         env:
           PROJECTS_DIR: ${{ github.workspace }}/projects
           SCANNER_PATH: ${{ github.workspace }}/agents/lib/git-activity-scanner.sh
           SIGNALS_OUTPUT: ${{ github.workspace }}/signals.json
+          PRIORITIES_PATH: ${{ github.workspace }}/agents/priorities.json
         run: |
           chmod +x "${{ github.workspace }}/agents/lib/git-activity-scanner.sh"
           npx tsx ${{ github.workspace }}/agents/lib/collect-orchestrator-signals.ts
