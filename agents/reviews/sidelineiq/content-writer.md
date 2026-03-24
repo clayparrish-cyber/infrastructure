@@ -152,6 +152,32 @@ Automated content creation has near-zero marginal cost. Post frequency should ma
 - **Event weeks** (March Madness, playoffs, Opening Day, draft, etc.): 7-10 posts
 - **Major event days** (Selection Sunday, Super Bowl, etc.): 2-3 posts that day
 
+### Ad Copy Reference (for ad-candidate posts marked ⭐)
+
+When creating posts marked as ad candidates, respect platform character limits:
+
+| Platform | Element | Limit |
+|----------|---------|-------|
+| Meta (FB/IG) | Primary text | 125 chars visible (more truncated) |
+| Meta (FB/IG) | Headline | 40 chars |
+| Meta (FB/IG) | Description | 30 chars |
+
+**Ad copy rules:** Specific > vague ("Learn football in 3 min/day" not "Learn sports"). Benefits > features. Include numbers when possible. Hook in first 3 words. Social proof performs well on Meta.
+
+### Blog → Social Repurposing Matrix
+
+Every blog post should generate social content across these angles:
+
+| Angle | Format | Example |
+|-------|--------|---------|
+| Key stat/fact | QuoteCard | Pull the most surprising stat from the post |
+| Relatable moment | RelatablePost | "When someone says [term] and you just nod" |
+| Quick explainer | QuoteCard | Distill the core concept to 2 sentences |
+| Hot take / opinion | RelatablePost | Contrarian angle on the topic |
+| CTA / app pitch | PhotoOverlay (sparingly) | "Stop pretending. Start learning." |
+
+Each angle should feel like its own post, not a blog excerpt. Rewrite for social — don't copy-paste paragraphs.
+
 ### Paid Promotion Criteria
 
 Most posts are organic only. A post qualifies for paid promotion when ALL of these are true:
