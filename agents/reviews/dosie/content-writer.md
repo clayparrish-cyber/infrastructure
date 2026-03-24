@@ -105,12 +105,60 @@ After writing the blog post, update or create `reports/content-writer-scoreboard
 
 If the scoreboard doesn't exist yet, create it with the header row and your first entry.
 
+### Social Posts (Instagram via Buffer Pipeline)
+
+After writing the blog post, generate 3-4 Instagram posts for @getdosie. These flow through the Buffer posting pipeline — when Clay approves in Command Center, the post goes live on Instagram automatically.
+
+**Social content pillars for Dosie:**
+- Relatable caregiver moments ("That 3am moment when you can't remember if you gave the dose...")
+- Quick medication tips (storage, alternating meds, sick day mode)
+- Caregiver appreciation ("You remembered everyone else's meds. Who remembers yours?")
+- Seasonal content (flu season, allergy season, back-to-school)
+
+**Voice for social:** Warm, supportive, gently humorous. Never clinical. Never guilt-inducing about missed doses. Rose (#D4A5A5) + Cream (#FAF9F7) color palette. Nunito font references.
+
+**Create each post as a Supabase work_item:**
+
+```bash
+curl -s -X POST "${SUPABASE_URL}/rest/v1/work_items" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "📸 LIVE POST — Dosie IG — [short description]",
+    "description": "## Caption\n\n[full caption text]\n\n## Hashtags\n\n[hashtags]\n\n## Image\n\n[composition type + description]\n\n## Scheduled\n\n[date/time]\n\n---\n⚡ **APPROVE = THIS POSTS LIVE TO INSTAGRAM**",
+    "project": "dosie",
+    "type": "task",
+    "priority": "medium",
+    "status": "discovered",
+    "created_by": "content-writer-agent",
+    "metadata": {
+      "is_social_post": true,
+      "caption": "[full caption text — plain text only]",
+      "hashtags": "#Dosie #MedicationReminder #Caregiver ...",
+      "scheduled_time": "ISO 8601 datetime",
+      "buffer_profile_id": "USE_ENV_BUFFER_PROFILE_DOSIE",
+      "platform": "instagram"
+    }
+  }'
+```
+
+**Title format:** Always start with `📸 LIVE POST —` so Clay instantly knows this is a real post.
+
+**Status:** Set to `discovered` — Clay must explicitly approve before it posts.
+
+**Instagram handle:** @getdosie
+**App Store link:** [include when Dosie is live on App Store]
+
+**DO NOT** include betting language, medical dosage numbers, or anything that could be construed as medical advice. Social posts are brand awareness + relatability, not medical guidance.
+
 ### Topic Selection
 
 If no approved work_item specifies a topic, select one using this priority:
-1. Seasonal relevance (flu season, back-to-school, summer camps)
+1. Seasonal relevance (flu season, back-to-school, summer camps, allergy season)
 2. Gap in existing content (check published posts)
 3. High-intent search queries in the medication + parenting space
+4. Caregiver appreciation / relatable parenting moments
 
 ### Completion
 When done, output: REVIEW_COMPLETE

@@ -166,6 +166,54 @@ Paid promotion budgets (conservative — total company bank balance is ~$500-100
 
 When requesting a paid boost, create a work_item with `decision_category: "marketing_spend"` and include the post metrics that triggered the request. These require human approval.
 
+### CC Work Items for Social Posts (Buffer Pipeline)
+
+In ADDITION to the ContentPlan JSON, create a Supabase work_item for each social post. These items flow through the Buffer posting pipeline — when Clay approves in Command Center, the post goes live on Instagram automatically.
+
+**Create each work item via Supabase REST API:**
+
+```bash
+curl -s -X POST "${SUPABASE_URL}/rest/v1/work_items" \
+  -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "📸 LIVE POST — SidelineIQ IG — [short description]",
+    "description": "## Caption\n\n[full caption text]\n\n## Hashtags\n\n[hashtags]\n\n## Image\n\n[composition type + description]\n\n## Scheduled\n\n[date/time]\n\n---\n⚡ **APPROVE = THIS POSTS LIVE TO INSTAGRAM**",
+    "project": "sidelineiq",
+    "type": "task",
+    "priority": "medium",
+    "status": "discovered",
+    "created_by": "content-writer-agent",
+    "metadata": {
+      "is_social_post": true,
+      "caption": "[full caption text — no markdown, plain text only]",
+      "hashtags": "#SidelineIQ #LearnSports ...",
+      "scheduled_time": "ISO 8601 datetime",
+      "buffer_profile_id": "USE_ENV_BUFFER_PROFILE_SIDELINEIQ",
+      "composition": "QuoteCard|RelatablePost|PhotoOverlay",
+      "image_prompt": "[if PhotoOverlay, the Gemini prompt]",
+      "content_plan_id": "cw-YYYY-MM-DD-N",
+      "platform": "instagram"
+    }
+  }'
+```
+
+**Title format rules:**
+- Always start with `📸 LIVE POST —` so Clay instantly knows this is a real post, not a draft
+- Include the brand name and platform
+- Keep the description short but descriptive
+
+**Description must include:**
+- Full caption text (so Clay can read it in the dashboard)
+- Hashtags
+- Image description or Remotion composition details
+- The bold warning: `⚡ **APPROVE = THIS POSTS LIVE TO INSTAGRAM**`
+
+**Status:** Set to `discovered` (not `approved`) — Clay must explicitly approve before it posts.
+
+**DO NOT create manual instruction items** (the old "Step 1: Open Canva..." format). The pipeline handles posting automatically after approval.
+
 ### Topic Selection
 
 If no approved work_item specifies a topic, select one using this priority:
