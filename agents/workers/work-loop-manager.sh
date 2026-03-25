@@ -4,12 +4,11 @@
 # Usage: ./work-loop-manager.sh [--max-items N]
 #
 # Required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
-# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, EXECUTION_MODE, NIGHTLY_COST_CAP
+# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, NIGHTLY_COST_CAP
 
 set -euo pipefail
 
 MAX_ITEMS="${MAX_WORKER_ITEMS:-7}"
-EXECUTION_MODE="${EXECUTION_MODE:-dry_run}"
 PROJECTS_DIR="${PROJECTS_DIR:-projects}"
 WORKER_PROMPT="${WORKER_PROMPT:-agents/workers/implement-finding.md}"
 REGISTRY="${REGISTRY:-agents/registry.json}"
@@ -48,12 +47,8 @@ while [ $# -gt 0 ]; do
       MAX_ITEMS="${2:-$MAX_ITEMS}"
       shift 2
       ;;
-    --live)
-      EXECUTION_MODE="live"
-      shift
-      ;;
-    --dry-run)
-      EXECUTION_MODE="dry_run"
+    --live|--dry-run)
+      # dry-run removed — worker always runs in live mode
       shift
       ;;
     *)
@@ -397,8 +392,6 @@ import json, sys, os
 
 item = json.loads(os.environ.get('ITEM_JSON') or '{}')
 prompt_path = os.environ.get('WORKER_PROMPT', 'agents/workers/implement-finding.md')
-exec_mode = os.environ.get('EXECUTION_MODE', 'dry_run')
-
 with open(prompt_path) as f:
     template = f.read()
 
@@ -412,7 +405,6 @@ replacements = {
     '{{TYPE}}': item.get('type', 'finding'),
     '{{SOURCE_TYPE}}': item.get('source_type') or 'agent',
     '{{SOURCE_ID}}': item.get('source_id') or 'N/A',
-    '{{EXECUTION_MODE}}': exec_mode,
 }
 
 for key, value in replacements.items():
@@ -531,8 +523,8 @@ run_worker() {
   log "WORKER START: $short_id ($project) — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
 
   # Mark as in_progress + assigned to worker
-  update_work_item "$item_id" "{\"status\":\"in_progress\",\"assigned_to\":\"worker-agent\",\"execution_mode\":\"$EXECUTION_MODE\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
-  insert_event "$item_id" "assigned" "approved" "in_progress" "Assigned to worker agent ($EXECUTION_MODE mode)"
+  update_work_item "$item_id" "{\"status\":\"in_progress\",\"assigned_to\":\"worker-agent\",\"execution_mode\":\"live\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+  insert_event "$item_id" "assigned" "approved" "in_progress" "Assigned to worker agent"
 
   # Build prompt
   local prompt
@@ -649,12 +641,12 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       update_work_item "$item_id" "{\"status\":\"review\",\"proposed_diff\":$diff_escaped,\"execution_log\":$log_escaped,\"branch_name\":$([ -n "$branch_name" ] && echo "\"$branch_name\"" || echo "null"),\"metadata\":$metadata_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "worker_completed" "in_progress" "review" "Worker generated proposed changes"
 
-      # If live mode with a branch, create PR and optionally auto-merge
-      if [ "$EXECUTION_MODE" = "live" ] && [ -n "$branch_name" ]; then
+      # Create PR and optionally auto-merge for L3+ categories
+      if [ -n "$branch_name" ]; then
         create_pr_and_maybe_merge "$item_id" "$item_json" "$branch_name" "$execution_log" || true
         log "REVIEW: $short_id — PR created (or attempted)"
       else
-        log "REVIEW: $short_id — diff generated, awaiting human review"
+        log "REVIEW: $short_id — no branch name in worker output, diff awaiting human review"
       fi
     else
       # Worker couldn't generate a diff — escalate
@@ -989,7 +981,7 @@ for item in items[:3]:  # Max 3 child items
 
 # ===== MAIN =====
 
-log "=== Work Loop Manager starting (max_items=$MAX_ITEMS, mode=$EXECUTION_MODE) ==="
+log "=== Work Loop Manager starting (max_items=$MAX_ITEMS) ==="
 
 # Log manager run start to agent_runs_v2
 MANAGER_RUN_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)

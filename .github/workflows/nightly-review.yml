@@ -934,7 +934,7 @@ jobs:
           REGISTRY: ${{ github.workspace }}/agents/registry.json
           LOG_DIR: ${{ github.workspace }}/logs
           MAX_WORKER_ITEMS: '5'
-          EXECUTION_MODE: 'live'
+          # dry_run removed — worker always runs live
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           chmod +x ${{ github.workspace }}/agents/workers/work-loop-manager.sh
