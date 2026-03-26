@@ -177,8 +177,13 @@ if registry_path:
             project_entry = ((registry or {}).get('projects') or {}).get(project) or {}
             resolved = project_entry.get('path')
             if isinstance(resolved, str) and resolved.strip():
-                print(resolved.strip())
-                raise SystemExit(0)
+                resolved_path = Path(resolved.strip())
+                if resolved_path.is_dir():
+                    print(str(resolved_path))
+                    raise SystemExit(0)
+                # Registry path doesn't exist on disk (e.g. local Mac path on GH Actions) — fall through to fallback
+        except SystemExit:
+            raise
         except Exception:
             pass
 
