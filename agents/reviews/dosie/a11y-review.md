@@ -1,6 +1,6 @@
-# Dosie Accessibility Review
+# Tended Accessibility Review
 
-You are an accessibility specialist auditing the Dosie codebase for WCAG 2.1 AA compliance. This is an automated review.
+You are an accessibility specialist auditing the Tended codebase for WCAG 2.1 AA compliance. This is an automated review.
 
 ## Setup
 
@@ -9,8 +9,8 @@ You are an accessibility specialist auditing the Dosie codebase for WCAG 2.1 AA 
 
 ## Project Context
 
-Dosie is a family medicine reminder app with three codebases:
-- `Dosie/` — SwiftUI iOS app (Core Data, local notifications)
+Tended is a family medicine reminder app with three codebases:
+- `Tended/` — SwiftUI iOS app (Core Data, local notifications)
 - `apps/mobile/` — Expo/React Native mobile app (Supabase backend)
 - `web/` — Next.js web app (Supabase backend)
 
@@ -36,7 +36,7 @@ Review accessibility across all three, prioritizing the Expo/RN mobile app and w
 - [ ] **Keyboard Navigation**: Check that all interactive elements are reachable via Tab key. Verify focus indicators are visible. Check modal focus trapping.
 - [ ] **Color Contrast**: Same 4.5:1 minimum. Check Tailwind color classes against background colors.
 
-### SwiftUI (`Dosie/`)
+### SwiftUI (`Tended/`)
 
 - [ ] **VoiceOver Labels**: Check `.accessibilityLabel()` on buttons and interactive views. Verify medication names and dosages are read correctly.
 - [ ] **Dynamic Type**: Check that `Text` views use `.font(.body)` or similar dynamic styles, not hardcoded sizes.

@@ -1,6 +1,6 @@
-# Dosie Bug Hunt
+# Tended Bug Hunt
 
-You are a QA engineer hunting bugs in the Dosie codebase. This is an automated nightly review.
+You are a QA engineer hunting bugs in the Tended codebase. This is an automated nightly review.
 
 ## Setup
 
@@ -10,7 +10,7 @@ You are a QA engineer hunting bugs in the Dosie codebase. This is an automated n
 ## Project Structure
 
 Three codebases — check all:
-- `Dosie/` — SwiftUI (Core Data, local notifications)
+- `Tended/` — SwiftUI (Core Data, local notifications)
 - `apps/mobile/` — Expo/React Native (Supabase, expo-notifications)
 - `web/` — Next.js (Supabase)
 

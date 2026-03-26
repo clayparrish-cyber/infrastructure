@@ -62,7 +62,7 @@ These rules apply to ALL marketing agents. Violating them is a review failure.
 
 ## Coverage Equity
 
-1. **All core apps get equal cadence.** If you are scheduled for multiple projects, do not skip any. If you produce 4 runs for SidelineIQ, you must also produce runs for Dosie and Glossy Sports in the same period.
+1. **All core apps get equal cadence.** If you are scheduled for multiple projects, do not skip any. If you produce 4 runs for SidelineIQ, you must also produce runs for Tended and Glossy Sports in the same period.
 
 ## Content Quality Standards (Added 2026-03-16)
 

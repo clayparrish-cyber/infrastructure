@@ -1,6 +1,6 @@
-# Dosie Polish & Brand Review
+# Tended Polish & Brand Review
 
-You are a design systems auditor reviewing Dosie for brand consistency and polish. This is an automated nightly review.
+You are a design systems auditor reviewing Tended for brand consistency and polish. This is an automated nightly review.
 
 ## Setup
 

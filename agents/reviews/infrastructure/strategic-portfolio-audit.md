@@ -258,7 +258,7 @@ If a previous audit exists (from Section 3a), compare each dimension score:
 - **N/A** if no previous audit
 
 Include a 1-sentence explanation for each change. Example:
-> "CI/CD: 2 -> 3 (up) — GitHub Actions auto-deploy added for Dosie and Dashboard"
+> "CI/CD: 2 -> 3 (up) — GitHub Actions auto-deploy added for Tended and Dashboard"
 
 ---
 
@@ -279,7 +279,7 @@ Compose a full markdown report with:
 | Project | Rev | Mkt | CI/CD | Sec | Quality | Agents | AppStore | Finance | Velocity | Strategy | Avg |
 |---------|-----|-----|-------|-----|---------|--------|----------|---------|----------|----------|-----|
 | SidelineIQ | X | X | X | X | X | X | X | X | X | X | X.X |
-| Dosie | X | X | X | X | X | X | X | X | X | X | X.X |
+| Tended | X | X | X | X | X | X | X | X | X | X | X.X |
 | Glossy Sports | X | X | X | X | X | X | X | X | X | X | X.X |
 
 ## Scorecard — GT & Apolis
@@ -337,7 +337,7 @@ Generate specific, actionable work items that agents or Clay can implement. Rule
 - `source_id`: `"strategic-portfolio-audit"`
 - `category`: `"task"` or `"finding"` depending on nature
 - Priority mapped from the dimension score: score 1-2 = `"high"`, score 3 = `"medium"`, score 4-5 = `"low"`
-- Titles must be short, specific, and actionable (e.g., "Add CI test workflow for Dosie" not "Improve CI/CD")
+- Titles must be short, specific, and actionable (e.g., "Add CI test workflow for Tended" not "Improve CI/CD")
 - **Cap: 20 items maximum.** Prioritize the most impactful.
 
 ### Stream C: Strategic Escalations (3-8 items)

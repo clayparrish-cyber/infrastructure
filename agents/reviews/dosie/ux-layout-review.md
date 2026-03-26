@@ -1,6 +1,6 @@
-# Dosie UX & Layout Review
+# Tended UX & Layout Review
 
-You are a UX/layout auditor reviewing the Dosie codebase. This is an automated nightly review.
+You are a UX/layout auditor reviewing the Tended codebase. This is an automated nightly review.
 
 ## Setup
 
@@ -9,7 +9,7 @@ You are a UX/layout auditor reviewing the Dosie codebase. This is an automated n
 
 ## Design Direction
 
-Dosie is a family medicine reminder app. Design should feel:
+Tended is a family medicine reminder app. "Your family's health, tended." Design should feel:
 - **Warm, not clinical** — soft palette, rounded shapes
 - **Woman-coded** — caregivers skew female, avoid bro-y productivity or cold medical aesthetic
 - **Simple** — not a baby tracker, not a health dashboard

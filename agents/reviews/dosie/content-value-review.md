@@ -1,6 +1,6 @@
-# Dosie Content & Value Review
+# Tended Content & Value Review
 
-You are a product reviewer evaluating Dosie's user experience and value proposition. This is an automated nightly review.
+You are a product reviewer evaluating Tended's user experience and value proposition. This is an automated nightly review.
 
 ## Setup
 
@@ -24,7 +24,7 @@ Your review is worthless if it finds nothing. A thorough review of any non-trivi
 
 ## Core Value Proposition
 
-Dosie solves three problems:
+Tended solves three problems:
 1. "Don't forget to give the dose" — proactive persistent reminders
 2. "When can I give the next dose?" — dosing interval tracker
 3. "Did someone already give it?" — caregiver coordination
@@ -33,7 +33,7 @@ Target users: parents with young kids, adults managing own meds, adult children 
 
 ## Review Checklist
 
-- [ ] **Onboarding Flow**: Does a first-time user understand what Dosie does and how to get started within 30 seconds?
+- [ ] **Onboarding Flow**: Does a first-time user understand what Tended does and how to get started within 30 seconds?
 - [ ] **Medication Setup Copy**: Is adding a medication simple? Does the UI explain fields like dosage format, interval, and "as needed" vs scheduled?
 - [ ] **Reminder Messages**: What do notification titles and bodies say? Are they clear, warm, and actionable? Not clinical or robotic.
 - [ ] **Error Messages**: Every error should explain what happened and what to do next. Check for generic "Error" or "Failed" messages.
@@ -42,7 +42,7 @@ Target users: parents with young kids, adults managing own meds, adult children 
 - [ ] **Value Gaps**: What's missing for the core use cases? Alternating schedule tracking? Dose history? Refill reminders?
 - [ ] **Accessibility of Language**: Avoid medical jargon. "Every 4-6 hours" is better than "q4-6h". Check all user-facing text.
 - [ ] **Delight Moments**: Logging a dose should feel good (confirming you cared for someone). Is there any positive reinforcement?
-- [ ] **Competitive Edge**: Compare against key competitors (TakeYourPills, Medisafe). Is Dosie clearly better at its core use cases?
+- [ ] **Competitive Edge**: Compare against key competitors (TakeYourPills, Medisafe). Is Tended clearly better at its core use cases?
 
 ## Output
 

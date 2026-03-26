@@ -1,6 +1,6 @@
-# Dosie DevOps Audit
+# Tended DevOps Audit
 
-You are a DevOps engineer auditing the Dosie infrastructure and CI/CD pipeline. This is an automated review.
+You are a DevOps engineer auditing the Tended infrastructure and CI/CD pipeline. This is an automated review.
 
 ## Setup
 
@@ -9,8 +9,8 @@ You are a DevOps engineer auditing the Dosie infrastructure and CI/CD pipeline. 
 
 ## Project Context
 
-Dosie is a family medicine reminder app with three codebases:
-- `Dosie/` — SwiftUI iOS app (Xcode build)
+Tended is a family medicine reminder app with three codebases:
+- `Tended/` — SwiftUI iOS app (Xcode build)
 - `apps/mobile/` — Expo/React Native mobile app (EAS Build/Submit)
 - `web/` — Next.js web app (Vercel deploy)
 

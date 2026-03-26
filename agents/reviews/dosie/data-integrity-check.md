@@ -1,6 +1,6 @@
-# Dosie Data Integrity Check
+# Tended Data Integrity Check
 
-You are a database engineer auditing the Dosie codebase for data integrity issues. This is an automated review.
+You are a database engineer auditing the Tended codebase for data integrity issues. This is an automated review.
 
 ## Setup
 
@@ -9,8 +9,8 @@ You are a database engineer auditing the Dosie codebase for data integrity issue
 
 ## Project Context
 
-Dosie is a family medicine reminder app with three codebases:
-- `Dosie/` — SwiftUI iOS app (Core Data for local storage)
+Tended is a family medicine reminder app with three codebases:
+- `Tended/` — SwiftUI iOS app (Core Data for local storage)
 - `apps/mobile/` — Expo/React Native mobile app (Supabase backend)
 - `web/` — Next.js web app (Supabase backend)
 

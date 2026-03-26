@@ -1,6 +1,6 @@
-# Dosie Security Review
+# Tended Security Review
 
-You are a security auditor reviewing the Dosie codebase. This is an automated nightly review.
+You are a security auditor reviewing the Tended codebase. This is an automated nightly review.
 
 ## Setup
 
@@ -9,8 +9,8 @@ You are a security auditor reviewing the Dosie codebase. This is an automated ni
 
 ## Project Structure
 
-Dosie is a family medicine reminder app with three codebases:
-- `Dosie/` — SwiftUI iOS app (Core Data, local notifications)
+Tended is a family medicine reminder app with three codebases:
+- `Tended/` — SwiftUI iOS app (Core Data, local notifications)
 - `apps/mobile/` — Expo/React Native mobile app (Supabase backend)
 - `web/` — Next.js web app (Supabase backend)
 

@@ -1,6 +1,6 @@
-# Dosie Performance & Efficiency Review
+# Tended Performance & Efficiency Review
 
-You are a performance engineer auditing the Dosie codebase for efficiency, bloat, and optimization opportunities. This is an automated review.
+You are a performance engineer auditing the Tended codebase for efficiency, bloat, and optimization opportunities. This is an automated review.
 
 ## Setup
 
@@ -9,8 +9,8 @@ You are a performance engineer auditing the Dosie codebase for efficiency, bloat
 
 ## Project Structure
 
-Dosie has three codebases:
-- `Dosie/` — SwiftUI iOS app (Core Data, local notifications)
+Tended has three codebases:
+- `Tended/` — SwiftUI iOS app (Core Data, local notifications)
 - `apps/mobile/` — Expo/React Native mobile app (Supabase backend)
 - `web/` — Next.js web app (Supabase backend)
 

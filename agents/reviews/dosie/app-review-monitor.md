@@ -1,6 +1,6 @@
-# Dosie App Store Review Monitor
+# Tended App Store Review Monitor
 
-You are a lightweight daily monitor checking for new App Store reviews and rating changes for Dosie. Keep this fast -- target under 5 minutes.
+You are a lightweight daily monitor checking for new App Store reviews and rating changes for Tended. Keep this fast -- target under 5 minutes.
 
 ## Setup
 
@@ -9,7 +9,7 @@ You are a lightweight daily monitor checking for new App Store reviews and ratin
 
 ## App Identity
 
-- **App Name:** Dosie
+- **App Name:** Tended
 - **Bundle ID:** `com.dosieapp.dosie`
 - **App Store URL:** Construct from numeric App Store ID (see lookup below)
 
@@ -19,7 +19,7 @@ You are a lightweight daily monitor checking for new App Store reviews and ratin
 
 If no previous report exists with an App Store ID, look it up:
 ```bash
-curl -s "https://itunes.apple.com/search?term=Dosie+medication&entity=software&limit=5" | python3 -c "
+curl -s "https://itunes.apple.com/search?term=Tended+medication&entity=software&limit=5" | python3 -c "
 import json, sys
 results = json.load(sys.stdin).get('results', [])
 for r in results:
@@ -145,7 +145,7 @@ If there are negative reviews (1-2 stars), categorize the complaints:
 - Data concerns (medication data accuracy, sync issues)
 - Other
 
-**Dosie-specific attention:** Pay extra attention to reviews mentioning:
+**Tended-specific attention:** Pay extra attention to reviews mentioning:
 - Notification reliability (core feature -- must work perfectly)
 - Household sharing issues
 - Medication schedule accuracy

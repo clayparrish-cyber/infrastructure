@@ -111,7 +111,7 @@ Write your decision to `roster.json` in the current directory:
     }
   ],
   "signals_summary": "sidelineiq: 10 commits (high activity), dosie: 7 commits (active), airtip: 2 commits (low), gt-ops: 0 commits (dormant), menu-autopilot: 0 commits (dormant)",
-  "reasoning": "Focused on active projects tonight. SidelineIQ has a critical security item. Dosie active development warrants bug hunt. Skipped dormant projects to save budget."
+  "reasoning": "Focused on active projects tonight. SidelineIQ has a critical security item. Tended active development warrants bug hunt. Skipped dormant projects to save budget."
 }
 ```
 
