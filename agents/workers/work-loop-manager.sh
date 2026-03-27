@@ -552,6 +552,14 @@ run_worker() {
   local tokens_input=0 tokens_output=0 cost_usd=0
 
   cd "$project_dir"
+
+  # Configure git push auth — cloned repos lose embedded tokens during artifact transfer
+  if [ -n "${GH_TOKEN:-}" ]; then
+    git config --local credential.helper '!f() { echo "username=x-access-token"; echo "password='"$GH_TOKEN"'"; }; f'
+    git config --local user.email "agents@mainlineapps.com"
+    git config --local user.name "Mainline Worker"
+  fi
+
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
   if run_with_timeout 600 claude -p "$prompt" \
