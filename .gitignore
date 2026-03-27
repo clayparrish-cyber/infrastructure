@@ -40,3 +40,4 @@ yarn-error.log*
 
 # macOS AppleDouble sidecar files
 ._*
+dashboard-mirror/
