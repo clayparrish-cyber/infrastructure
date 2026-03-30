@@ -24,15 +24,39 @@ You are a Worker agent implementing an approved work item. You MUST follow these
 
 ## Execution Steps
 
-1. Create a branch: `git checkout -b worker/{{WORK_ITEM_ID_SHORT}}`
-2. Make changes
-3. Run linter and tests
-4. Commit with message: `fix: {{TITLE}} (work item {{WORK_ITEM_ID_SHORT}})`
-5. Push the branch: `git push origin worker/{{WORK_ITEM_ID_SHORT}}`
-   - If push fails, log the error but still output the diff and branch name
-6. Write the branch name to stdout prefixed with `===BRANCH_NAME_START===` and `===BRANCH_NAME_END===`
-7. Write the diff to stdout (same markers as below)
-8. Write execution log (same markers as below)
+Follow these steps **in exact order**. Do NOT skip any step.
+
+1. **Create a branch:**
+   ```bash
+   git checkout -b worker/{{WORK_ITEM_ID_SHORT}}
+   ```
+
+2. **Make the code changes** described in the work item.
+
+3. **Run linter and tests** (if the project has them).
+
+4. **Stage and commit:**
+   ```bash
+   git add -A
+   git commit -m "fix: {{TITLE}} (work item {{WORK_ITEM_ID_SHORT}})"
+   ```
+
+5. **CRITICAL — Push the branch to the remote. This step is MANDATORY.**
+   ```bash
+   git push origin worker/{{WORK_ITEM_ID_SHORT}}
+   ```
+   You MUST run this push command. Without it, the PR creation downstream will fail.
+   If push fails, log the error in the execution log but still output the diff and branch name.
+
+6. **ONLY AFTER the push succeeds (or is attempted)**, write the branch name markers to stdout:
+   ```
+   ===BRANCH_NAME_START===worker/{{WORK_ITEM_ID_SHORT}}===BRANCH_NAME_END===
+   ```
+   Do NOT output the branch name markers until you have run `git push`.
+
+7. Write the diff to stdout (see Output Format below).
+
+8. Write the execution log (see Output Format below).
 
 ## Output Format
 

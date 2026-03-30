@@ -4,7 +4,7 @@
 # Usage: ./work-loop-manager.sh [--max-items N]
 #
 # Required env vars: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
-# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, NIGHTLY_COST_CAP
+# Optional env vars: PROJECTS_DIR, WORKER_PROMPT, REGISTRY, LOG_DIR, NIGHTLY_COST_CAP, GH_TOKEN
 
 set -euo pipefail
 
