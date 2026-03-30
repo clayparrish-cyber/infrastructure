@@ -1,0 +1,61 @@
+# Social Publisher — Posts approved social content via Buffer
+# Runs every 30 minutes to check Command Center for approved social posts.
+#
+# Gate: Only runs if GitHub variable SOCIAL_PUBLISHER_ENABLED == 'true'.
+# This allows disabling the publisher without removing the workflow.
+#
+# Required secrets:
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — Command Center DB access
+#   BUFFER_ACCESS_TOKEN — Buffer API token for scheduling posts
+#
+# Optional secrets:
+#   BUFFER_PROFILE_SIDELINEIQ — Buffer profile ID for SidelineIQ
+#   BUFFER_PROFILE_DOSIE — Buffer profile ID for Dosie/Tended
+
+name: Social Publisher
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: ${{ vars.SOCIAL_PUBLISHER_ENABLED == 'true' }}
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: agents/lib/post-approved-social.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Check for approved posts before running
+        id: check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          COUNT=$(curl -s \
+            "${SUPABASE_URL}/rest/v1/work_items?status=eq.approved&type=eq.task&metadata->>is_social_post=eq.true&select=id&limit=1" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+
+          echo "approved_count=${COUNT}" >> "$GITHUB_OUTPUT"
+          if [[ "$COUNT" == "0" ]]; then
+            echo "No approved social posts. Skipping."
+          else
+            echo "Found approved social posts to process."
+          fi
+
+      - name: Publish approved social posts
+        if: steps.check.outputs.approved_count != '0'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BUFFER_ACCESS_TOKEN: ${{ secrets.BUFFER_ACCESS_TOKEN }}
+          BUFFER_PROFILE_SIDELINEIQ: ${{ secrets.BUFFER_PROFILE_SIDELINEIQ }}
+          BUFFER_PROFILE_DOSIE: ${{ secrets.BUFFER_PROFILE_DOSIE }}
+        run: bash agents/lib/post-approved-social.sh

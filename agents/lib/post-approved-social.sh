@@ -15,12 +15,10 @@
 
 set -euo pipefail
 
-# Load credentials
+# Load credentials from ~/.claude/.env if running locally.
+# On GitHub Actions, secrets are injected as env vars directly.
 if [[ -f "$HOME/.claude/.env" ]]; then
   source "$HOME/.claude/.env"
-else
-  echo "ERROR: ~/.claude/.env not found"
-  exit 1
 fi
 
 SUPABASE_KEY="${SUPABASE_SERVICE_ROLE_KEY:?SUPABASE_SERVICE_ROLE_KEY not set}"
