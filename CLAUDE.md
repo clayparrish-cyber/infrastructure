@@ -176,7 +176,7 @@ Guardrails that prevent agent drift by flagging violations for human review:
 ## Development
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 
 # Agent configs
 cat config/agents/phase-1-config.ts
@@ -189,11 +189,11 @@ ls docs/plans/
 
 | Project | Path | Relationship |
 |---------|------|--------------|
-| GT-Ops | /Volumes/Lexar/Projects/Gallant Tiger/gt-ops | Primary test bed, has working agents |
-| Menu Autopilot | /Volumes/Lexar/Projects/Apolis/menu-autopilot | Future agent integration |
-| AirTip | /Volumes/Lexar/Projects/Apolis/menu-autopilot (at /tips) | Future agent integration |
-| SidelineIQ | /Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq | Future agent integration |
-| Dosie | /Volumes/Lexar/Projects/Personal/Dosie/web | Future agent integration |
+| GT-Ops | ${PROJECTS_DIR}/gt-ops | Primary test bed, has working agents |
+| Menu Autopilot | ${PROJECTS_DIR}/menu-autopilot | Future agent integration |
+| AirTip | ${PROJECTS_DIR}/menu-autopilot (at /tips) | Future agent integration |
+| SidelineIQ | ${PROJECTS_DIR}/SidelineIQ/sideline-iq | Future agent integration |
+| Dosie | ${PROJECTS_DIR}/Dosie/web | Future agent integration |
 
 
 ## Org Documentation Governance (3-Tier)
@@ -223,4 +223,4 @@ status: active|superseded|expired
 Preferred path: `docs/knowledge/{canonical|operational|ephemeral}`.
 Archive stale/superseded notes to `docs/knowledge/archive` and update `status`.
 
-Run `/Volumes/Lexar/Projects/scripts/check-stale-docs.sh` before major handoffs.
+Run `${PROJECTS_DIR}/scripts/check-stale-docs.sh` before major handoffs.

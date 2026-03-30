@@ -101,7 +101,7 @@ load_env_file() {
 }
 
 load_env_file "$HOME/.claude/.env"
-load_env_file "/Volumes/Lexar/Projects/Mainline Apps/dashboard/.env.local"
+[ -n "${PROJECTS_DIR:-}" ] && load_env_file "${PROJECTS_DIR}/dashboard/.env.local"
 
 [ -n "$SUPABASE_URL" ] && export SUPABASE_URL
 [ -n "$SUPABASE_SERVICE_ROLE_KEY" ] && export SUPABASE_SERVICE_ROLE_KEY

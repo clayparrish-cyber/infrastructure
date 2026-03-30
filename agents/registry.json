@@ -3,7 +3,7 @@
   "projects": {
     "sidelineiq": {
       "entity": "personal",
-      "path": "/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq",
+      "path": "${PROJECTS_DIR}/SidelineIQ/sideline-iq",
       "repo": "clayparrish-cyber/sidelineiq",
       "contextFile": "CLAUDE_CONTEXT.md",
       "owner": "clay",
@@ -14,7 +14,7 @@
     },
     "airtip": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
+      "path": "${PROJECTS_DIR}/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
       "owner": "clay",
@@ -26,7 +26,7 @@
     },
     "dosie": {
       "entity": "personal",
-      "path": "/Volumes/Lexar/Projects/Personal/Dosie",
+      "path": "${PROJECTS_DIR}/Dosie",
       "repo": "clayparrish-cyber/dosie",
       "contextFile": "CLAUDE.md",
       "owner": "clay",
@@ -37,7 +37,7 @@
     },
     "gt-ops": {
       "entity": "gt",
-      "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-ops",
+      "path": "${PROJECTS_DIR}/gt-ops",
       "repo": "clayparrish-cyber/gt-ims",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
@@ -49,7 +49,7 @@
     },
     "menu-autopilot": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Apolis/menu-autopilot",
+      "path": "${PROJECTS_DIR}/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
@@ -61,7 +61,7 @@
     },
     "glossy-sports": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Mainline Apps/glossy-sports",
+      "path": "${PROJECTS_DIR}/glossy-sports",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "glossy-sports",
       "contextFile": "CLAUDE.md",
@@ -74,7 +74,7 @@
     },
     "mainline-apps": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Mainline Apps",
+      "path": "${PROJECTS_DIR}/mainline-apps",
       "repo": "clayparrish-cyber/mainline-apps",
       "contextFile": "README.md",
       "owner": "shared",
@@ -86,7 +86,7 @@
     },
     "mainline-dashboard": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Mainline Apps/dashboard",
+      "path": "${PROJECTS_DIR}/dashboard",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "dashboard",
       "contextFile": "CLAUDE.md",
@@ -99,7 +99,7 @@
     },
     "the-immortal-snail": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/Mainline Apps/the-immortal-snail",
+      "path": "${PROJECTS_DIR}/the-immortal-snail",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "the-immortal-snail",
       "contextFile": "CLAUDE.md",
@@ -112,7 +112,7 @@
     },
     "gt-website": {
       "entity": "gt",
-      "path": "/Volumes/Lexar/Projects/Gallant Tiger/gt-website",
+      "path": "${PROJECTS_DIR}/gt-website",
       "repo": "clayparrish-cyber/gt-website",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
@@ -124,7 +124,7 @@
     },
     "infrastructure": {
       "entity": "mainline",
-      "path": "/Volumes/Lexar/Projects/infrastructure",
+      "path": "${PROJECTS_DIR}/infrastructure",
       "repo": "clayparrish-cyber/infrastructure",
       "contextFile": "CLAUDE.md",
       "owner": "clay",

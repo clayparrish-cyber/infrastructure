@@ -143,9 +143,9 @@ providers: [
 
 | User | Email | Ventures | Role | Notes |
 |------|-------|----------|------|-------|
-| Clay | clay@gallanttiger.com | ALL (GT, MA, AT, SIQ, Dosie) | ADMIN | Runs SIQ + Dosie solo |
-| Charlie | charlie@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
-| Kamal | kamal@gallanttiger.com | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
+| Clay | [ADMIN_EMAIL] | ALL (GT, MA, AT, SIQ, Dosie) | ADMIN | Runs SIQ + Dosie solo |
+| Charlie | [USER_EMAIL_1] | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
+| Kamal | [USER_EMAIL_2] | GT-IMS, Menu Autopilot, AirTip | USER | Shared ventures only |
 
 **Venture Ownership:**
 - **Shared (Clay + Charlie + Kamal):** Gallant Tiger, Menu Autopilot, AirTip (via Apolis Hospitality + Parcelle)

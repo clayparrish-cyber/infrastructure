@@ -41,3 +41,6 @@ yarn-error.log*
 # macOS AppleDouble sidecar files
 ._*
 dashboard-mirror/
+
+# Credential metadata (token expiry, rotation URLs)
+agents/config/credentials.json

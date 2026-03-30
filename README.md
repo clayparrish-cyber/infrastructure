@@ -47,7 +47,7 @@ Shared agent infrastructure enabling learning from past decisions:
 
 The operating dashboard for this infrastructure lives in the Mainline Apps repo:
 
-**Location:** `/Volumes/Lexar/Projects/Mainline Apps/dashboard`
+**Location:** `${PROJECTS_DIR}/dashboard` (Mainline Apps monorepo)
 
 ## Architecture: Hub and Spoke
 

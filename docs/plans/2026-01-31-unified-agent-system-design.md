@@ -106,7 +106,7 @@ Central brain agents (security, UX, bugs, content, polish) run for ALL projects 
   },
   "projects": {
     "sidelineiq": {
-      "path": "/Volumes/Lexar/Projects/Personal/SidelineIQ/sideline-iq",
+      "path": "${PROJECTS_DIR}/SidelineIQ/sideline-iq",
       "contextFile": "CLAUDE_CONTEXT.md",
       "owner": "clay",
       "stack": "expo/react-native"

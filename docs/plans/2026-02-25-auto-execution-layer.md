@@ -33,7 +33,7 @@
 ### Task 1: Switch Workers to Live Mode
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/.github/workflows/nightly-review.yml:900`
+- Modify: `${PROJECTS_DIR}/infrastructure/.github/workflows/nightly-review.yml:900`
 
 **Context for engineer:**
 Line 900 of the workflow YAML sets `EXECUTION_MODE: 'dry_run'`. In dry_run mode, the worker makes changes, captures the diff, then reverts everything (`git checkout .`). In live mode, it creates a branch (`worker/<short-id>`), commits, and reports the branch name back. Both modes update Supabase with the proposed diff. The key difference: live mode leaves a persistent branch on the ephemeral runner (which gets destroyed anyway since it's GitHub Actions). The diff is still captured and stored in Supabase regardless. So "live" vs "dry_run" is actually a minor distinction in CI — the branch is lost when the runner dies. But live mode tests the commit flow and gives us the branch name for future PR creation.
@@ -54,14 +54,14 @@ EXECUTION_MODE: 'live'
 
 **Step 2: Verify the change is isolated**
 
-Run: `grep -n 'EXECUTION_MODE' /Volumes/Lexar/Projects/infrastructure/.github/workflows/nightly-review.yml`
+Run: `grep -n 'EXECUTION_MODE' ${PROJECTS_DIR}/infrastructure/.github/workflows/nightly-review.yml`
 
 Expected: Only line ~900 should reference this variable.
 
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add .github/workflows/nightly-review.yml
 git commit -m "feat: switch worker execution mode from dry_run to live"
 ```
@@ -71,7 +71,7 @@ git commit -m "feat: switch worker execution mode from dry_run to live"
 ### Task 2: Handle HUMAN_ACTION_REQUIRED in Work Loop Manager
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh:223-258`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh:223-258`
 
 **Context for engineer:**
 The `implement-finding.md` prompt template tells the worker agent to emit `===HUMAN_ACTION_REQUIRED===` when a work item can't be fixed in code (e.g., "set up bank account", "verify app store submission"). But `work-loop-manager.sh` only checks for `ALREADY_RESOLVED` and `PROPOSED_DIFF` — it doesn't handle `HUMAN_ACTION_REQUIRED`. Currently these items would fall through to the "no diff generated" branch and get set to `review` status with a confusing message. They should instead be routed back to `triaged` status so Clay sees them as human tasks, not code review items.
@@ -96,14 +96,14 @@ This goes between the `ALREADY_RESOLVED` block and the `proposed_diff` block.
 
 **Step 2: Run shellcheck on the modified script**
 
-Run: `shellcheck /Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh`
+Run: `shellcheck ${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh`
 
 Expected: No new errors (existing ones are fine).
 
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/work-loop-manager.sh
 git commit -m "feat: handle HUMAN_ACTION_REQUIRED marker in work loop manager"
 ```
@@ -113,7 +113,7 @@ git commit -m "feat: handle HUMAN_ACTION_REQUIRED marker in work loop manager"
 ### Task 3: Add Auto-Approved Safety Filter
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh:100-118`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh:100-118`
 
 **Context for engineer:**
 Currently `fetch_approved_items()` queries ALL approved items with `assigned_to=is.null`. This means items that Clay manually approved AND items that were auto-approved by L3+ autonomy rules are both eligible. For the initial rollout, we want workers to ONLY execute auto-approved items. This is a safety gate — Clay's manually-approved items might be complex tasks he wants to work on himself. Auto-approved items are the ones where the system decided they're safe to auto-execute.
@@ -156,14 +156,14 @@ ITEM_COUNT=$(curl -s \
 
 **Step 3: Verify both queries match**
 
-Run: `grep -n 'status=eq.approved' /Volumes/Lexar/Projects/infrastructure/.github/workflows/nightly-review.yml /Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh`
+Run: `grep -n 'status=eq.approved' ${PROJECTS_DIR}/infrastructure/.github/workflows/nightly-review.yml ${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh`
 
 Expected: Both queries should now include `system_recommendation=not.is.null&source_type=eq.agent`.
 
 **Step 4: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/work-loop-manager.sh .github/workflows/nightly-review.yml
 git commit -m "feat: filter worker queue to only auto-approved agent findings"
 ```
@@ -173,7 +173,7 @@ git commit -m "feat: filter worker queue to only auto-approved agent findings"
 ### Task 4: Add Worker Execution Telemetry
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh:209-270`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh:209-270`
 
 **Context for engineer:**
 The review agents already capture cost/token data via `--output-format json` and the `extract-usage.py` script. But the worker agents use `claude -p` with stdout piped through `tee` (not `--output-format json`), so we lose the structured usage data. We need to capture tokens and cost for budget tracking.
@@ -263,7 +263,7 @@ Expected: `500 200 0.003`
 **Step 5: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/work-loop-manager.sh
 git commit -m "feat: add cost/token telemetry to worker execution"
 ```
@@ -273,8 +273,8 @@ git commit -m "feat: add cost/token telemetry to worker execution"
 ### Task 5: Dashboard — Execution Status + Diff Review Polish
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
-- Modify: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/components/CommandCenterContent.tsx`
+- Modify: `${PROJECTS_DIR}/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
+- Modify: `${PROJECTS_DIR}/dashboard/src/components/CommandCenterContent.tsx`
 
 **Context for engineer:**
 The dashboard already handles `code_review` items in the UnifiedActionQueue — when `item.status === 'review' && item.proposed_diff`, it renders a diff viewer with accept/rework buttons. But there are gaps:
@@ -287,7 +287,7 @@ This task adds: (a) an "executing..." indicator for in_progress items assigned t
 
 **Step 1: Read the current UnifiedActionQueue component**
 
-Read: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
+Read: `${PROJECTS_DIR}/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
 
 Understand the current rendering for `code_review` items and where to add the execution log.
 
@@ -331,14 +331,14 @@ When rendering work items, if `item.system_recommendation` is set, show a small 
 
 **Step 5: Verify the build passes**
 
-Run: `cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard" && npx next build`
+Run: `cd "${PROJECTS_DIR}/dashboard" && npx next build`
 
 Expected: Build succeeds with no type errors.
 
 **Step 6: Commit**
 
 ```bash
-cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard"
+cd "${PROJECTS_DIR}/dashboard"
 git add src/components/cockpit/UnifiedActionQueue.tsx src/components/CommandCenterContent.tsx
 git commit -m "feat: show worker execution status and auto-approved badge in dashboard"
 ```
@@ -368,7 +368,7 @@ Expected: At least 1 item. If empty, tonight's nightly run will populate them (L
 **Step 2: Push all changes to GitHub**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git push origin main
 ```
 

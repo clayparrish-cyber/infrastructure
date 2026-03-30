@@ -55,7 +55,9 @@ export interface AgentRun {
 
 // Configuration
 const ENV_FILE_PATH = path.join(process.env.HOME || '', '.claude', '.env');
-const FALLBACK_REPORTS_DIR = '/Volumes/Lexar/Projects/agent-reports';
+const FALLBACK_REPORTS_DIR = process.env.PROJECTS_DIR
+  ? path.join(process.env.PROJECTS_DIR, 'agent-reports')
+  : path.join(process.env.HOME || '', 'Projects', 'agent-reports');
 
 // Cached client
 let supabaseClient: SupabaseClient | null = null;

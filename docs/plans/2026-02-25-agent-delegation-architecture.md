@@ -52,7 +52,7 @@ Scout finds issue needing specialist input
 ### Task 1: Add `delegation` Work Item Type
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/lib/database.types.ts` (if enum is defined there)
+- Modify: `${PROJECTS_DIR}/dashboard/src/lib/database.types.ts` (if enum is defined there)
 - Modify: Supabase migration (SQL)
 
 **Context for engineer:**
@@ -60,7 +60,7 @@ The `work_items.type` column is a text field (not a Postgres enum — the API va
 
 **Step 1: Check the Zod validation schema for work item types**
 
-Read: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/app/api/work-items/route.ts`
+Read: `${PROJECTS_DIR}/dashboard/src/app/api/work-items/route.ts`
 
 Find the Zod schema that validates `type`. Add `'delegation'` and `'research_request'` to the union.
 
@@ -70,12 +70,12 @@ In `database.types.ts` or wherever the `WorkItem` type is defined, ensure the `t
 
 **Step 3: Verify the build passes**
 
-Run: `cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard" && npx next build`
+Run: `cd "${PROJECTS_DIR}/dashboard" && npx next build`
 
 **Step 4: Commit**
 
 ```bash
-cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard"
+cd "${PROJECTS_DIR}/dashboard"
 git add src/lib/database.types.ts src/app/api/work-items/route.ts
 git commit -m "feat: add delegation and research_request work item types"
 ```
@@ -85,10 +85,10 @@ git commit -m "feat: add delegation and research_request work item types"
 ### Task 2: Create Specialist Prompt Templates
 
 **Files:**
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/specialists/legal-review.md`
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/specialists/marketing-analysis.md`
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/specialists/competitive-intel.md`
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/specialists/business-analysis.md`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/specialists/legal-review.md`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/specialists/marketing-analysis.md`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/specialists/competitive-intel.md`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/specialists/business-analysis.md`
 
 **Context for engineer:**
 These prompts are invoked by the worker job when a delegation request targets a specialist agent. They follow the same marker pattern as `implement-finding.md` but produce analysis instead of code diffs. The output is a new work_item (child of the delegation request) with type `task` or `initiative` containing the specialist's analysis.
@@ -100,7 +100,7 @@ Each prompt receives the same template variables as `implement-finding.md`:
 **Step 1: Create the specialists directory**
 
 ```bash
-mkdir -p /Volumes/Lexar/Projects/infrastructure/agents/specialists
+mkdir -p ${PROJECTS_DIR}/infrastructure/agents/specialists
 ```
 
 **Step 2: Create legal-review.md**
@@ -175,7 +175,7 @@ Follow the same pattern but focused on: KPI analysis, revenue projections, cohor
 **Step 6: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/specialists/
 git commit -m "feat: add specialist agent prompt templates for delegation"
 ```
@@ -185,9 +185,9 @@ git commit -m "feat: add specialist agent prompt templates for delegation"
 ### Task 3: Teach Scout Prompts to Create Delegation Requests
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/reviews/sidelineiq/*.md` (all 6 review prompts)
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/reviews/dosie/*.md`
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/reviews/glossy-sports/*.md`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/reviews/sidelineiq/*.md` (all 6 review prompts)
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/reviews/dosie/*.md`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/reviews/glossy-sports/*.md`
 - Modify: (and other project review dirs)
 
 **Context for engineer:**
@@ -197,7 +197,7 @@ Rather than editing all ~48 prompt files, we'll create a shared include file and
 
 **Step 1: Create the delegation instructions include**
 
-Create: `/Volumes/Lexar/Projects/infrastructure/agents/includes/delegation-instructions.md`
+Create: `${PROJECTS_DIR}/infrastructure/agents/includes/delegation-instructions.md`
 
 ```markdown
 ## Requesting Specialist Help
@@ -233,7 +233,7 @@ If during your review you discover an issue that requires specialist expertise b
 
 **Step 2: Add an include reference to the sync script**
 
-Modify: `/Volumes/Lexar/Projects/infrastructure/agents/lib/sync-to-supabase.ts`
+Modify: `${PROJECTS_DIR}/infrastructure/agents/lib/sync-to-supabase.ts`
 
 In the `syncProject()` function, after parsing findings, check for a `delegations` array in the report JSON. For each delegation, create a work_item with:
 - `type: 'delegation'`
@@ -292,7 +292,7 @@ Pick one prompt file (e.g., `agents/reviews/sidelineiq/security-review.md`) and 
 **Step 4: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/includes/ agents/lib/sync-to-supabase.ts agents/reviews/sidelineiq/security-review.md
 git commit -m "feat: enable scout agents to create specialist delegation requests"
 ```
@@ -302,15 +302,15 @@ git commit -m "feat: enable scout agents to create specialist delegation request
 ### Task 4: Extend Worker Job to Dispatch Specialist Requests
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh`
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/workers/run-specialist.md`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/workers/run-specialist.md`
 
 **Context for engineer:**
 The worker job currently queries `status=approved&assigned_to=is.null&system_recommendation=not.is.null&source_type=eq.agent` — this catches auto-approved agent findings for code fixing. Delegation requests are different: they have `assigned_to=<specialist_id>` (not null) and `type=delegation`. We need a second query to pick these up and dispatch them using specialist prompts instead of `implement-finding.md`.
 
 **Step 1: Create the specialist dispatch prompt template**
 
-Create: `/Volumes/Lexar/Projects/infrastructure/agents/workers/run-specialist.md`
+Create: `${PROJECTS_DIR}/infrastructure/agents/workers/run-specialist.md`
 
 This is a meta-template that wraps the specialist-specific prompt:
 
@@ -413,7 +413,7 @@ fi
 **Step 5: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/
 git commit -m "feat: extend worker job to dispatch specialist delegation requests"
 ```
@@ -423,7 +423,7 @@ git commit -m "feat: extend worker job to dispatch specialist delegation request
 ### Task 5: Auto-Approve Delegation Requests
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/lib/sync-to-supabase.ts`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/lib/sync-to-supabase.ts`
 
 **Context for engineer:**
 Delegation requests should skip the human approval gate entirely — they're agent-to-agent communication, not findings for Clay to triage. The sync script already creates them with `status: 'approved'` (from Task 3). But we also need to ensure the autonomy system doesn't interfere. Since delegations have `decision_category: 'delegation-<specialist>'`, we need to make sure `applyRecommendation()` and `maybeAutoApprove()` gracefully handle (or skip) delegation items.
@@ -449,7 +449,7 @@ if (category.startsWith('delegation-')) return;
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/lib/sync-to-supabase.ts
 git commit -m "feat: skip autonomy checks for delegation items"
 ```
@@ -459,8 +459,8 @@ git commit -m "feat: skip autonomy checks for delegation items"
 ### Task 6: Dashboard — Show Delegation Chains in Cockpit
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
-- Modify: `/Volumes/Lexar/Projects/Mainline Apps/dashboard/src/components/CommandCenterContent.tsx`
+- Modify: `${PROJECTS_DIR}/dashboard/src/components/cockpit/UnifiedActionQueue.tsx`
+- Modify: `${PROJECTS_DIR}/dashboard/src/components/CommandCenterContent.tsx`
 
 **Context for engineer:**
 When a specialist produces analysis that creates child work_items, those items should show their delegation lineage in the cockpit. A child item should display "Requested by security-review → Analyzed by legal-advisor" so Clay understands the provenance.
@@ -494,12 +494,12 @@ For items with `type === 'delegation'` that are `done`, show the analysis:
 
 **Step 3: Verify build**
 
-Run: `cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard" && npx next build`
+Run: `cd "${PROJECTS_DIR}/dashboard" && npx next build`
 
 **Step 4: Commit**
 
 ```bash
-cd "/Volumes/Lexar/Projects/Mainline Apps/dashboard"
+cd "${PROJECTS_DIR}/dashboard"
 git add src/components/cockpit/UnifiedActionQueue.tsx src/components/CommandCenterContent.tsx
 git commit -m "feat: show delegation chain and specialist analysis in cockpit"
 ```
@@ -509,7 +509,7 @@ git commit -m "feat: show delegation chain and specialist analysis in cockpit"
 ### Task 7: Fix work-loop-manager Self-Logging Bug
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh`
 
 **Context for engineer:**
 The work-loop-manager script logs individual worker runs to `agent_runs_v2` with `agent_id: "worker"`, but never logs its own execution. This means the `work-loop-manager` agent in Supabase always shows as "stale" in the reliability score. Fix: add a self-log at the start and end of the script.
@@ -547,7 +547,7 @@ curl -s -X PATCH \
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/work-loop-manager.sh
 git commit -m "fix: log work-loop-manager own execution to agent_runs_v2"
 ```
@@ -557,8 +557,8 @@ git commit -m "fix: log work-loop-manager own execution to agent_runs_v2"
 ### Task 8: Wire Evaluator + Business-Synthesis into Sunday Nightly
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/.github/workflows/nightly-review.yml`
-- Create: `/Volumes/Lexar/Projects/infrastructure/agents/ops/business-synthesis.md` (if not exists)
+- Modify: `${PROJECTS_DIR}/infrastructure/.github/workflows/nightly-review.yml`
+- Create: `${PROJECTS_DIR}/infrastructure/agents/ops/business-synthesis.md` (if not exists)
 
 **Context for engineer:**
 The evaluator and business-synthesis agents need to run on Sundays as part of the nightly workflow. They should run AFTER the regular review agents and sync, since they analyze the output of those runs. Add them as an additional step in the `reconcile` job (which already runs after sync) or as a new job.
@@ -566,7 +566,7 @@ The evaluator and business-synthesis agents need to run on Sundays as part of th
 **Step 1: Check if business-synthesis prompt exists**
 
 ```bash
-ls /Volumes/Lexar/Projects/infrastructure/agents/ops/
+ls ${PROJECTS_DIR}/infrastructure/agents/ops/
 ```
 
 If `business-synthesis.md` doesn't exist, create it with a prompt that:
@@ -630,7 +630,7 @@ curl -s -X PATCH \
 **Step 4: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add .github/workflows/nightly-review.yml agents/ops/
 git commit -m "feat: wire evaluator and business synthesis into Sunday nightly"
 ```
@@ -640,7 +640,7 @@ git commit -m "feat: wire evaluator and business synthesis into Sunday nightly"
 ### Task 9: Add Slack Notification on Nightly Completion
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/.github/workflows/nightly-review.yml`
+- Modify: `${PROJECTS_DIR}/infrastructure/.github/workflows/nightly-review.yml`
 
 **Context for engineer:**
 Clay has Slack MCP wired via Claude AI. We can use a simple webhook or the Slack API to post a summary when the nightly run completes. GitHub Actions supports Slack notifications via webhook URL.
@@ -704,7 +704,7 @@ If no webhook is set, the notification step silently skips (`if: env.SLACK_WEBHO
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add .github/workflows/nightly-review.yml
 git commit -m "feat: add Slack notification on nightly run completion"
 ```
@@ -714,7 +714,7 @@ git commit -m "feat: add Slack notification on nightly run completion"
 ### Task 10: Add Per-Night Cost Governor
 
 **Files:**
-- Modify: `/Volumes/Lexar/Projects/infrastructure/agents/workers/work-loop-manager.sh`
+- Modify: `${PROJECTS_DIR}/infrastructure/agents/workers/work-loop-manager.sh`
 
 **Context for engineer:**
 Add a cumulative cost check after each worker run. If total spend exceeds the nightly cap ($10 default), stop processing remaining items and log a warning.
@@ -745,7 +745,7 @@ Note: `cost_usd` is a local variable inside `run_worker()`, so we need to export
 **Step 3: Commit**
 
 ```bash
-cd /Volumes/Lexar/Projects/infrastructure
+cd ${PROJECTS_DIR}/infrastructure
 git add agents/workers/work-loop-manager.sh
 git commit -m "feat: add per-night cost governor to worker pipeline"
 ```

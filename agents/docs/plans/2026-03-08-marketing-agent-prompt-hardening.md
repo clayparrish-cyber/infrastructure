@@ -4,7 +4,7 @@
 
 **Goal:** Inject execution discipline into marketing agent prompts so they stop regressing to blank templates on repeat runs.
 
-**Architecture:** Add a shared `marketing-execution-guardrails.md` include file with cross-cutting rules (iteration checks, scoreboard updates, calendar alignment), then update each marketing agent prompt to reference it and add agent-specific hardening. All changes are to prompt files in `/Volumes/Lexar/Projects/infrastructure/agents/`.
+**Architecture:** Add a shared `marketing-execution-guardrails.md` include file with cross-cutting rules (iteration checks, scoreboard updates, calendar alignment), then update each marketing agent prompt to reference it and add agent-specific hardening. All changes are to prompt files in `${PROJECTS_DIR}/infrastructure/agents/`.
 
 **Tech Stack:** Markdown prompt files, no code changes.
 
@@ -70,7 +70,7 @@ These rules apply to ALL marketing agents. Violating them is a review failure.
 **Step 2: Commit**
 
 ```bash
-cd "/Volumes/Lexar/Projects/infrastructure/agents"
+cd "${PROJECTS_DIR}/infrastructure/agents"
 git add includes/marketing-execution-guardrails.md
 git commit -m "feat: add shared marketing execution guardrails include"
 ```
@@ -236,7 +236,7 @@ git commit -m "feat: add output tracking to content writer agents"
 **Step 1: Push to remote**
 
 ```bash
-cd "/Volumes/Lexar/Projects/infrastructure/agents"
+cd "${PROJECTS_DIR}/infrastructure/agents"
 git push
 ```
 
