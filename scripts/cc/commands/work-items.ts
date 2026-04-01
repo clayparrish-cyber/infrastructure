@@ -230,7 +230,10 @@ export function registerWorkItems(program: Command) {
       try {
         const client = createClient(program.opts().url);
         const fullId = await resolveId(client, opts.id);
-        const body: Record<string, unknown> = { ids: [fullId] };
+
+        // Use the worker-update schema (id singular) which supports all statuses,
+        // rather than bulk-close schema (ids array) which only allows done/rejected/deferred.
+        const body: Record<string, unknown> = { id: fullId };
         if (opts.status) body.status = opts.status;
         if (opts.assignedTo) body.assigned_to = opts.assignedTo;
         if (opts.notes) body.notes = opts.notes;
