@@ -422,8 +422,10 @@ PYEOF
 build_worker_metadata_json() {
   local item_json="$1"
   local validation_json="${2:-}"
+  local outcome="${3:-}"
+  local execution_log="${4:-}"
 
-  ITEM_JSON="$item_json" VALIDATION_JSON="$validation_json" python3 << 'PYEOF'
+  ITEM_JSON="$item_json" VALIDATION_JSON="$validation_json" WORKER_OUTCOME="$outcome" EXECUTION_LOG="$execution_log" python3 << 'PYEOF'
 import json, os
 from datetime import datetime, timezone
 
@@ -448,6 +450,9 @@ def clean_check(value):
 item = json.loads(os.environ.get('ITEM_JSON') or '{}')
 metadata = item.get('metadata') if isinstance(item.get('metadata'), dict) else {}
 raw_validation = (os.environ.get('VALIDATION_JSON') or '').strip()
+worker_outcome = (os.environ.get('WORKER_OUTCOME') or '').strip()
+execution_log = (os.environ.get('EXECUTION_LOG') or '').strip()
+captured_at = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 validation = {}
 if raw_validation:
@@ -470,7 +475,7 @@ manual_checks = [
 
 if type_check or clean_tests or manual_checks:
     metadata['worker_validation'] = {
-        'captured_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'captured_at': captured_at,
         'type_check': type_check,
         'tests': clean_tests,
         'manual_checks': manual_checks,
@@ -501,6 +506,23 @@ if type_check or clean_tests or manual_checks:
 
     if validation_steps:
         metadata['validation_steps'] = '\n'.join(f"- {line}" for line in validation_steps)
+
+if worker_outcome:
+    metadata['last_worker_outcome'] = worker_outcome
+    metadata['last_worker_outcome_at'] = captured_at
+
+if worker_outcome == 'human_action_required':
+    lines = [
+        line.strip() for line in execution_log.splitlines()
+        if isinstance(line, str) and line.strip()
+    ]
+    metadata['human_action_required'] = True
+    metadata['human_action_required_at'] = captured_at
+    metadata['human_action_summary'] = lines[0][:220] if lines else 'Agent requested human follow-up.'
+else:
+    metadata.pop('human_action_required', None)
+    metadata.pop('human_action_required_at', None)
+    metadata.pop('human_action_summary', None)
 
 print(json.dumps(metadata, separators=(',', ':')))
 PYEOF
@@ -626,11 +648,11 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
     execution_log=$(sed -n '/===EXECUTION_LOG_START===/,/===EXECUTION_LOG_END===/p' "$output_file" | sed '1d;$d' || echo "")
     branch_name=$(sed -n '/===BRANCH_NAME_START===/,/===BRANCH_NAME_END===/p' "$output_file" | sed '1d;$d' || echo "")
     validation_json=$(sed -n '/===VALIDATION_JSON_START===/,/===VALIDATION_JSON_END===/p' "$output_file" | sed '1d;$d' || echo "")
-    metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json")
     already_resolved=$(grep -c '===ALREADY_RESOLVED===' "$output_file" || echo "0")
     human_action=$(grep -c '===HUMAN_ACTION_REQUIRED===' "$output_file" || echo "0")
 
     if [ "$already_resolved" -gt 0 ]; then
+      metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json" "already_resolved" "$execution_log")
       # Finding already fixed in current code — auto-close
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined finding is already resolved}")
@@ -638,6 +660,7 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       insert_event "$item_id" "auto_closed" "in_progress" "done" "Worker verified finding already resolved in current code"
       log "AUTO-CLOSED: $short_id — already resolved"
     elif [ "$human_action" -gt 0 ]; then
+      metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json" "human_action_required" "$execution_log")
       # Route back to triaged for human pickup
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker determined this requires human action}")
@@ -645,6 +668,7 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       insert_event "$item_id" "human_required" "in_progress" "triaged" "Worker determined this item requires human action — routing to triage"
       log "HUMAN-ACTION: $short_id — routed to triage"
     elif [ -n "$proposed_diff" ]; then
+      metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json" "diff_generated" "$execution_log")
       # Escape for JSON
       local diff_escaped log_escaped
       diff_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "$proposed_diff")
@@ -662,6 +686,7 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
         log "REVIEW: $short_id — no branch name in worker output, diff awaiting human review"
       fi
     else
+      metadata_json=$(build_worker_metadata_json "$item_json" "$validation_json" "needs_human_review" "$execution_log")
       # Worker couldn't generate a diff — escalate
       local log_escaped
       log_escaped=$(python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" <<< "${execution_log:-Worker produced no output markers}")
