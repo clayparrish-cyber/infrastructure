@@ -55,8 +55,8 @@
       "owner": "shared",
       "stack": "next.js/neon",
       "reportDir": "~/Projects/agent-reports/menu-autopilot",
-      "note": "Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)",
-      "automationProfile": "core-lite",
+      "note": "Restaurant menu engineering / cost analysis. Toast POS + MarginEdge integration. Shares repo with AirTip. Focus reviews on src/app/(dashboard)/ and src/lib/ (excluding tips/)",
+      "automationProfile": "core",
       "phase": "active-dev"
     },
     "glossy-sports": {
