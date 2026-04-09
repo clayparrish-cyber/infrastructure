@@ -242,7 +242,7 @@ jobs:
     needs: setup
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Clone project repos
         env:
@@ -389,7 +389,7 @@ jobs:
       use_orchestrator: ${{ steps.determine-roster.outputs.use_orchestrator }}
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download projects artifact
         uses: actions/download-artifact@v4
@@ -554,7 +554,7 @@ jobs:
     needs: [setup, clone-projects, orchestrator]
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download projects artifact
         uses: actions/download-artifact@v4
@@ -808,7 +808,7 @@ jobs:
     if: always() && needs.setup.result == 'success' && needs.reviews.result != 'cancelled'
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download reports artifact
         continue-on-error: true
@@ -889,7 +889,7 @@ jobs:
     if: always() && needs.setup.result == 'success' && needs.sync.result != 'cancelled' && needs.sync.result != 'failure'
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download projects artifact
         uses: actions/download-artifact@v4
@@ -958,7 +958,7 @@ jobs:
     if: always() && needs.setup.result == 'success' && needs.sync.result == 'success'
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download projects artifact
         uses: actions/download-artifact@v4
@@ -1466,7 +1466,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
