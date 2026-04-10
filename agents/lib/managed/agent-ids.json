@@ -1,1 +1,17 @@
-{}
+{
+  "orchestrator": {
+    "id": "agent_011CZuQ6c3yCSc4e4iBxhxGx",
+    "version": "1",
+    "systemHash": "00bbe558ba581204"
+  },
+  "reviewer": {
+    "id": "agent_011CZuQ6cjeQRNrB9iMqsLhQ",
+    "version": "1",
+    "systemHash": "27b7f6915c7902ab"
+  },
+  "worker": {
+    "id": "agent_011CZuQ6dXGUV1SUDGnPed1B",
+    "version": "1",
+    "systemHash": "5b56cd8ad13fe26d"
+  }
+}
