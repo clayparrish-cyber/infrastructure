@@ -244,9 +244,17 @@ jobs:
       - name: Checkout infrastructure repo
         uses: actions/checkout@v4
 
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: clayparrish-cyber
+
       - name: Clone project repos
         env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ steps.app-token.outputs.token }}
           PROJECT_SCOPE: ${{ needs.setup.outputs.project_scope }}
           PROJECT_OVERRIDE: ${{ inputs.project_override }}
         run: |
@@ -926,6 +934,15 @@ jobs:
         if: steps.check-items.outputs.approved_count != '0'
         run: mkdir -p logs
 
+      - name: Generate GitHub App token
+        if: steps.check-items.outputs.approved_count != '0'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: clayparrish-cyber
+
       - name: Run workers
         if: steps.check-items.outputs.approved_count != '0'
         env:
@@ -935,7 +952,7 @@ jobs:
           LOG_DIR: ${{ github.workspace }}/logs
           MAX_WORKER_ITEMS: '5'
           # dry_run removed — worker always runs live
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           chmod +x ${{ github.workspace }}/agents/workers/work-loop-manager.sh
           ${{ github.workspace }}/agents/workers/work-loop-manager.sh
@@ -1046,9 +1063,17 @@ jobs:
               print(f'Evaluation response: {e}')
           " 2>/dev/null || echo "Autonomy evaluation skipped (API not reachable)"
 
+      - name: Generate GitHub App token (for PR reconcile)
+        id: app-token-reconcile
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: clayparrish-cyber
+
       - name: Reconcile auto-merge PRs
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.app-token-reconcile.outputs.token }}
         run: |
           echo "Checking for merged auto-merge PRs..."
 
@@ -1476,10 +1501,18 @@ jobs:
       - name: Install Claude Code
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Generate GitHub App token (for health check)
+        id: app-token-health
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: clayparrish-cyber
+
       - name: Run post-nightly health check
         env:
           DATE: ${{ needs.setup.outputs.date }}
-          GH_PAT: ${{ secrets.GH_PAT }}
+          GH_PAT: ${{ steps.app-token-health.outputs.token }}
         run: |
           WORKSPACE="${{ github.workspace }}"
           LOG_FILE="$WORKSPACE/logs/health-check-${DATE}.log"
