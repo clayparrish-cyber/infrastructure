@@ -12,6 +12,6 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node"]
   },
-  "include": ["*.ts"],
+  "include": ["*.ts", "managed/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
