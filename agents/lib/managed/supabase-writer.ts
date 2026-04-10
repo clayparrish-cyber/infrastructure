@@ -1,0 +1,234 @@
+/**
+ * Direct Supabase writes for the managed-agents nightly pipeline.
+ *
+ * Three functions, each matching the shape that sync-to-supabase.ts has
+ * been writing since the GH-Actions pipeline shipped:
+ *
+ *   writeAgentRun     → INSERT into agent_runs_v2
+ *   upsertAgentState  → UPSERT into agent_state (rolling 5 run_summaries,
+ *                        replaces active_findings, preserves
+ *                        suppressed_patterns)
+ *   logAgentActivity  → INSERT into agent_activity (legacy table)
+ *
+ * Reference shapes: agents/lib/sync-to-supabase.ts:735 (agent_activity),
+ * :758-775 (agent_runs_v2), :781-822 (agent_state). Behavior parity
+ * with the bash pipeline is the requirement; we do NOT invent new
+ * columns. When sync-to-supabase.ts is eventually deleted, these are
+ * the functions that replace its write paths from inside the managed
+ * pipeline.
+ *
+ * Client injection: every function takes an optional `supabase` arg so
+ * tests can pass a fake client that captures insert/upsert payloads.
+ * Production calls omit the arg and fall through to getSupabase() from
+ * ./sdk.ts.
+ */
+
+import { getSupabase } from './sdk.js';
+import type { SessionUsage } from './types.js';
+
+// ---------------------------------------------------------------------------
+// Minimal client shape — the three Supabase methods we actually call.
+// A real SupabaseClient matches this structurally; hand-rolled fakes in
+// tests can expose the same shape without pulling in the full SDK.
+// ---------------------------------------------------------------------------
+
+export interface SupabaseWriterClient {
+  from: (table: string) => SupabaseWriterTable;
+}
+
+export interface SupabaseWriterTable {
+  insert: (row: unknown) => Promise<{ error: SupabaseError | null }>;
+  upsert: (
+    row: unknown,
+    options?: { onConflict?: string },
+  ) => Promise<{ error: SupabaseError | null }>;
+  select: (columns: string) => SupabaseWriterSelectChain;
+}
+
+export interface SupabaseWriterSelectChain {
+  eq: (column: string, value: unknown) => SupabaseWriterSelectChain;
+  single: () => Promise<{
+    data: { run_summaries?: unknown; suppressed_patterns?: unknown } | null;
+    error: SupabaseError | null;
+  }>;
+}
+
+export interface SupabaseError {
+  message: string;
+  code?: string;
+}
+
+// ---------------------------------------------------------------------------
+// writeAgentRun — agent_runs_v2 insert
+// ---------------------------------------------------------------------------
+
+export interface WriteAgentRunParams {
+  agentId: string;
+  project: string;
+  usage: SessionUsage;
+  findingsCount: number;
+  trigger: 'orchestrator' | 'dryrun' | 'manual';
+  durationMs: number;
+  /** Defaults to 'haiku+advisor' — reviewer path, which is the hot
+   *  code path. Override to 'opus' for orchestrator runs or
+   *  'sonnet+advisor' for worker runs. */
+  model?: string;
+  /** Override the Supabase client — tests pass a fake. */
+  supabase?: SupabaseWriterClient;
+}
+
+export async function writeAgentRun(
+  params: WriteAgentRunParams,
+): Promise<void> {
+  const supabase = params.supabase ?? (getSupabase() as unknown as SupabaseWriterClient);
+
+  const tokensUsed =
+    params.usage.executor_input_tokens +
+    params.usage.executor_output_tokens +
+    params.usage.advisor_input_tokens +
+    params.usage.advisor_output_tokens;
+
+  const row = {
+    agent_id: params.agentId,
+    project: params.project,
+    trigger: params.trigger,
+    status: 'completed',
+    findings_count: params.findingsCount,
+    tokens_used: tokensUsed,
+    cost_estimate: params.usage.total_cost_usd,
+    metadata: {
+      model: params.model ?? 'haiku+advisor',
+      tokens_input: params.usage.executor_input_tokens,
+      tokens_output: params.usage.executor_output_tokens,
+      advisor_input_tokens: params.usage.advisor_input_tokens,
+      advisor_output_tokens: params.usage.advisor_output_tokens,
+      cache_creation_tokens: params.usage.cache_creation_tokens,
+      cache_read_tokens: params.usage.cache_read_tokens,
+      duration_ms: params.durationMs,
+    },
+  };
+
+  const { error } = await supabase.from('agent_runs_v2').insert(row);
+  if (error) {
+    throw new Error(
+      `Failed to insert agent_runs_v2 row for ${params.agentId}/${params.project}: ${error.message}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// upsertAgentState — agent_state upsert with rolling run_summaries
+// ---------------------------------------------------------------------------
+
+export interface AgentRunSummary {
+  findings_count: number;
+  key_findings: string[];
+  summary: string;
+}
+
+export interface UpsertAgentStateParams {
+  agentId: string;
+  project: string;
+  /** ISO date string YYYY-MM-DD — attached to the run summary so the
+   *  dashboard can sort historical runs chronologically. */
+  date: string;
+  runSummary: AgentRunSummary;
+  activeFindingIds: string[];
+  supabase?: SupabaseWriterClient;
+}
+
+/**
+ * Upserts agent_state for a single (agent_id, project) pair.
+ *
+ * Preservation rules (matching sync-to-supabase.ts:781-822 exactly):
+ * - run_summaries: append new summary + slice(-5) to keep a rolling
+ *   window of the last 5 runs
+ * - active_findings: REPLACED by activeFindingIds (authoritative)
+ * - suppressed_patterns: fetched from the existing row and written
+ *   back untouched (never clobbered)
+ * - updated_at: written server-side via new Date().toISOString()
+ *
+ * Uses Supabase's native upsert with onConflict: 'agent_id,project'.
+ */
+export async function upsertAgentState(
+  params: UpsertAgentStateParams,
+): Promise<void> {
+  const supabase =
+    params.supabase ?? (getSupabase() as unknown as SupabaseWriterClient);
+
+  // Read current row to preserve run_summaries history + suppressed_patterns.
+  const { data: existing } = await supabase
+    .from('agent_state')
+    .select('run_summaries, suppressed_patterns')
+    .eq('agent_id', params.agentId)
+    .eq('project', params.project)
+    .single();
+
+  const prevSummaries = Array.isArray(existing?.run_summaries)
+    ? (existing.run_summaries as Array<Record<string, unknown>>)
+    : [];
+
+  const newSummary = {
+    date: params.date,
+    ...params.runSummary,
+  };
+
+  // Roll forward, cap at 5.
+  const newSummaries = [...prevSummaries, newSummary].slice(-5);
+
+  const suppressedPatterns = Array.isArray(existing?.suppressed_patterns)
+    ? existing.suppressed_patterns
+    : [];
+
+  const row = {
+    agent_id: params.agentId,
+    project: params.project,
+    run_summaries: newSummaries,
+    active_findings: params.activeFindingIds,
+    suppressed_patterns: suppressedPatterns,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from('agent_state')
+    .upsert(row, { onConflict: 'agent_id,project' });
+
+  if (error) {
+    throw new Error(
+      `Failed to upsert agent_state for ${params.agentId}/${params.project}: ${error.message}`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// logAgentActivity — agent_activity insert
+// ---------------------------------------------------------------------------
+
+export interface LogAgentActivityParams {
+  agentId: string;
+  project: string;
+  action: string;
+  details: Record<string, unknown>;
+  supabase?: SupabaseWriterClient;
+}
+
+export async function logAgentActivity(
+  params: LogAgentActivityParams,
+): Promise<void> {
+  const supabase =
+    params.supabase ?? (getSupabase() as unknown as SupabaseWriterClient);
+
+  const row = {
+    agent_id: params.agentId,
+    project: params.project,
+    action: params.action,
+    details: params.details,
+  };
+
+  const { error } = await supabase.from('agent_activity').insert(row);
+  if (error) {
+    throw new Error(
+      `Failed to insert agent_activity row for ${params.agentId}/${params.project}: ${error.message}`,
+    );
+  }
+}
