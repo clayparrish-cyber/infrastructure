@@ -434,7 +434,11 @@ export async function main(
             project: entry.project,
             usage: result.usage,
             findingsCount: result.findingsCount,
-            trigger: options.dryRun ? 'dryrun' : 'orchestrator',
+            // Dry-runs are "manual" — they only happen via workflow_dispatch.
+            // Scheduled cron uses "orchestrator" to match the classic pipeline's
+            // shape. The dry_run flag distinguishes the two in metadata.
+            trigger: options.dryRun ? 'manual' : 'orchestrator',
+            dryRun: options.dryRun,
             durationMs,
           });
 

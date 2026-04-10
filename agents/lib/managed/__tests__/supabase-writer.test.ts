@@ -132,12 +132,35 @@ test('writeAgentRun inserts a row with the expected shape into agent_runs_v2', a
   assert.equal(typed.tokens_used, 24_500);
   assert.equal(typed.cost_estimate, 0.0375);
 
-  assert.equal(typed.metadata.model, 'haiku+advisor');
+  assert.equal(typed.metadata.model, 'sonnet-4-6');
+  assert.equal(typed.metadata.runtime, 'managed-agents');
   assert.equal(typed.metadata.tokens_input, 20_000);
   assert.equal(typed.metadata.tokens_output, 3_000);
   assert.equal(typed.metadata.advisor_input_tokens, 1_000);
   assert.equal(typed.metadata.advisor_output_tokens, 500);
   assert.equal(typed.metadata.duration_ms, 12_345);
+  // dry_run not set unless explicitly passed
+  assert.equal(typed.metadata.dry_run, undefined);
+});
+
+test('writeAgentRun sets dry_run=true in metadata when dryRun flag passed', async () => {
+  const supabase = makeFakeClient();
+  await writeAgentRun({
+    agentId: 'security-review',
+    project: 'sidelineiq',
+    usage: SAMPLE_USAGE,
+    findingsCount: 0,
+    trigger: 'manual',
+    durationMs: 1_000,
+    dryRun: true,
+    supabase,
+  });
+
+  assert.equal(supabase.inserts.length, 1);
+  const row = supabase.inserts[0]!.row as { trigger: string; metadata: Record<string, unknown> };
+  assert.equal(row.trigger, 'manual');
+  assert.equal(row.metadata.dry_run, true);
+  assert.equal(row.metadata.runtime, 'managed-agents');
 });
 
 test('writeAgentRun accepts a custom model name in metadata', async () => {

@@ -67,11 +67,19 @@ export interface WriteAgentRunParams {
   project: string;
   usage: SessionUsage;
   findingsCount: number;
-  trigger: 'orchestrator' | 'dryrun' | 'manual';
+  /**
+   * Must match a value in the agent_runs_v2_trigger_check CHECK constraint.
+   * Verified allowed values as of 2026-04-10: 'manual', 'nightly',
+   * 'orchestrator', 'work_loop_manager'. Do NOT pass 'dryrun' — the
+   * constraint rejects it. Use metadata.dry_run to flag dry-run runs.
+   */
+  trigger: 'orchestrator' | 'manual' | 'nightly';
   durationMs: number;
-  /** Defaults to 'haiku+advisor' — reviewer path, which is the hot
-   *  code path. Override to 'opus' for orchestrator runs or
-   *  'sonnet+advisor' for worker runs. */
+  /** If true, sets metadata.dry_run=true so dashboard queries can filter. */
+  dryRun?: boolean;
+  /** Defaults to 'sonnet-4-6' (the reviewer model for the 2026-04-09
+   *  cutover since advisor tool isn't supported on Managed Agents).
+   *  Override to 'opus-4-6' for orchestrator runs. */
   model?: string;
   /** Override the Supabase client — tests pass a fake. */
   supabase?: SupabaseWriterClient;
@@ -97,7 +105,7 @@ export async function writeAgentRun(
     tokens_used: tokensUsed,
     cost_estimate: params.usage.total_cost_usd,
     metadata: {
-      model: params.model ?? 'haiku+advisor',
+      model: params.model ?? 'sonnet-4-6',
       tokens_input: params.usage.executor_input_tokens,
       tokens_output: params.usage.executor_output_tokens,
       advisor_input_tokens: params.usage.advisor_input_tokens,
@@ -105,6 +113,8 @@ export async function writeAgentRun(
       cache_creation_tokens: params.usage.cache_creation_tokens,
       cache_read_tokens: params.usage.cache_read_tokens,
       duration_ms: params.durationMs,
+      runtime: 'managed-agents',
+      ...(params.dryRun ? { dry_run: true } : {}),
     },
   };
 

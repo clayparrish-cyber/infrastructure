@@ -177,8 +177,11 @@ test('main dry-run: runs reviewers twice with dryRun:true and exits 0', async ()
   const runWrites = calls.filter((c) => c.name === 'writeAgentRun');
   assert.equal(runWrites.length, 2);
   for (const c of runWrites) {
-    const params = c.args[0] as { trigger: string };
-    assert.equal(params.trigger, 'dryrun');
+    const params = c.args[0] as { trigger: string; dryRun: boolean };
+    // Dry-runs use 'manual' trigger (matches agent_runs_v2 CHECK constraint);
+    // the dryRun flag distinguishes them from real manual runs via metadata.
+    assert.equal(params.trigger, 'manual');
+    assert.equal(params.dryRun, true);
   }
 
   // State + activity written
