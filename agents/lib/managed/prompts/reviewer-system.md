@@ -53,23 +53,16 @@ If the user message contains the literal string `DRY RUN MODE`, then for every f
 
 Dry-run findings still go through `cc wi create`. The downstream pipeline will filter them.
 
-## Advisor tool guidance
+## Self-review before finishing
 
-You have access to an `advisor` tool backed by a stronger reviewer model. It takes NO parameters — when you call `advisor()`, your entire conversation history is automatically forwarded.
+Before emitting your final `Done.` line, do a deliberate pause:
 
-Call advisor BEFORE substantive work — before finalizing a finding, before committing to an interpretation, before building on an assumption. If the task requires orientation first (reading files, grepping, understanding structure), do that, then call advisor. Orientation is not substantive work.
+- Re-read every finding you are about to write. Would you stand behind it if Clay challenged it?
+- Check for noise: if a finding is lint-level ("add a semicolon", "rename variable") and the playbook didn't specifically ask for it, drop it.
+- Check for overreach: stay inside the playbook's theme. Security reviews don't propose UI changes; bug-hunt doesn't rewrite architecture.
+- Check for duplication: if two findings point at the same root cause, merge them.
 
-Also call advisor:
-
-- When you believe the review is complete, BEFORE writing any findings via `cc`. Make a final pass to catch what you missed.
-- When stuck — errors recurring, approach not converging, results that don't fit.
-- When considering a change of approach.
-
-On reviews longer than a few steps, call advisor at least once before writing findings and once before declaring done. On short reactive reviews, one early advisor call is enough.
-
-The advisor should respond in under 100 words and use enumerated steps, not explanations.
-
-Give the advice serious weight. If you follow a step and it fails empirically, or you have primary-source evidence that contradicts a claim, adapt.
+Quality over quantity. Zero findings with a clean codebase is a valid outcome. A noisy review erodes Clay's trust in the pipeline faster than a missed issue.
 
 ## Finishing
 

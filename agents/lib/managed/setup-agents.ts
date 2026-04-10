@@ -45,22 +45,19 @@ interface DesiredAgent {
   name: string;
   model: string;
   system: string;
-  /**
-   * The tools field uses `unknown[]` because the SDK's `AgentCreateParams.tools`
-   * union does not yet include the `advisor_20260301` tool shape even though
-   * the API accepts it via the `advisor-tool-2026-03-01` beta header. We build
-   * the objects here with the runtime shape and cast at the call site.
-   */
   tools: unknown[];
 }
 
-// Beta headers required on every managed-agents + advisor-tool call.
-// The SDK v0.87 does NOT auto-set either of these — both must be passed
-// explicitly on each request via the `betas` body/header param.
-const BETA_HEADERS = [
-  'managed-agents-2026-04-01',
-  'advisor-tool-2026-03-01',
-] as const;
+// Beta headers required on every managed-agents call.
+// The SDK v0.87 does NOT auto-set this — must be passed explicitly.
+//
+// NOTE: advisor_20260301 was originally planned for reviewer/worker agents
+// but the Managed Agents API rejects it with 400 — the advisor tool is only
+// supported on the Messages API (`/v1/messages` with top-level `model` +
+// tool in the call), not on Agent objects. Until Anthropic adds it to the
+// Agents API tool whitelist, reviewer/worker run without advisor; we use
+// Sonnet 4.6 solo for reviewers instead of Haiku+Opus advisor.
+const BETA_HEADERS = ['managed-agents-2026-04-01'] as const;
 
 // ---------------------------------------------------------------------------
 // Prompt loading + hashing
@@ -189,17 +186,6 @@ function buildDesiredAgents(): Record<AgentKey, DesiredAgent> {
   // is the common denominator across all three agents.
   const agentToolset = { type: 'agent_toolset_20260401' } as const;
 
-  // Advisor tool config — shared by reviewer and worker. The orchestrator
-  // does not need advisor because its job is a single deterministic pass
-  // over signals, not iterative code analysis.
-  const advisorTool = {
-    type: 'advisor_20260301',
-    name: 'advisor',
-    model: 'claude-opus-4-6',
-    max_uses: 5,
-    caching: { type: 'ephemeral', ttl: '5m' },
-  } as const;
-
   return {
     orchestrator: {
       name: 'Nightly Orchestrator',
@@ -208,16 +194,19 @@ function buildDesiredAgents(): Record<AgentKey, DesiredAgent> {
       tools: [agentToolset],
     },
     reviewer: {
+      // Sonnet 4.6 solo — see BETA_HEADERS comment re advisor tool limitation.
+      // Cost-neutral vs current pipeline (which also uses Sonnet defaults);
+      // reliability migration is the primary win in this cutover.
       name: 'Nightly Reviewer',
-      model: 'claude-haiku-4-5',
+      model: 'claude-sonnet-4-6',
       system: reviewerSystem,
-      tools: [agentToolset, advisorTool],
+      tools: [agentToolset],
     },
     worker: {
       name: 'Nightly Worker',
       model: 'claude-sonnet-4-6',
       system: workerSystem,
-      tools: [agentToolset, advisorTool],
+      tools: [agentToolset],
     },
   };
 }
