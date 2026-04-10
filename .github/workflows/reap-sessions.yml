@@ -1,0 +1,34 @@
+name: Reap Stuck Managed Agent Sessions
+
+on:
+  schedule:
+    # Hourly — cheap observability cron. Archives any managed-agents
+    # session still running or idle after 2h.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: reap-sessions
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    name: Reap stale sessions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - name: Checkout infrastructure repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Run reaper
+        run: npx tsx scripts/reap-sessions.ts

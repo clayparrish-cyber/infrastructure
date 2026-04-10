@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/clayparrish-cyber/infrastructure#readme",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.87.0",
     "commander": "^14.0.3"
   }
 }
