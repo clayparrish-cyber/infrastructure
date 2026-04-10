@@ -100,6 +100,7 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
+- **2026-04-09** — Marketing automation workflow moved out of infrastructure to clayparrish-cyber/mainline-apps (the repo that owns the worker code). Eliminated cross-repo PAT clone that had been failing nightly for 12 days. GH_PAT secret kept (still required by nightly-review.yml). Deleted dashboard-mirror/ orphaned local clone. Open follow-up: nightly-review.yml still uses GH_PAT to clone ~10 project repos — needs GitHub App migration to fully eliminate the PAT trap.
 - **2026-04-01** — Fixed auto-triage gap: human-created work items now start at "triaged" instead of "discovered". CLI `wi update` fixed to use worker-update schema (supports all statuses). Bulk-triaged 50 stuck discovered items.
 - **2026-03-17** — Reconcile agent now sweeps stale sprint initiatives (project_kind=sprint, >7 days, no active children). Fixes pipeline where sprint containers sat in approved status forever.
 - **2026-03-17** — Agent infra upgrade: budget observability (alerts/overrides/enforcement_mode, default observe), entity grouping (GT/Mainline/Personal with cost rollup), persistent agent memory (agent_state table, build-agent-context.ts injects prior runs + suppressed patterns into prompts, rejections auto-suppress).
