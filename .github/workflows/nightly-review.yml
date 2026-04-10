@@ -372,7 +372,7 @@ jobs:
           ls -la projects/
 
       - name: Upload projects artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: projects
           path: projects/
@@ -783,7 +783,7 @@ jobs:
 
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reports
           path: projects/*/reports/
@@ -792,7 +792,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs
           path: logs/
@@ -942,7 +942,7 @@ jobs:
 
       - name: Upload worker logs
         if: always() && steps.check-items.outputs.approved_count != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: worker-logs
           path: logs/*worker*
@@ -1449,7 +1449,7 @@ jobs:
 
       - name: Upload reconciliation logs
         if: always() && steps.check-stale.outputs.stale_count != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: reconcile-logs
           path: logs/*reconcile*
@@ -1528,7 +1528,7 @@ jobs:
 
       - name: Upload health check logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: health-check-logs
           path: logs/health-check-*
