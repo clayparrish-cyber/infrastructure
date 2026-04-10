@@ -32,12 +32,3 @@ export function getSupabase(): SupabaseClient {
   }
   return supabaseClient;
 }
-
-/**
- * Test hook — resets cached singletons so tests can re-read env vars
- * after mutating process.env. Not exported for production use.
- */
-export function __resetSdkSingletonsForTests(): void {
-  anthropicClient = null;
-  supabaseClient = null;
-}

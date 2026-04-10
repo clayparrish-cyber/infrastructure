@@ -85,14 +85,22 @@ export interface ReviewResult {
 }
 
 // ---------------------------------------------------------------------------
-// Worker result envelope
+// Worker result envelope — discriminated union so consumers don't need to
+// null-check branch/pr_url when status is 'done'.
 // ---------------------------------------------------------------------------
 
 export type WorkerStatus = 'done' | 'human-action' | 'already-resolved';
 
-export interface WorkerResult {
-  status: WorkerStatus;
-  branch: string | null;
-  pr_url: string | null;
-  session_id: string;
-}
+export type WorkerResult =
+  | {
+      status: 'done';
+      branch: string;
+      pr_url: string;
+      session_id: string;
+    }
+  | {
+      status: 'human-action' | 'already-resolved';
+      branch: null;
+      pr_url: null;
+      session_id: string;
+    };

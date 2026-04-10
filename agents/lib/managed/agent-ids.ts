@@ -38,7 +38,12 @@ const ENV_ID_PATH = join(MODULE_DIR, 'env-id.json');
 function readJsonFile<T>(path: string): T {
   const raw = readFileSync(path, 'utf8').trim();
   if (raw === '') return {} as T;
-  return JSON.parse(raw) as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to parse ${path}: ${msg}`);
+  }
 }
 
 function writeJsonFile(path: string, data: unknown): void {
