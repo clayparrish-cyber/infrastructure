@@ -277,11 +277,11 @@ jobs:
             if [ -n "$REPO" ]; then
               echo "Cloning override project: $PROJECT_OVERRIDE ($REPO)"
               if [ -n "$SUBDIR" ]; then
-                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/${PROJECT_OVERRIDE}_fullclone"
+                git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "projects/${PROJECT_OVERRIDE}_fullclone"
                 cp -r "projects/${PROJECT_OVERRIDE}_fullclone/$SUBDIR" "projects/$PROJECT_OVERRIDE"
                 rm -rf "projects/${PROJECT_OVERRIDE}_fullclone"
               else
-                git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_OVERRIDE"
+                git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "projects/$PROJECT_OVERRIDE"
               fi
             else
               echo "ERROR: Project '$PROJECT_OVERRIDE' not found in registry"
@@ -341,7 +341,7 @@ jobs:
               # Clone the repo
               CLONE_DIR="projects/_clone_${PROJECT_ID}"
               echo "Cloning $PROJECT_ID from $REPO"
-              if git clone --depth 1 "https://${GH_PAT}@github.com/${REPO}.git" "$CLONE_DIR"; then
+              if git clone --depth 1 "https://x-access-token:${GH_PAT}@github.com/${REPO}.git" "$CLONE_DIR"; then
                 REPO_CLONE_DIRS[$REPO]="$CLONE_DIR"
                 if [ -n "$SUBDIR" ]; then
                   if [ -d "$CLONE_DIR/$SUBDIR" ]; then
