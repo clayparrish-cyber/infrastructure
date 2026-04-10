@@ -163,6 +163,21 @@ function isStatusTerminated(e: unknown): e is SessionStatusTerminatedEventLike {
   );
 }
 
+// Hard fallback if getEnv() throws because required vars are missing (e.g.
+// in tests that never set ANTHROPIC_API_KEY). The fallback matches the
+// same 1200-second default exposed via `DEFAULTS.SESSION_TIMEOUT_SEC` in
+// env.ts. Callers that want strict env enforcement should pass an
+// explicit `timeoutMs` or call `getEnv()` themselves upstream.
+const FALLBACK_TIMEOUT_MS = 1_200_000;
+
+function resolveDefaultTimeoutMs(): number {
+  try {
+    return getEnv().SESSION_TIMEOUT_SEC * 1000;
+  } catch {
+    return FALLBACK_TIMEOUT_MS;
+  }
+}
+
 function extractTextFromAgentMessage(ev: AgentMessageEventLike): string {
   const parts: string[] = [];
   for (const block of ev.content) {
@@ -188,7 +203,7 @@ export async function waitForIdle(
   options: WaitForIdleOptions = {},
 ): Promise<SessionWaitResult> {
   const startedAt = Date.now();
-  const timeoutMs = options.timeoutMs ?? getEnv().SESSION_TIMEOUT_SEC * 1000;
+  const timeoutMs = options.timeoutMs ?? resolveDefaultTimeoutMs();
   const executorModel = options.executorModel ?? 'claude-haiku-4-5';
 
   const events: unknown[] = [];
