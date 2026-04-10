@@ -32,19 +32,20 @@ function loadEnv(): Record<string, string> {
   return env;
 }
 
-async function main() {
-  const [_project, agentId] = process.argv.slice(2);
-  if (!agentId) {
-    process.exit(0);
-  }
+/**
+ * Returns the rendered "Active Meta-Review Directives" markdown section for
+ * the given agent, or empty string if none apply. The project arg is
+ * accepted for signature parity with the other renderers but intentionally
+ * ignored (meta-directives are agent-wide).
+ */
+export async function render(_project: string, agentId: string): Promise<string> {
+  if (!agentId) return '';
 
   const fileEnv = loadEnv();
   const url = process.env.SUPABASE_URL || fileEnv.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key) {
-    process.exit(0);
-  }
+  if (!url || !key) return '';
 
   const supabase = createClient(url, key, {
     auth: {
@@ -53,8 +54,6 @@ async function main() {
     },
   });
 
-  // Meta-directives are agent-wide (project = 'mainline-apps'), not project-specific.
-  // The project arg is accepted for workflow compatibility but intentionally ignored.
   const { data, error } = await supabase
     .from('context_items')
     .select('raw_content, source_metadata, created_at')
@@ -62,9 +61,7 @@ async function main() {
     .order('created_at', { ascending: false })
     .limit(5);
 
-  if (error || !data || data.length === 0) {
-    process.exit(0);
-  }
+  if (error || !data || data.length === 0) return '';
 
   const directiveItem = data.find((item) => {
     const metadata = item.source_metadata;
@@ -76,20 +73,30 @@ async function main() {
     );
   });
 
-  if (!directiveItem) {
-    process.exit(0);
-  }
+  if (!directiveItem) return '';
 
   const content = typeof directiveItem.raw_content === 'string' ? directiveItem.raw_content.trim() : '';
-  if (!content) {
-    process.exit(0);
-  }
+  if (!content) return '';
 
-  process.stdout.write(
-    `## Active Meta-Review Directives — Follow These This Run\n\n${content}\n`,
-  );
+  return `## Active Meta-Review Directives — Follow These This Run\n\n${content}\n`;
 }
 
-main().catch(() => {
-  process.exit(0);
-});
+// CLI shim — preserves the original stdout-streaming behavior used by
+// `nightly-review.yml` via `npx tsx ... 2>/dev/null || echo ""`.
+const isCli =
+  typeof process !== 'undefined' &&
+  Array.isArray(process.argv) &&
+  process.argv[1] !== undefined &&
+  import.meta.url === `file://${process.argv[1]}`;
+
+if (isCli) {
+  const [project, agentId] = process.argv.slice(2);
+  render(project || '', agentId || '')
+    .then((out) => {
+      if (out) process.stdout.write(out);
+      process.exit(0);
+    })
+    .catch(() => {
+      process.exit(0);
+    });
+}

@@ -36,41 +36,49 @@ function resolveDecisionAgentId(row: any): string | null {
   return null;
 }
 
-const envPath = path.join(process.env.HOME || '', '.claude', '.env');
-const env: Record<string, string> = {};
-if (fs.existsSync(envPath)) {
-  for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
-    const trimmed = line.trim();
-    if (trimmed && !trimmed.startsWith('#')) {
-      const eqIdx = trimmed.indexOf('=');
-      if (eqIdx > 0) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        let value = trimmed.slice(eqIdx + 1).trim();
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1);
+function loadFileEnv(): Record<string, string> {
+  const envPath = path.join(process.env.HOME || '', '.claude', '.env');
+  const env: Record<string, string> = {};
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, 'utf-8').split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith('#')) {
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          let value = trimmed.slice(eqIdx + 1).trim();
+          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+          }
+          env[key] = value;
         }
-        env[key] = value;
       }
     }
   }
+  return env;
 }
 
-const supabaseUrl = process.env.SUPABASE_URL || env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * Returns the rendered "# Agent Memory Context" markdown block for the given
+ * project + agent, or empty string if no context is available. Safe to call
+ * from both the CLI shim below and from other TS modules
+ * (e.g. managed/prompt-builder.ts).
+ *
+ * All module-level supabase client creation was moved inside this function
+ * so importing this module is side-effect free.
+ */
+export async function render(project: string, agentId: string): Promise<string> {
+  if (!project || !agentId) return '';
 
-if (!supabaseUrl || !supabaseKey) {
-  process.exit(0); // Silent exit — context is optional
-}
+  const env = loadFileEnv();
+  const supabaseUrl = process.env.SUPABASE_URL || env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+  if (!supabaseUrl || !supabaseKey) return '';
 
-async function main() {
-  const [project, agentId] = process.argv.slice(2);
-  if (!project || !agentId) {
-    process.exit(0);
-  }
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   const sections: string[] = [];
 
@@ -192,9 +200,25 @@ async function main() {
   }
 
   if (sections.length > 0) {
-    console.log('# Agent Memory Context\n');
-    console.log(sections.join('\n'));
+    return `# Agent Memory Context\n\n${sections.join('\n')}\n`;
   }
+  return '';
 }
 
-main().catch(() => process.exit(0));
+// CLI shim — preserves the original stdout-streaming behavior used by
+// `nightly-review.yml` via `npx tsx ... 2>/dev/null || echo ""`.
+const isCli =
+  typeof process !== 'undefined' &&
+  Array.isArray(process.argv) &&
+  process.argv[1] !== undefined &&
+  import.meta.url === `file://${process.argv[1]}`;
+
+if (isCli) {
+  const [project, agentId] = process.argv.slice(2);
+  render(project || '', agentId || '')
+    .then((out) => {
+      if (out) process.stdout.write(out);
+      process.exit(0);
+    })
+    .catch(() => process.exit(0));
+}
