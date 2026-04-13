@@ -8,7 +8,7 @@ Registry-driven, multi-project agent infrastructure. Runs nightly via GitHub Act
 
 ```
 .github/workflows/
-└── nightly-review.yml          # 7-job pipeline (runs 2am CST daily)
+└── nightly-review.yml          # 6-job pipeline (runs 2am CST Sun/Mon/Wed/Fri)
 
 agents/
 ├── registry.json               # Project + agent config (22 agents, automation profiles, schedules)
@@ -26,7 +26,7 @@ agents/
 │       ├── performance-review.md
 │       └── aso-retention-review.md
 ├── ops/
-│   └── weekly-cleanup.md       # Sunday ops agent
+│   └── weekly-ops-combined.md  # Sunday ops + evaluator (combined)
 ├── workers/
 │   └── work-loop-manager.sh    # Executes approved work items
 └── lib/
@@ -41,27 +41,26 @@ packages/agent-learning/
     └── learning/similarity.ts
 ```
 
-## Nightly Pipeline (7 Jobs)
+## Nightly Pipeline (6 Jobs, 4x/week: Sun/Mon/Wed/Fri)
 
 1. **setup** — Determines today's theme + project scope from day-of-week
 2. **clone-projects** — Clones relevant repos from registry
-3. **orchestrator** — AI builds roster.json (falls back to static if it fails)
+3. **orchestrator** — Commit gate checks git_activity; if all quiet, skips AI call and produces empty roster. Otherwise AI builds roster.json (cap: 5 entries, falls back to static if it fails)
 4. **reviews** — Runs `claude -p` for each roster entry sequentially
 5. **sync** — Writes findings to Supabase `work_items` + `agent_runs_v2`
 6. **workers** — Executes approved work items via `claude -p`
-7. **reconcile** — Checks stale approved items, auto-closes resolved ones
+7. **reconcile** — Stale item sweep + combined daily ops agent (credentials + health + brief in 1 call)
 
-## Weekly Schedule
+## Weekly Schedule (4x/week as of 2026-04-13)
 
 | Day | Theme | Scope |
 |-----|-------|------|
 | Mon | security-review | core |
-| Tue | ux-layout-review | core |
 | Wed | bug-hunt-review | core |
-| Thu | content-value-review | core |
-| Fri | polish-brand-review | core |
-| Sat | Rotating (week % 5) + performance (even) | all |
-| Sun | weekly-cleanup + ops | all |
+| Fri | security-review + polish (odd weeks) | core |
+| Sun | weekly-ops-combined + business-synthesis + portfolio-audit (1st Sun/mo) | all |
+
+Tue/Thu/Sat: no pipeline runs. Specialist agents (competitive-intel, content-writer, creative-provocateur, marketing-analyst) moved to on-demand only.
 
 ## Automation Profiles
 
@@ -69,9 +68,9 @@ packages/agent-learning/
 - **Scaffolded**: gt-ops, menu-autopilot, the-immortal-snail, gt-website
 - **Ops-only**: infrastructure
 
-## Agent Budgets (Updated 2026-02-23)
+## Agent Budgets (Updated 2026-04-13)
 
-Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orchestrator $5.
+Target: ~$100-140/month (down from ~$450). Key savings: 4x/week schedule, commit gate skips quiet projects, specialists on-demand, consolidated ops agents.
 
 ## Key Tables (Supabase)
 
@@ -100,13 +99,11 @@ Total: ~$60/month. Top: worker $12, security/bug-hunt $7 each, ux-layout $6, orc
 
 ## Recent Changes
 
-- **2026-04-09** — nightly-review.yml fully migrated from GH_PAT → GitHub App auth. Created App "mainline-nightly-review" (ID 3331983) installed on all 7 project repos. Replaced PAT in 4 jobs (clone-projects, workers, reconcile, health-check) using actions/create-github-app-token@v1. Gotcha: App tokens need `https://x-access-token:${TOKEN}@github.com/...` URL format, not PAT-style. Verified green end-to-end on run 24222103950, GH_PAT secret deleted. PAT trap is durably gone.
-- **2026-04-09** — Marketing automation workflow moved out of infrastructure to clayparrish-cyber/mainline-apps (the repo that owns the worker code). Eliminated cross-repo PAT clone that had been failing nightly for 12 days. Deleted dashboard-mirror/ orphaned local clone.
-- **2026-04-01** — Fixed auto-triage gap: human-created work items now start at "triaged" instead of "discovered". CLI `wi update` fixed to use worker-update schema (supports all statuses). Bulk-triaged 50 stuck discovered items.
-- **2026-03-17** — Reconcile agent now sweeps stale sprint initiatives (project_kind=sprint, >7 days, no active children). Fixes pipeline where sprint containers sat in approved status forever.
-- **2026-03-17** — Agent infra upgrade: budget observability (alerts/overrides/enforcement_mode, default observe), entity grouping (GT/Mainline/Personal with cost rollup), persistent agent memory (agent_state table, build-agent-context.ts injects prior runs + suppressed patterns into prompts, rejections auto-suppress).
-- **2026-03-17** — Wired ops-deploy and ops-communications categories into agent pipeline. AGENT_CATEGORY_OVERRIDE map in sync-to-supabase.ts routes health-check→ops-deploy, chief-of-staff→ops-communications. Finding-level decision_category override supported. Review prompts updated with decision_category in direct curl inserts.
-- **2026-03-17** — Agent registry fix: reactivated marketing-analyst/legal-advisor/business-analyst in Supabase. Registered gt-website (scaffolded). Fixed Saturday clone scope (scaffolded->all) so performance-review runs on core projects. Fixed strategic-portfolio-audit working dir. Added skip logging to run_meta_agent. Added the-immortal-snail + gt-website to tier2-rotating and performance-review projects.
+- **2026-04-13** — Pipeline cost optimization: ~$450/mo → ~$100-140/mo. Schedule 7x→4x/week (Sun/Mon/Wed/Fri). Commit gate skips orchestrator when all projects quiet. 4 specialist agents moved to on-demand. Capacity cap 8→5. Daily ops consolidated from 3 agents to 1 (`daily-ops-combined.md`). Sunday ops consolidated (`weekly-ops-combined.md`). Health-check job removed (folded into daily ops). Portfolio audit monthly. Managed pipeline schedule disabled (dry-run was costing $1-3/night).
+- **2026-04-09** — nightly-review.yml fully migrated from GH_PAT → GitHub App auth. Created App "mainline-nightly-review" (ID 3331983) installed on all 7 project repos. PAT trap durably gone.
+- **2026-04-09** — Marketing automation workflow moved out of infrastructure to clayparrish-cyber/mainline-apps (the repo that owns the worker code).
+- **2026-04-01** — Fixed auto-triage gap: human-created work items now start at "triaged" instead of "discovered".
+- **2026-03-17** — Agent infra upgrade: budget observability, entity grouping, persistent agent memory.
 
 ## Current Status (2026-01-23)
 
