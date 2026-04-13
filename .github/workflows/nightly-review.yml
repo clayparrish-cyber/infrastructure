@@ -7,7 +7,10 @@ on:
       - 'agents/**'
   schedule:
     # 2am CST = 8am UTC
-    - cron: '0 8 * * *'
+    # Cost optimization: 4x/week (Sun/Mon/Wed/Fri) instead of daily.
+    # Sun=ops, Mon=security, Wed=bug-hunt, Fri=security+polish.
+    # Saves ~$30-45/week. Reverted from '0 8 * * *' on 2026-04-13.
+    - cron: '0 8 * * 0,1,3,5'
   workflow_dispatch:
     inputs:
       theme_override:
@@ -434,7 +437,43 @@ jobs:
           chmod +x "${{ github.workspace }}/agents/lib/git-activity-scanner.sh"
           npx tsx ${{ github.workspace }}/agents/lib/collect-orchestrator-signals.ts
 
+      - name: Check for active projects (commit gate)
+        id: commit-gate
+        run: |
+          # Read git_activity from signals.json. If all projects have 0 recent
+          # commits, skip the orchestrator claude -p call (~$1.50 saved).
+          SIGNALS_FILE="${{ github.workspace }}/signals.json"
+          if [ ! -f "$SIGNALS_FILE" ]; then
+            echo "No signals.json — assuming active"
+            echo "has_active=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          ACTIVE_COUNT=$(python3 -c "
+          import json
+          with open('$SIGNALS_FILE') as f:
+              signals = json.load(f)
+          activity = signals.get('git_activity', {})
+          active = sum(1 for v in activity.values() if v.get('commits_7d', 0) > 0)
+          print(active)
+          " 2>/dev/null || echo "99")
+
+          echo "Projects with recent commits: $ACTIVE_COUNT"
+          if [ "$ACTIVE_COUNT" -eq 0 ]; then
+            echo "has_active=false" >> "$GITHUB_OUTPUT"
+            echo "COMMIT GATE: All projects quiet — skipping orchestrator"
+
+            # Write empty roster so downstream jobs proceed cleanly
+            DATE=$(date +%Y-%m-%d)
+            cat > "${{ github.workspace }}/roster.json" << REOF
+          {"date":"$DATE","roster":[],"skipped":[],"reasoning":"Commit gate: all projects had 0 commits in last 7 days. Skipping reviews to save cost.","source":"commit-gate"}
+          REOF
+          else
+            echo "has_active=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run orchestrator
+        if: steps.commit-gate.outputs.has_active == 'true'
         continue-on-error: true
         run: |
           # Copy signals into agents/ directory so the orchestrator prompt can find it
@@ -1388,15 +1427,22 @@ jobs:
 
           cd "$WORKSPACE"
           mkdir -p "$WORKSPACE/reports"
-          run_meta_agent "weekly-cleanup" "$WORKSPACE/agents/ops/weekly-cleanup.md" "$WORKSPACE" 30
-          run_meta_agent "evaluator" "$WORKSPACE/agents/reviews/infrastructure/evaluator.md" "$WORKSPACE" 30
+          # Combined weekly ops + evaluator (was 2 separate agents at 30 turns each)
+          run_meta_agent "weekly-ops-combined" "$WORKSPACE/agents/ops/weekly-ops-combined.md" "$WORKSPACE" 40
 
           # Refresh meta-review directives after evaluation
           curl -s -X POST "$COMMAND_CENTER_URL/api/ops/refresh-meta-directives" \
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" || true
 
           run_meta_agent "business-synthesis" "$WORKSPACE/agents/reviews/infrastructure/business-synthesis.md" "$WORKSPACE" 30
-          run_meta_agent "strategic-portfolio-audit" "$WORKSPACE/agents/reviews/infrastructure/strategic-portfolio-audit.md" "$WORKSPACE" 80
+
+          # Strategic portfolio audit: monthly only (first Sunday). Saves 80 turns 3/4 weeks.
+          WEEK_OF_MONTH=$(( ($(date +%-d) - 1) / 7 + 1 ))
+          if [ "$WEEK_OF_MONTH" = "1" ]; then
+            run_meta_agent "strategic-portfolio-audit" "$WORKSPACE/agents/reviews/infrastructure/strategic-portfolio-audit.md" "$WORKSPACE" 80
+          else
+            echo "SKIP: strategic-portfolio-audit (week $WEEK_OF_MONTH, runs first Sunday only)"
+          fi
 
       - name: Run daily ops agents (credential check + daily brief)
         timeout-minutes: 30
@@ -1461,16 +1507,11 @@ jobs:
 
           cd "$WORKSPACE"
 
-          # Credential expiry check runs Mon/Wed/Fri
-          DOW_NUM=$(date -u +%u)
-          if [ "$DOW_NUM" = "1" ] || [ "$DOW_NUM" = "3" ] || [ "$DOW_NUM" = "5" ]; then
-            run_ops_agent "credential-expiry-check" "$WORKSPACE/agents/reviews/infrastructure/credential-expiry-check.md" 10
-          else
-            echo "SKIP: credential-expiry-check (not Mon/Wed/Fri)"
-          fi
-
-          # Chief of Staff daily brief runs every day
-          run_ops_agent "chief-of-staff-daily-brief" "$WORKSPACE/agents/reviews/infrastructure/chief-of-staff-daily-brief.md" 20
+          # Combined daily ops: credentials + health + brief in one agent call
+          # Replaces separate credential-expiry-check, chief-of-staff-daily-brief,
+          # and post-nightly-health-check (which was a separate job, now removed).
+          # Cost optimization: 1 claude -p call instead of 3. Saved ~$2/night.
+          run_ops_agent "daily-ops-combined" "$WORKSPACE/agents/reviews/infrastructure/daily-ops-combined.md" 25
 
       - name: Upload reconciliation logs
         if: always() && steps.check-stale.outputs.stale_count != '0'
@@ -1481,99 +1522,15 @@ jobs:
           retention-days: 1
           if-no-files-found: ignore
 
-  # ─────────────────────────────────────────────
-  # Job 8: Post-nightly health check
-  # ─────────────────────────────────────────────
-  health-check:
-    runs-on: ubuntu-latest
-    needs: [setup, reviews]
-    if: always() && needs.setup.result == 'success'
-    timeout-minutes: 15
-    steps:
-      - name: Checkout infrastructure repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: Generate GitHub App token (for health check)
-        id: app-token-health
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: clayparrish-cyber
-
-      - name: Run post-nightly health check
-        env:
-          DATE: ${{ needs.setup.outputs.date }}
-          GH_PAT: ${{ steps.app-token-health.outputs.token }}
-        run: |
-          WORKSPACE="${{ github.workspace }}"
-          LOG_FILE="$WORKSPACE/logs/health-check-${DATE}.log"
-          mkdir -p "$WORKSPACE/logs"
-
-          STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-
-          cd "$WORKSPACE"
-          if timeout 600 claude -p "$(cat "$WORKSPACE/agents/reviews/infrastructure/post-nightly-health-check.md")" \
-            --max-turns 15 \
-            --tools "Read,Glob,Grep,Bash" \
-            --disable-slash-commands \
-            --setting-sources "project,local" < /dev/null 2>&1 | tee "$LOG_FILE"; then
-            echo "SUCCESS: post-nightly-health-check"
-            curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
-              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/json" \
-              -H "Prefer: return=minimal" \
-              -d "{
-                \"agent_id\":\"post-nightly-health-check\",
-                \"project\":\"infrastructure\",
-                \"trigger\":\"nightly\",
-                \"status\":\"completed\",
-                \"started_at\":\"$STARTED_AT\",
-                \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-                \"output_summary\":\"Post-nightly health check completed\"
-              }" > /dev/null 2>&1 || true
-          else
-            echo "WARNING: post-nightly-health-check failed"
-            curl -s -X POST "$SUPABASE_URL/rest/v1/agent_runs_v2" \
-              -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-              -H "Content-Type: application/json" \
-              -H "Prefer: return=minimal" \
-              -d "{
-                \"agent_id\":\"post-nightly-health-check\",
-                \"project\":\"infrastructure\",
-                \"trigger\":\"nightly\",
-                \"status\":\"failed\",
-                \"started_at\":\"$STARTED_AT\",
-                \"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-                \"error_details\":\"See health-check log\"
-              }" > /dev/null 2>&1 || true
-          fi
-
-      - name: Upload health check logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: health-check-logs
-          path: logs/health-check-*
-          retention-days: 1
-          if-no-files-found: ignore
+  # Job 8 (health-check) removed 2026-04-13: folded into daily-ops-combined
+  # in the reconcile job. Saves a separate GH runner + claude -p invocation.
 
   # ─────────────────────────────────────────────
   # Job 9: Post nightly summary to dashboard
   # ─────────────────────────────────────────────
   notify:
     runs-on: ubuntu-latest
-    needs: [setup, reviews, sync, workers, reconcile, health-check]
+    needs: [setup, reviews, sync, workers, reconcile]
     if: always() && needs.setup.result == 'success'
     steps:
       - name: Post nightly summary
@@ -1584,15 +1541,15 @@ jobs:
           SYNC_RESULT: ${{ needs.sync.result }}
           WORKERS_RESULT: ${{ needs.workers.result }}
           RECONCILE_RESULT: ${{ needs.reconcile.result }}
-          HEALTH_CHECK_RESULT: ${{ needs.health-check.result }}
+          # health-check job removed — folded into daily-ops-combined in reconcile
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # Build status emoji and summary
           FAILURES=""
           SUCCESSES=0
-          TOTAL=5
+          TOTAL=4
 
-          for JOB_PAIR in "reviews:$REVIEWS_RESULT" "sync:$SYNC_RESULT" "workers:$WORKERS_RESULT" "reconcile:$RECONCILE_RESULT" "health-check:$HEALTH_CHECK_RESULT"; do
+          for JOB_PAIR in "reviews:$REVIEWS_RESULT" "sync:$SYNC_RESULT" "workers:$WORKERS_RESULT" "reconcile:$RECONCILE_RESULT"; do
             JOB_NAME="${JOB_PAIR%%:*}"
             JOB_RESULT="${JOB_PAIR##*:}"
             if [ "$JOB_RESULT" = "success" ]; then

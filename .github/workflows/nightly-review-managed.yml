@@ -1,11 +1,10 @@
 name: Nightly Review (Managed Agents)
 
 on:
-  schedule:
-    # 09:00 UTC = 1 hour after the classic nightly-review (08:00 UTC).
-    # During the cutover window both pipelines run: classic in dry-run
-    # via its default flag, managed in dry-run via the default input.
-    - cron: '0 9 * * *'
+  # Schedule disabled 2026-04-13: dry-run still creates real API sessions,
+  # costing $1-3/night for zero value. Trigger manually via workflow_dispatch.
+  # schedule:
+  #   - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

@@ -283,12 +283,8 @@
       "id": "content-writer",
       "name": "Content Writer",
       "category": "specialist",
-      "schedule": {
-        "day": "wednesday",
-        "projectProfiles": [
-          "core"
-        ]
-      },
+      "schedule": null,
+      "note": "Moved to on-demand 2026-04-13. Was weekly Wednesday. Trigger via Command Center delegation.",
       "excludeProjects": [
         "gt-ops",
         "menu-autopilot",
@@ -303,13 +299,8 @@
       "id": "competitive-intel",
       "name": "Competitive Intelligence",
       "category": "research",
-      "schedule": {
-        "day": "thursday",
-        "frequency": "biweekly-even",
-        "projectProfiles": [
-          "core"
-        ]
-      },
+      "schedule": null,
+      "note": "Moved to on-demand 2026-04-13. Was biweekly Thursday. Trigger via Command Center delegation.",
       "excludeProjects": [
         "gt-ops",
         "menu-autopilot",
@@ -324,13 +315,8 @@
       "id": "creative-provocateur",
       "name": "Creative Provocateur",
       "category": "specialist",
-      "schedule": {
-        "day": "wednesday",
-        "frequency": "biweekly-odd",
-        "projectProfiles": [
-          "core"
-        ]
-      },
+      "schedule": null,
+      "note": "Moved to on-demand 2026-04-13. Was biweekly-odd Wednesday. Trigger via Command Center delegation.",
       "excludeProjects": [
         "gt-ops",
         "menu-autopilot",
@@ -412,13 +398,8 @@
       "id": "marketing-analyst",
       "name": "Marketing Analysis",
       "category": "specialist",
-      "schedule": {
-        "day": "wednesday",
-        "frequency": "biweekly-even",
-        "projectProfiles": [
-          "core"
-        ]
-      },
+      "schedule": null,
+      "note": "Moved to on-demand 2026-04-13. Was biweekly-even Wednesday. Trigger via Command Center delegation.",
       "excludeProjects": [
         "gt-ops",
         "menu-autopilot",

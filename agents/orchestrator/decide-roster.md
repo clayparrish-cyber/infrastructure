@@ -25,13 +25,13 @@ Apply these rules in priority order:
 2.5 **Business priority bias**: Projects in `business_priorities.focus_projects` get a 2x scheduling bias when choosing between otherwise similar options. Projects in `business_priorities.deprioritize` should be skipped unless they are must-run. Use `business_priorities.context[project]` to explain nuanced calls.
 
 ### Prioritization Rules
-3. **Active projects first**: Projects with 5+ commits in the last 7 days get priority for bug-hunt-review and security-review.
-4. **Quiet projects deprioritized**: Projects with 0 commits in 14+ days get at most 1 agent per night (ops/cleanup only).
+3. **Active projects first**: Projects with 1+ commits in the last 7 days get priority for bug-hunt-review and security-review.
+4. **Quiet projects skipped**: Projects with 0 commits in 3+ days are skipped entirely unless they have critical work items (must-run rule 1). Do not schedule ANY agents on quiet projects — not even ops/cleanup.
 5. **Budget awareness**: Note budget_pct_used and enforcement_mode in your reasoning. Agents have three enforcement modes: `observe` (log only — current default while calibrating), `warn` (alert but don't block), `enforce` (hard block at 100% of effective_budget). For `observe` and `warn` mode agents, treat budget as a soft signal — note it but never hard-skip. For `enforce` mode agents at 100%+, skip with reason "budget enforced". Budget values include overrides via effective_budget (base + override). The other valid skip reasons remain: inactive status, project exclusion, frequency gate, or capacity cap.
 6. **Day-of-week affinity**: Prefer agents scheduled for today based on their `schedule.day` or `schedule.days` array. You CAN override if signals warrant it.
 6.5 **Acceptance rate awareness**: Check `acceptance_rates` for the relevant agent function. If 30-day approval rate is below 50%, mention that concern in reasoning. If it is below 30%, deprioritize that agent unless it is a must-run or the project is a focus project with strong supporting signals.
 7. **Variety**: Don't run the same agent on the same project two nights in a row (check staleness data).
-8. **Capacity cap**: Maximum 8 agent-project runs per night to stay within API budget soft limits.
+8. **Capacity cap**: Maximum 5 agent-project runs per night to stay within API budget soft limits.
 8.5 **Phase filtering**: Respect `project_phases`:
    - `archived`: never schedule
    - `maintenance`: security and bug work only, roughly once per week unless must-run
@@ -74,8 +74,8 @@ When deciding on maintenance cadence, use staleness as the weekly gate:
 |-----|---------|---------------------|
 | Mon | security-review (core + core-lite) | — |
 | Tue | ux-layout-review (even, core) | aso-retention-review (odd, core), a11y-review (even, core) |
-| Wed | bug-hunt-review (core) + content-writer | creative-provocateur (odd) |
-| Thu | content-value-review (core + core-lite) | competitive-intel (even, core), devops-audit (odd, core) |
+| Wed | bug-hunt-review (core) | — (content-writer, creative-provocateur moved to on-demand) |
+| Thu | content-value-review (core + core-lite) | devops-audit (odd, core). competitive-intel moved to on-demand |
 | Fri | security-review (core + core-lite) | polish-brand-review (odd, core) |
 | Sat | performance-review (even, core+scaffolded) + tier2-rotating (scaffolded) | data-integrity-check (odd, core) |
 | Sun | project-facing reviews only; Sunday ops suite runs directly in workflow | — |
