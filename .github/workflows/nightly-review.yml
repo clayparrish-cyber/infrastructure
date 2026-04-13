@@ -1444,11 +1444,12 @@ jobs:
             echo "SKIP: strategic-portfolio-audit (week $WEEK_OF_MONTH, runs first Sunday only)"
           fi
 
-      - name: Run daily ops agents (credential check + daily brief)
+      - name: Run daily ops agents (combined)
         timeout-minutes: 30
         env:
           DATE: ${{ needs.setup.outputs.date }}
           DOW_NAME: ${{ needs.setup.outputs.dow_name }}
+          GH_PAT: ${{ steps.app-token-reconcile.outputs.token }}
         run: |
           WORKSPACE="${{ github.workspace }}"
           mkdir -p "$WORKSPACE/logs"
