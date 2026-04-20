@@ -48,6 +48,24 @@ jobs:
         working-directory: agents/lib
         run: npm ci
 
+      - name: Install root devDependencies (esbuild for cc bundle)
+        run: npm ci
+
+      - name: Verify cc bundle is fresh
+        # Managed Agents sessions clone the infra repo from GitHub and
+        # invoke scripts/cc/cc-bundled.js directly - they cannot npm-install
+        # inside the sandbox. If the bundle is stale relative to cc.ts or
+        # any of its imports, reviewer sessions will run outdated code.
+        # Rebuild and fail if git detects a diff, forcing devs to
+        # run `npm run build:cc` locally and commit the result.
+        run: |
+          npm run build:cc
+          if ! git diff --quiet -- scripts/cc/cc-bundled.js; then
+            echo "::error::scripts/cc/cc-bundled.js is stale. Run 'npm run build:cc' locally and commit the result."
+            git --no-pager diff --stat -- scripts/cc/cc-bundled.js
+            exit 1
+          fi
+
       - name: Generate GitHub App installation token
         id: app-token
         uses: actions/create-github-app-token@v1

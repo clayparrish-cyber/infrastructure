@@ -28,11 +28,19 @@ interface FakeReviewerClient extends ReviewerClient {
 
 function makeFakeClient(streamEvents: unknown[] = []): FakeReviewerClient {
   const calls: Call[] = [];
+  let uploadCounter = 0;
   const client: FakeReviewerClient = {
     calls,
     streamEvents,
     sessionId: 'sesn_reviewer_test_001',
     beta: {
+      files: {
+        upload: async (params) => {
+          calls.push({ method: 'files.upload', args: [params] });
+          uploadCounter += 1;
+          return { id: `file_test_${uploadCounter}` };
+        },
+      },
       sessions: {
         create: async (params) => {
           calls.push({ method: 'sessions.create', args: [params] });
@@ -234,11 +242,13 @@ test('runReviewer mounts both project and infra repos with correct paths', async
     const params = create.args[0] as {
       resources: Array<{
         type: string;
-        url: string;
-        authorization_token: string;
+        url?: string;
+        authorization_token?: string;
         mount_path: string;
+        file_id?: string;
       }>;
     };
+    // Without commandCenterApiKey, only the two repo mounts exist.
     assert.equal(params.resources.length, 2);
 
     const project = params.resources.find(
@@ -253,6 +263,95 @@ test('runReviewer mounts both project and infra repos with correct paths', async
     assert.equal(infra.mount_path, '/workspace/infra');
     assert.equal(project.authorization_token, 'ghs_faketoken');
     assert.equal(infra.authorization_token, 'ghs_faketoken');
+
+    // Without the key, no files.upload should have been called either.
+    const uploads = client.calls.filter((c) => c.method === 'files.upload');
+    assert.equal(uploads.length, 0);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('runReviewer uploads commandCenterApiKey and mounts it at /run/secrets/cc-api-key', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'reviewer-test-'));
+  try {
+    const client = makeFakeClient(makeEndTurnSequence(canonicalFinalMessage));
+    await runReviewer({
+      reviewerAgentId: 'agent_rev_abc',
+      envId: 'env_abc',
+      entry: ENTRY,
+      projectRepoUrl: 'https://github.com/clayparrish-cyber/sidelineiq',
+      authToken: 'ghs_faketoken',
+      dryRun: false,
+      client,
+      buildPrompt: async () => 'CANNED_PROMPT',
+      logsDir: tmp,
+      nowDate: '2026-04-09',
+      timeoutMs: 5_000,
+      commandCenterApiKey: 'cc_live_test_key_abc123',
+    });
+
+    // 1) files.upload must have been called exactly once with a File object.
+    const uploads = client.calls.filter((c) => c.method === 'files.upload');
+    assert.equal(uploads.length, 1);
+    const uploadParams = uploads[0].args[0] as {
+      file: File;
+      betas?: string[];
+    };
+    assert.ok(uploadParams.file instanceof File, 'upload payload should be a File');
+    assert.equal(uploadParams.file.name, 'cc-api-key');
+    assert.deepEqual(uploadParams.betas, ['files-api-2025-04-14']);
+
+    // The file contents should be the trimmed key (no trailing newlines).
+    const text = await uploadParams.file.text();
+    assert.equal(text, 'cc_live_test_key_abc123');
+
+    // 2) sessions.create must include a file resource mounted at the
+    //    canonical secret path, in addition to the two repo mounts.
+    const create = client.calls.find((c) => c.method === 'sessions.create');
+    assert.ok(create);
+    const params = create.args[0] as {
+      resources: Array<{
+        type: string;
+        file_id?: string;
+        mount_path: string;
+      }>;
+    };
+    assert.equal(params.resources.length, 3);
+    const secret = params.resources.find((r) => r.type === 'file');
+    assert.ok(secret, 'file resource should be present');
+    assert.equal(secret.mount_path, '/run/secrets/cc-api-key');
+    assert.equal(secret.file_id, 'file_test_1');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('runReviewer skips secret upload when commandCenterApiKey is empty/whitespace', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'reviewer-test-'));
+  try {
+    const client = makeFakeClient(makeEndTurnSequence(canonicalFinalMessage));
+    await runReviewer({
+      reviewerAgentId: 'agent_rev_abc',
+      envId: 'env_abc',
+      entry: ENTRY,
+      projectRepoUrl: 'https://github.com/clayparrish-cyber/sidelineiq',
+      authToken: 'ghs_faketoken',
+      dryRun: false,
+      client,
+      buildPrompt: async () => 'CANNED_PROMPT',
+      logsDir: tmp,
+      nowDate: '2026-04-09',
+      timeoutMs: 5_000,
+      commandCenterApiKey: '   \n  ',
+    });
+    const uploads = client.calls.filter((c) => c.method === 'files.upload');
+    assert.equal(uploads.length, 0);
+
+    const create = client.calls.find((c) => c.method === 'sessions.create');
+    assert.ok(create);
+    const params = create.args[0] as { resources: unknown[] };
+    assert.equal(params.resources.length, 2);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -449,6 +548,39 @@ test('countCcWiCreateInvocations ignores non-bash tool_use and non-matching comm
     },
     { type: 'agent.tool_use', name: 'bash', input: { command: 'cc wi create --title z' } },
     { type: 'agent.tool_use', name: 'bash', input: { command: 'cc.ts wi create --title q' } },
+  ];
+  assert.equal(countCcWiCreateInvocations(events), 2);
+});
+
+test('countCcWiCreateInvocations counts bundled-CLI invocations (cc-bundled.js)', () => {
+  // The reviewer system prompt now invokes the bundled CLI:
+  //   node /workspace/infra/scripts/cc/cc-bundled.js wi create ...
+  // The fallback counter must recognize this form too.
+  const events: unknown[] = [
+    {
+      type: 'agent.tool_use',
+      name: 'bash',
+      input: {
+        command:
+          'node /workspace/infra/scripts/cc/cc-bundled.js wi create --title "x" --project p',
+      },
+    },
+    {
+      type: 'agent.tool_use',
+      name: 'bash',
+      input: {
+        command:
+          'node /workspace/infra/scripts/cc/cc-bundled.js wi list',
+      },
+    },
+    {
+      type: 'agent.tool_use',
+      name: 'bash',
+      input: {
+        command:
+          'node /workspace/infra/scripts/cc/cc-bundled.js wi create --title "y"',
+      },
+    },
   ];
   assert.equal(countCcWiCreateInvocations(events), 2);
 });

@@ -470,6 +470,13 @@ export async function main(
             projectRepoUrl,
             authToken,
             dryRun: options.dryRun,
+            // SDK v0.87 sessions have no env-var field, so we upload the
+            // Command Center API key as an ephemeral session file and
+            // mount it at /run/secrets/cc-api-key. The cc CLI
+            // (scripts/cc/lib/client.ts) reads this fallback path when
+            // COMMAND_CENTER_API_KEY is not in process.env, which is
+            // always the case inside a Managed Agents container.
+            commandCenterApiKey: env.COMMAND_CENTER_API_KEY,
           });
 
           const durationMs = deps.now() - start;

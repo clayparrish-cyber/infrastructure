@@ -38,6 +38,39 @@ async function resolveId(client: ReturnType<typeof createClient>, shortId: strin
   return matches[0].id;
 }
 
+/**
+ * Parse the --metadata flag value into a plain JSON object.
+ *
+ * The reviewer system prompt instructs agents to attach severity, decision_category,
+ * files[], suggested_fix, and effort via `--metadata '<json>'` on every
+ * `cc wi create`. We keep this as a pure helper so the parsing rules are
+ * unit-testable without spinning up commander + fetch mocks.
+ *
+ * Returns:
+ *  - undefined if input is undefined (flag not provided)
+ *  - a validated object on success
+ * Throws:
+ *  - Error on invalid JSON
+ *  - Error when the parsed value is not a plain object (array, primitive, null)
+ */
+export function parseMetadataFlag(
+  raw: string | undefined,
+): Record<string, unknown> | undefined {
+  if (raw === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Invalid --metadata JSON: ${msg}`);
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const kind = Array.isArray(parsed) ? 'array' : parsed === null ? 'null' : typeof parsed;
+    throw new Error(`--metadata must be a JSON object (got ${kind})`);
+  }
+  return parsed as Record<string, unknown>;
+}
+
 async function resolveIds(client: ReturnType<typeof createClient>, ids: string[]): Promise<string[]> {
   const needsResolve = ids.some(id => id.length < UUID_LENGTH);
   if (!needsResolve) return ids;
@@ -130,10 +163,36 @@ export function registerWorkItems(program: Command) {
     .option('--source <source>', 'Source type: human, agent', 'human')
     .option('--assigned-to <who>', 'Assign to')
     .option('--created-by <who>', 'Created by', 'clay')
+    .option(
+      '--metadata <json>',
+      'Structured metadata as JSON object (e.g. \'{"severity":"high","files":["a.ts"]}\') — ' +
+        'used by nightly reviewers to attach severity, decision_category, files, ' +
+        'suggested_fix, and effort without stuffing them into the description.',
+    )
     .action(async (opts) => {
       try {
         const client = createClient(program.opts().url);
-        const body = {
+
+        // Parse --metadata JSON if provided. Must be a JSON object (not a
+        // primitive/array) so the server can merge it into the work_items
+        // metadata column without shape surprises. Fail loud on invalid
+        // JSON — silently dropping a reviewer's evidence payload is worse
+        // than a short error.
+        let metadata: Record<string, unknown> | undefined;
+        try {
+          metadata = parseMetadataFlag(opts.metadata);
+        } catch (parseErr) {
+          const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+          respondError(
+            'cc work-items create',
+            msg,
+            '400',
+            'Pass a valid JSON object, e.g. --metadata \'{"severity":"high"}\'',
+          );
+          return;
+        }
+
+        const body: Record<string, unknown> = {
           title: opts.title,
           description: opts.description,
           project: opts.project,
@@ -143,6 +202,7 @@ export function registerWorkItems(program: Command) {
           assigned_to: opts.assignedTo,
           created_by: opts.createdBy,
         };
+        if (metadata) body.metadata = metadata;
 
         const data = await client.post<CreateResponse>('/api/work-items', body);
 

@@ -32,6 +32,30 @@ import { getAnthropic } from './sdk.js';
 import { dumpTranscript, waitForIdle } from './session-stream.js';
 import type { RosterEntry, SessionUsage } from './types.js';
 
+/**
+ * Mount path inside the Managed Agents container where the nightly runner
+ * uploads COMMAND_CENTER_API_KEY as a session file. Kept in sync with
+ * `scripts/cc/lib/client.ts::DEFAULT_CC_API_KEY_SECRET_FILE`.
+ *
+ * Why a file and not an env var: Managed Agents SDK v0.87
+ * SessionCreateParams has NO `env`/`environment`/`secrets` field (verified
+ * 2026-04-09, see skill `anthropic-managed-agents-sdk-v087-gotchas`).
+ * Pre-fix, every `cc wi create` in a reviewer session died with
+ * "COMMAND_CENTER_API_KEY environment variable not set" (GHA run
+ * 24338556554 had 12/12 failures). This file-mount workaround keeps the
+ * secret (a) scoped to the session (auto-cleaned when the session is
+ * archived), (b) outside the mounted repo tree at /workspace/ so a
+ * confused reviewer cannot git-add it, and (c) transparent to the
+ * reviewer — the system prompt never sees the path; `cc-bundled.js`
+ * reads it via the fallback chain in createClient().
+ */
+export const CC_API_KEY_MOUNT_PATH = '/run/secrets/cc-api-key';
+
+// Betas header used only on the files.upload() call below. Files API has
+// its own beta gate, separate from the managed-agents beta that wraps
+// session create / events / archive.
+const FILES_API_BETA = 'files-api-2025-04-14';
+
 // ---------------------------------------------------------------------------
 // Betas — reviewer uses advisor tool, so advisor-tool beta is required.
 // ---------------------------------------------------------------------------
@@ -51,6 +75,12 @@ const INFRA_REPO_URL = 'https://github.com/clayparrish-cyber/infrastructure';
 
 export interface ReviewerClient {
   beta: {
+    files: {
+      upload: (
+        params: { file: unknown; betas?: readonly string[] },
+        options?: unknown,
+      ) => Promise<{ id: string }>;
+    };
     sessions: {
       create: (params: unknown) => Promise<{ id: string }>;
       archive: (
@@ -91,6 +121,15 @@ export interface RunReviewerOptions {
   authToken: string;
   /** When true, append a DRY RUN MODE trailer to the user message. */
   dryRun: boolean;
+  /**
+   * Command Center API key to expose to the reviewer's `cc wi create`
+   * invocations. Uploaded as an ephemeral session file and mounted at
+   * CC_API_KEY_MOUNT_PATH. If undefined, no secret file is mounted and
+   * `cc wi create` will fail inside the session — use this only in tests
+   * that explicitly want that failure mode. Nightly runner passes
+   * `process.env.COMMAND_CENTER_API_KEY`.
+   */
+  commandCenterApiKey?: string;
   /** Override the Anthropic client — tests inject a fake. */
   client?: ReviewerClient | Anthropic;
   /** Override the augmented-prompt builder — tests pass a canned string. */
@@ -172,9 +211,12 @@ const FINDINGS_COUNT_REGEX = /Wrote\s+(\d+)\s+findings?\b/i;
 // Bash tool invocations that write a work item are the structurally correct
 // signal for "how many findings the reviewer actually wrote." We scan the
 // session events for agent.tool_use events whose bash command contains
-// `cc wi create` (also matches `cc.ts wi create`), which is the exact
-// invocation the reviewer system prompt tells it to run.
-const CC_WI_CREATE_REGEX = /\bcc(?:\.ts)?\s+wi\s+create\b/;
+// any of the canonical cc invocations, which is the exact pattern the
+// reviewer system prompt tells the agent to run:
+//   - `cc wi create` (PATH-resolved binary, if Clay runs locally)
+//   - `cc.ts wi create` (legacy tsx-executed source, pre-bundle)
+//   - `cc-bundled.js wi create` (current Managed Agents session path)
+const CC_WI_CREATE_REGEX = /\bcc(?:\.ts|-bundled\.js)?\s+wi\s+create\b/;
 
 /**
  * Runs a single reviewer session. See the module docstring for the
@@ -194,7 +236,34 @@ export async function runReviewer(
     ? `${basePrompt}${DRY_RUN_TRAILER}`
     : basePrompt;
 
-  // 2. Create the session with both repos mounted.
+  // 2. Upload COMMAND_CENTER_API_KEY as an ephemeral file (if provided)
+  //    so the reviewer's `cc wi create` calls can authenticate. This is
+  //    the workaround for the missing per-session env-var capability in
+  //    SDK v0.87 — see CC_API_KEY_MOUNT_PATH comment above.
+  const secretResources: Array<{
+    type: 'file';
+    file_id: string;
+    mount_path: string;
+  }> = [];
+  if (opts.commandCenterApiKey && opts.commandCenterApiKey.trim() !== '') {
+    const keyFile = new File(
+      [opts.commandCenterApiKey.trim()],
+      'cc-api-key',
+      { type: 'text/plain' },
+    );
+    const uploaded = await client.beta.files.upload({
+      file: keyFile as unknown,
+      betas: [FILES_API_BETA],
+    });
+    secretResources.push({
+      type: 'file',
+      file_id: uploaded.id,
+      mount_path: CC_API_KEY_MOUNT_PATH,
+    });
+  }
+
+  // 3. Create the session with both repos + (optionally) the secret file
+  //    mounted.
   const session = await client.beta.sessions.create({
     agent: opts.reviewerAgentId,
     environment_id: opts.envId,
@@ -211,20 +280,21 @@ export async function runReviewer(
         authorization_token: opts.authToken,
         mount_path: '/workspace/infra',
       },
+      ...secretResources,
     ],
     betas: BETAS,
   });
   const sessionId = session.id;
 
   try {
-    // 3. Start streaming first — the idle promise subscribes its
+    // 4. Start streaming first — the idle promise subscribes its
     //    iterator before we await the send below.
     const idlePromise = waitForIdle(client as ReviewerClient, sessionId, {
       executorModel: 'claude-haiku-4-5',
       timeoutMs: opts.timeoutMs,
     });
 
-    // 4. Send the augmented prompt.
+    // 5. Send the augmented prompt.
     await client.beta.sessions.events.send(sessionId, {
       events: [
         {
@@ -235,10 +305,10 @@ export async function runReviewer(
       betas: BETAS,
     });
 
-    // 5. Await the idle gate.
+    // 6. Await the idle gate.
     const result = await idlePromise;
 
-    // 6. Dump transcript.
+    // 7. Dump transcript.
     const date = opts.nowDate ?? isoDate();
     const logsDir = opts.logsDir ?? defaultLogsDir();
     const transcriptPath = join(
@@ -247,7 +317,7 @@ export async function runReviewer(
     );
     dumpTranscript(result.events, transcriptPath);
 
-    // 7. Parse findings count. Primary: loose regex on the final message.
+    // 8. Parse findings count. Primary: loose regex on the final message.
     //    Fallback: count `cc wi create` tool-use invocations in the event
     //    stream (what the reviewer system prompt actually tells the agent
     //    to run per finding). This stays meaningful when the model

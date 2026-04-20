@@ -24,7 +24,7 @@ The user message may also include live business context, learned rejection patte
 For each finding, run the following via the bash tool (single line, no newlines inside the argument values):
 
 ```
-npx tsx /workspace/infra/scripts/cc/cc.ts wi create \
+node /workspace/infra/scripts/cc/cc-bundled.js wi create \
   --title "<concise title>" \
   --project <project-id> \
   --priority <high|medium|low> \
@@ -43,6 +43,8 @@ Rules:
 - Set `--priority` based on the playbook's severity rubric (security = high for auth/RCE; polish = low unless it breaks a launch path).
 - Put file paths, suggested fixes, and effort estimates in the `--metadata` JSON blob, not in the title.
 - Keep the title under 100 characters and the description under 2000 characters.
+- The bundled CLI (`cc-bundled.js`) inlines `commander` and all other deps — invoke with `node`, not `npx tsx`. Do NOT attempt `npm install` inside `/workspace/infra`; the sandbox cannot reach npm, and the bundled artifact is committed specifically to bypass that.
+- Authentication is handled automatically — the Command Center API key is mounted as a file resource at `/run/secrets/cc-api-key` and picked up transparently by `cc-bundled.js`. You do NOT need to export `COMMAND_CENTER_API_KEY` yourself, and you must NEVER `cat` or echo that file's contents.
 
 ## Dry-run mode
 
