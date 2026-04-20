@@ -10,16 +10,25 @@
  * IMPORTANT — session environment variables: the managed-agents SDK
  * v0.87 SessionCreateParams do NOT expose any way to pass env vars
  * into the container. There is no env or environment field on
- * create(). As a result, the GitHub token that the worker needs to
- * push a branch and open a PR must travel inside the initial user
- * message, and the worker system prompt tells it to extract the
- * token from a well-known marker instead of expecting GITHUB_TOKEN.
+ * create(). As a result the GitHub token that the worker needs for
+ * `git push` and the REST PR create call must be delivered via a
+ * mounted file — NOT via the user message body. The user message
+ * body is visible to the model, the advisor, and the session event
+ * transcript; any secret placed there is also persisted into
+ * logs/managed/*.json.
+ *
+ * Instead, we upload the token as a Files API file and mount it at
+ * `/workspace/.managed/github-token` (mode 0600 is enforced by the
+ * session filesystem; the file is only readable by the container
+ * root). The worker system prompt tells the agent to shell-read that
+ * file into a GITHUB_TOKEN env var at the start of its run and then
+ * use it normally for push + curl calls.
  *
  * The repo mount already uses the same token for git clone via
- * authorization_token on the github_repository resource — so at
- * minimum the clone and any fetch work without extra setup. It's
- * the push step that needs the explicit token, because the clone
- * origin URL uses a one-shot token that can expire before push.
+ * authorization_token on the github_repository resource — so clone
+ * and fetch work without extra setup. It's the push step (when the
+ * clone-origin one-shot token has expired) and the `curl` PR create
+ * call that need the explicit token.
  *
  * Final-message markers parsed by this driver:
  *
@@ -58,6 +67,12 @@ const BETAS = [
 
 export interface WorkerClient {
   beta: {
+    files: {
+      upload: (
+        params: { file: unknown },
+        options?: { betas?: readonly string[] },
+      ) => Promise<{ id: string }>;
+    };
     sessions: {
       create: (params: unknown) => Promise<{ id: string }>;
       archive: (
@@ -80,6 +95,12 @@ export interface WorkerClient {
     };
   };
 }
+
+// Canonical mount path for the GitHub token inside the session
+// container. The worker system prompt reads from this exact path, so it
+// is part of the driver↔prompt contract and should not be changed
+// without updating prompts/worker-system.md in lockstep.
+export const GITHUB_TOKEN_MOUNT_PATH = '/workspace/.managed/github-token';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -132,18 +153,32 @@ const PR_URL_REGEX = /===PR_URL_START===([\s\S]*?)===PR_URL_END===/;
 export async function runWorker(opts: RunWorkerOptions): Promise<WorkerResult> {
   const client = (opts.client ?? getAnthropic()) as WorkerClient;
 
-  // Build the user message. Inline the GitHub token with a marker so
-  // the worker system prompt can extract it deterministically.
+  // Upload the GitHub token as a Files API file so we can mount it into
+  // the session container at a known path. This keeps the token OUT of
+  // the user message body (which ends up in agent context, advisor
+  // context, and session transcripts on disk). The only place the
+  // token exists inside the session is the mounted file, which the
+  // agent reads into a shell env var and then uses for push + curl.
+  const tokenFile = new File([opts.authToken], 'github-token', {
+    type: 'text/plain',
+  });
+  const uploaded = await client.beta.files.upload(
+    { file: tokenFile },
+    { betas: BETAS },
+  );
+
+  // User message no longer contains any secrets. The worker system
+  // prompt tells the agent to source GITHUB_TOKEN from the mounted file.
   const userMessageText =
     `Work item: ${opts.workItem.title}\n\n` +
     `${opts.workItem.description}\n\n` +
     `Work item ID: ${opts.workItem.id}\n\n` +
-    `===GITHUB_TOKEN_START===${opts.authToken}===GITHUB_TOKEN_END===\n\n` +
-    `Implement this finding per your system prompt. The GitHub token ` +
-    `above is required for push and PR creation because session env ` +
-    `vars are not supported. Extract it from the marker block.`;
+    `Implement this finding per your system prompt. Read the GitHub ` +
+    `token from ${GITHUB_TOKEN_MOUNT_PATH} into a GITHUB_TOKEN env var ` +
+    `at the start of your shell work (see your system prompt for the ` +
+    `exact command), then use it for git push and the PR create curl.`;
 
-  // Create the session with the project repo mounted.
+  // Create the session with the project repo AND the token file mounted.
   const session = await client.beta.sessions.create({
     agent: opts.workerAgentId,
     environment_id: opts.envId,
@@ -153,6 +188,11 @@ export async function runWorker(opts: RunWorkerOptions): Promise<WorkerResult> {
         url: opts.projectRepoUrl,
         authorization_token: opts.authToken,
         mount_path: '/workspace/project',
+      },
+      {
+        type: 'file',
+        file_id: uploaded.id,
+        mount_path: GITHUB_TOKEN_MOUNT_PATH,
       },
     ],
     betas: BETAS,
@@ -234,8 +274,12 @@ export async function runWorker(opts: RunWorkerOptions): Promise<WorkerResult> {
   } finally {
     try {
       await client.beta.sessions.archive(sessionId, { betas: BETAS });
-    } catch {
-      // swallow — don't mask primary error
+    } catch (archiveErr) {
+      const m =
+        archiveErr instanceof Error ? archiveErr.message : String(archiveErr);
+      process.stderr.write(
+        `[worker] warn: archive failed for session ${sessionId}: ${m}\n`,
+      );
     }
   }
 }

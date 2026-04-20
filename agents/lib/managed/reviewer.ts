@@ -121,11 +121,60 @@ function defaultLogsDir(): string {
   return join(process.cwd(), 'logs', 'managed');
 }
 
+// Minimal event shape we look at for the tool-use fallback. The reviewer
+// runs the Command Center CLI via the session's bash tool; each call
+// surfaces as an `agent.tool_use` event with name="bash" and an `input`
+// object whose `command` string contains the full shell command.
+interface ToolUseEventLike {
+  type: 'agent.tool_use';
+  name?: string;
+  input?: { command?: string } & Record<string, unknown>;
+}
+
+function isToolUseEvent(e: unknown): e is ToolUseEventLike {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { type?: unknown }).type === 'agent.tool_use'
+  );
+}
+
+/**
+ * Counts the number of `cc wi create` invocations the reviewer executed
+ * during the session. This is the structurally correct signal for "how
+ * many work items were written" and replaces the fragile final-message
+ * regex when that regex misses. Matches both `cc wi create` and
+ * `cc.ts wi create` since the reviewer system prompt varies.
+ */
+export function countCcWiCreateInvocations(events: unknown[]): number {
+  let count = 0;
+  for (const ev of events) {
+    if (!isToolUseEvent(ev)) continue;
+    const name = ev.name ?? '';
+    if (name !== 'bash') continue;
+    const cmd = typeof ev.input?.command === 'string' ? ev.input.command : '';
+    if (CC_WI_CREATE_REGEX.test(cmd)) count += 1;
+  }
+  return count;
+}
+
 const DRY_RUN_TRAILER =
   '\n\n---\n\nDRY RUN MODE: append --metadata dryrun=true to every ' +
   'cc wi create call and prefix decision_category with dryrun-.';
 
-const FINDINGS_COUNT_REGEX = /Wrote (\d+) findings?\./;
+// Loosened from the original strict `Wrote (\d+) findings?\.` contract: we
+// now accept optional surrounding whitespace/punctuation and case-insensitive
+// matching so minor paraphrasing by the reviewer model doesn't silently
+// drop findingsCount to 0. If the regex still misses, we fall back to
+// counting `cc wi create` bash invocations in the session event stream.
+const FINDINGS_COUNT_REGEX = /Wrote\s+(\d+)\s+findings?\b/i;
+
+// Bash tool invocations that write a work item are the structurally correct
+// signal for "how many findings the reviewer actually wrote." We scan the
+// session events for agent.tool_use events whose bash command contains
+// `cc wi create` (also matches `cc.ts wi create`), which is the exact
+// invocation the reviewer system prompt tells it to run.
+const CC_WI_CREATE_REGEX = /\bcc(?:\.ts)?\s+wi\s+create\b/;
 
 /**
  * Runs a single reviewer session. See the module docstring for the
@@ -198,17 +247,33 @@ export async function runReviewer(
     );
     dumpTranscript(result.events, transcriptPath);
 
-    // 7. Parse findings count from the final message.
+    // 7. Parse findings count. Primary: loose regex on the final message.
+    //    Fallback: count `cc wi create` tool-use invocations in the event
+    //    stream (what the reviewer system prompt actually tells the agent
+    //    to run per finding). This stays meaningful when the model
+    //    paraphrases or drops the marker line.
     const match = FINDINGS_COUNT_REGEX.exec(result.finalMessage);
     let findingsCount = 0;
     if (match && match[1]) {
       findingsCount = Number.parseInt(match[1], 10);
     } else {
-      process.stderr.write(
-        `[reviewer] warning: no "Wrote N findings." marker in final message ` +
-          `for ${opts.entry.agent_id}/${opts.entry.project}. ` +
-          `Defaulting findingsCount to 0. Transcript: ${transcriptPath}\n`,
-      );
+      const fallback = countCcWiCreateInvocations(result.events);
+      if (fallback > 0) {
+        findingsCount = fallback;
+        process.stderr.write(
+          `[reviewer] info: "Wrote N findings" marker missing for ` +
+            `${opts.entry.agent_id}/${opts.entry.project}; using ` +
+            `cc-wi-create tool-use fallback (count=${fallback}). ` +
+            `Transcript: ${transcriptPath}\n`,
+        );
+      } else {
+        process.stderr.write(
+          `[reviewer] warning: no "Wrote N findings" marker AND no ` +
+            `cc wi create tool invocations observed for ` +
+            `${opts.entry.agent_id}/${opts.entry.project}. ` +
+            `Defaulting findingsCount to 0. Transcript: ${transcriptPath}\n`,
+        );
+      }
     }
 
     return {
@@ -219,8 +284,15 @@ export async function runReviewer(
   } finally {
     try {
       await client.beta.sessions.archive(sessionId, { betas: BETAS });
-    } catch {
-      // swallow — don't mask primary error
+    } catch (archiveErr) {
+      // Don't mask the primary error by re-throwing, but do surface
+      // the archive failure to stderr so reap-sessions.ts + CI logs
+      // have a breadcrumb. Silent swallow was hiding reaper work.
+      const m =
+        archiveErr instanceof Error ? archiveErr.message : String(archiveErr);
+      process.stderr.write(
+        `[reviewer] warn: archive failed for session ${sessionId}: ${m}\n`,
+      );
     }
   }
 }

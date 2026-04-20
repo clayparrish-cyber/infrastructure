@@ -17,7 +17,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -228,11 +228,36 @@ function fetchProjectPhases(): Record<string, string> {
 async function main() {
   const signals: Record<string, unknown> = {};
 
-  // 1. Git activity
+  // 1. Git activity. Resolve the scanner path in this order:
+  //    1. SCANNER_PATH env var (explicit override for tests)
+  //    2. <this file's directory>/git-activity-scanner.sh — the canonical
+  //       in-repo location. Works locally AND in CI (GitHub Actions
+  //       runners don't have ~/.claude/agents/lib populated).
+  //    3. ~/.claude/agents/lib/git-activity-scanner.sh — legacy fallback
+  //       for local dev setups that historically kept the scanner under
+  //       the home directory.
   try {
-    const scannerPath = process.env.SCANNER_PATH
-      || path.join(process.env.HOME || '', '.claude', 'agents', 'lib', 'git-activity-scanner.sh');
-    const gitOutput = execSync(`bash "${scannerPath}"`, { encoding: 'utf-8', timeout: 30000 });
+    const candidates: string[] = [];
+    if (process.env.SCANNER_PATH) candidates.push(process.env.SCANNER_PATH);
+    candidates.push(path.join(SCRIPT_DIR, 'git-activity-scanner.sh'));
+    if (process.env.HOME) {
+      candidates.push(
+        path.join(process.env.HOME, '.claude', 'agents', 'lib', 'git-activity-scanner.sh'),
+      );
+    }
+    const scannerPath = candidates.find((p) => fs.existsSync(p));
+    if (!scannerPath) {
+      throw new Error(
+        `git-activity-scanner.sh not found in any of: ${candidates.join(', ')}`,
+      );
+    }
+    // Use execFileSync with argv array to avoid any shell-interpretation
+    // of the scanner path (no spaces in ours today, but the contract is
+    // cleaner and ShellCheck-clean).
+    const gitOutput = execFileSync('bash', [scannerPath], {
+      encoding: 'utf-8',
+      timeout: 30000,
+    });
     signals.git_activity = JSON.parse(gitOutput);
   } catch (err) {
     console.error('Git scanner failed, using empty data:', err);

@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runWorker, type WorkerClient } from '../worker.js';
+import {
+  runWorker,
+  GITHUB_TOKEN_MOUNT_PATH,
+  type WorkerClient,
+} from '../worker.js';
 
 // ---------------------------------------------------------------------------
 // Fake client
@@ -27,6 +31,12 @@ function makeFakeClient(streamEvents: unknown[] = []): FakeWorkerClient {
     streamEvents,
     sessionId: 'sesn_worker_test_001',
     beta: {
+      files: {
+        upload: async (params, options) => {
+          calls.push({ method: 'files.upload', args: [params, options] });
+          return { id: 'file_token_stub_001' };
+        },
+      },
       sessions: {
         create: async (params) => {
           calls.push({ method: 'sessions.create', args: [params] });
@@ -212,7 +222,7 @@ test('runWorker throws when no terminal markers are emitted at all', async () =>
   }
 });
 
-test('runWorker passes the GitHub token inside the user message marker', async () => {
+test('runWorker keeps the GitHub token OUT of the user message body', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'worker-test-'));
   try {
     const finalText =
@@ -231,14 +241,43 @@ test('runWorker passes the GitHub token inside the user message marker', async (
       }>;
     };
     const text = sendArgs.events[0]?.content[0]?.text ?? '';
-    assert.match(text, /===GITHUB_TOKEN_START===ghs_faketoken===GITHUB_TOKEN_END===/);
+    // Token MUST NOT appear in the user message body.
+    assert.doesNotMatch(text, /ghs_faketoken/);
+    assert.doesNotMatch(text, /GITHUB_TOKEN_START/);
+    // But the work item shape and the instruction to read the token from
+    // the mounted file path must still be present.
     assert.match(text, /Work item: Add CSRF token to \/api\/checkout/);
+    assert.match(text, new RegExp(GITHUB_TOKEN_MOUNT_PATH.replace(/\//g, '\\/')));
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('runWorker mounts project repo with authorization_token', async () => {
+test('runWorker uploads the GitHub token as a file and mounts it', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'worker-test-'));
+  try {
+    const finalText =
+      '===BRANCH_NAME_START===fix/x===BRANCH_NAME_END===\n' +
+      '===PR_URL_START===https://github.com/foo/bar/pull/1===PR_URL_END===';
+    const client = makeFakeClient(makeEndTurnSequence(finalText));
+
+    await runWorker({ ...BASE_OPTS, client, logsDir: tmp });
+
+    // files.upload must be called exactly once, with the token as the
+    // file body (so the session container reads the token from the
+    // mounted file rather than the message context).
+    const uploads = client.calls.filter((c) => c.method === 'files.upload');
+    assert.equal(uploads.length, 1);
+    const uploadArgs = uploads[0]?.args[0] as { file: File };
+    assert.ok(uploadArgs.file instanceof File);
+    const tokenBody = await uploadArgs.file.text();
+    assert.equal(tokenBody, 'ghs_faketoken');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('runWorker mounts project repo + token file with correct shapes', async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'worker-test-'));
   try {
     const finalText =
@@ -253,19 +292,24 @@ test('runWorker mounts project repo with authorization_token', async () => {
     const params = create.args[0] as {
       resources: Array<{
         type: string;
-        url: string;
-        authorization_token: string;
+        url?: string;
+        file_id?: string;
+        authorization_token?: string;
         mount_path: string;
       }>;
     };
-    assert.equal(params.resources.length, 1);
-    assert.equal(params.resources[0]?.type, 'github_repository');
-    assert.equal(
-      params.resources[0]?.url,
-      'https://github.com/clayparrish-cyber/sidelineiq',
-    );
-    assert.equal(params.resources[0]?.authorization_token, 'ghs_faketoken');
-    assert.equal(params.resources[0]?.mount_path, '/workspace/project');
+    assert.equal(params.resources.length, 2);
+
+    const repo = params.resources.find((r) => r.type === 'github_repository');
+    assert.ok(repo, 'project repo should be mounted');
+    assert.equal(repo.url, 'https://github.com/clayparrish-cyber/sidelineiq');
+    assert.equal(repo.authorization_token, 'ghs_faketoken');
+    assert.equal(repo.mount_path, '/workspace/project');
+
+    const tokenFile = params.resources.find((r) => r.type === 'file');
+    assert.ok(tokenFile, 'token file should be mounted');
+    assert.equal(tokenFile.file_id, 'file_token_stub_001');
+    assert.equal(tokenFile.mount_path, GITHUB_TOKEN_MOUNT_PATH);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

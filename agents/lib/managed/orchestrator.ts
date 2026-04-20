@@ -197,13 +197,17 @@ export async function runOrchestrator(
     return roster;
   } finally {
     // Always archive — session zombies are expensive per the plan's
-    // risk matrix. If archive itself throws, we swallow the error
-    // because the caller already knows about the primary failure.
+    // risk matrix. If archive itself throws, log a breadcrumb but do
+    // not re-throw (would mask the primary error). reap-sessions.ts is
+    // still the backstop for any zombies left behind.
     try {
       await client.beta.sessions.archive(sessionId, { betas: BETAS });
-    } catch {
-      // intentional: don't mask the primary error with a secondary
-      // archive failure. reap-sessions.ts catches any zombies later.
+    } catch (archiveErr) {
+      const m =
+        archiveErr instanceof Error ? archiveErr.message : String(archiveErr);
+      process.stderr.write(
+        `[orchestrator] warn: archive failed for session ${sessionId}: ${m}\n`,
+      );
     }
   }
 }

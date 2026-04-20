@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runReviewer, type ReviewerClient } from '../reviewer.js';
+import {
+  runReviewer,
+  countCcWiCreateInvocations,
+  type ReviewerClient,
+} from '../reviewer.js';
 import type { RosterEntry } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -317,6 +321,136 @@ test('runReviewer dumps transcript to logs/managed/{date}-{agent}-{project}-sess
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+});
+
+test('runReviewer parses findingsCount from loosened marker (case/punct)', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'reviewer-test-'));
+  try {
+    // No trailing period, capital letters, extra whitespace — original
+    // strict regex would fall through; loosened regex should catch it.
+    const client = makeFakeClient(
+      makeEndTurnSequence('Summary: Reviewed X. wrote   7 findings today'),
+    );
+    const result = await runReviewer({
+      reviewerAgentId: 'agent_rev_abc',
+      envId: 'env_abc',
+      entry: ENTRY,
+      projectRepoUrl: 'https://github.com/clayparrish-cyber/sidelineiq',
+      authToken: 'ghs_faketoken',
+      dryRun: false,
+      client,
+      buildPrompt: async () => 'CANNED_PROMPT',
+      logsDir: tmp,
+      nowDate: '2026-04-09',
+      timeoutMs: 5_000,
+    });
+    assert.equal(result.findingsCount, 7);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('runReviewer falls back to cc-wi-create tool-use count when marker absent', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'reviewer-test-'));
+  try {
+    // Simulate two real `cc wi create` bash tool uses in the session
+    // transcript, with an unrelated bash call and a non-bash tool mixed
+    // in. The final message has NO marker, so the fallback path runs.
+    const events: unknown[] = [
+      { id: 'e1', type: 'session.status_running', processed_at: 't0' },
+      {
+        id: 't-unrelated',
+        type: 'agent.tool_use',
+        name: 'bash',
+        input: { command: 'ls -la' },
+        processed_at: 't0.5',
+      },
+      {
+        id: 't1',
+        type: 'agent.tool_use',
+        name: 'bash',
+        input: {
+          command:
+            'npx tsx /workspace/infra/scripts/cc/cc.ts wi create --title "x"',
+        },
+        processed_at: 't1',
+      },
+      {
+        id: 't2',
+        type: 'agent.tool_use',
+        name: 'bash',
+        input: {
+          command: 'cc wi create --title "y" --priority medium',
+        },
+        processed_at: 't1.1',
+      },
+      {
+        id: 't-other-tool',
+        type: 'agent.tool_use',
+        name: 'str_replace_editor',
+        input: { command: 'cc wi create in a file, not executed' },
+        processed_at: 't1.2',
+      },
+      {
+        id: 'e2',
+        type: 'agent.message',
+        processed_at: 't2',
+        content: [{ type: 'text', text: 'Done, but did not say the marker.' }],
+      },
+      {
+        id: 'e3',
+        type: 'span.model_request_end',
+        processed_at: 't3',
+        is_error: false,
+        model_request_start_id: 'e0',
+        model_usage: {
+          input_tokens: 1_000,
+          output_tokens: 500,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+      {
+        id: 'e4',
+        type: 'session.status_idle',
+        processed_at: 't4',
+        stop_reason: { type: 'end_turn' },
+      },
+    ];
+    const client = makeFakeClient(events);
+    const result = await runReviewer({
+      reviewerAgentId: 'agent_rev_abc',
+      envId: 'env_abc',
+      entry: ENTRY,
+      projectRepoUrl: 'https://github.com/clayparrish-cyber/sidelineiq',
+      authToken: 'ghs_faketoken',
+      dryRun: false,
+      client,
+      buildPrompt: async () => 'CANNED_PROMPT',
+      logsDir: tmp,
+      nowDate: '2026-04-09',
+      timeoutMs: 5_000,
+    });
+    assert.equal(result.findingsCount, 2);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('countCcWiCreateInvocations ignores non-bash tool_use and non-matching commands', () => {
+  const events: unknown[] = [
+    { type: 'agent.message', content: [{ type: 'text', text: 'hi' }] },
+    { type: 'agent.tool_use', name: 'bash', input: { command: 'ls' } },
+    { type: 'agent.tool_use', name: 'bash', input: { command: 'cc wi list' } },
+    {
+      type: 'agent.tool_use',
+      name: 'str_replace_editor',
+      input: { command: 'cc wi create not executed' },
+    },
+    { type: 'agent.tool_use', name: 'bash', input: { command: 'cc wi create --title z' } },
+    { type: 'agent.tool_use', name: 'bash', input: { command: 'cc.ts wi create --title q' } },
+  ];
+  assert.equal(countCcWiCreateInvocations(events), 2);
 });
 
 test('runReviewer defaults findingsCount to 0 when marker is missing', async () => {

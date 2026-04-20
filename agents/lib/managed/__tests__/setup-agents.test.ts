@@ -1,24 +1,68 @@
-import { test, afterEach } from 'node:test';
+import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { setupAllWithClient, loadAgentIds, saveAgentIds } from '../setup-agents.js';
 
-// Reset both JSON state files after each test so subsequent runs and git
-// working tree stay clean. Matches the pattern in agent-ids.test.ts.
+// Snapshot + restore both JSON state files so running the test suite from
+// a clean checkout does not wipe the committed agent IDs. See CC work
+// item 33cd84cb. Each test starts from a known-empty state and the
+// committed contents are restored in the after() hook.
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const MANAGED_DIR = join(TEST_DIR, '..');
 const AGENT_IDS_PATH = join(MANAGED_DIR, 'agent-ids.json');
 const ENV_ID_PATH = join(MANAGED_DIR, 'env-id.json');
+
+interface Snapshot {
+  existed: boolean;
+  contents: string;
+}
+
+function snapshot(path: string): Snapshot {
+  if (!existsSync(path)) return { existed: false, contents: '' };
+  return { existed: true, contents: readFileSync(path, 'utf8') };
+}
+
+function restore(path: string, snap: Snapshot): void {
+  if (snap.existed) {
+    writeFileSync(path, snap.contents, 'utf8');
+  } else {
+    writeFileSync(path, '{}\n', 'utf8');
+  }
+}
 
 function resetFiles(): void {
   writeFileSync(AGENT_IDS_PATH, '{}\n', 'utf8');
   writeFileSync(ENV_ID_PATH, '{}\n', 'utf8');
 }
 
-afterEach(() => {
+let agentIdsSnapshot: Snapshot;
+let envIdSnapshot: Snapshot;
+
+before(() => {
+  agentIdsSnapshot = snapshot(AGENT_IDS_PATH);
+  envIdSnapshot = snapshot(ENV_ID_PATH);
+});
+
+beforeEach(() => {
   resetFiles();
+});
+
+afterEach(() => {
+  try {
+    resetFiles();
+  } catch {
+    // swallow — after() handles the final restore
+  }
+});
+
+after(() => {
+  try {
+    restore(AGENT_IDS_PATH, agentIdsSnapshot);
+  } finally {
+    restore(ENV_ID_PATH, envIdSnapshot);
+  }
 });
 
 // ---------------------------------------------------------------------------

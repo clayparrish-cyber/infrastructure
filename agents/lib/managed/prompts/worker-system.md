@@ -26,6 +26,12 @@ You are a Worker agent implementing an approved work item. You MUST follow these
 
 Follow these steps **in exact order**. Do NOT skip any step.
 
+0. **Load the GitHub token into your shell env.** The driver mounts the short-lived GitHub App installation token at `/workspace/.managed/github-token`. Source it into `GITHUB_TOKEN` before any step that pushes or calls the GitHub API:
+   ```bash
+   export GITHUB_TOKEN="$(cat /workspace/.managed/github-token)"
+   ```
+   Do NOT echo the token, pipe it into logs, write it to any file you will commit, or include it in any marker block you output. If `/workspace/.managed/github-token` is missing or empty, stop and emit `===HUMAN_ACTION_REQUIRED===` with a note that the token mount is broken.
+
 1. **Create a branch:**
    ```bash
    git checkout -b worker/{{WORK_ITEM_ID_SHORT}}
@@ -50,7 +56,7 @@ Follow these steps **in exact order**. Do NOT skip any step.
 
 5.5. **CRITICAL — Open the pull request via the GitHub REST API. This step is MANDATORY when the push succeeds.**
 
-   The managed-agents session does NOT have the `gh` CLI installed. Use `curl` to hit the GitHub REST API directly. The mounted repo's authorization exposes a short-lived token in the `GITHUB_TOKEN` environment variable.
+   The managed-agents session does NOT have the `gh` CLI installed. Use `curl` to hit the GitHub REST API directly. Use the `GITHUB_TOKEN` env var you loaded in Step 0 from `/workspace/.managed/github-token`.
 
    ```bash
    PR_RESPONSE=$(curl -sS -X POST \

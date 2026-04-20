@@ -230,6 +230,14 @@ export async function waitForIdle(
   });
   const stream = await Promise.resolve(maybeStream);
 
+  // Grab the iterator explicitly so we can call .return() in the finally
+  // block. Without this, a timeout (or a terminated/retries_exhausted
+  // throw) would leak the underlying HTTP stream until GC. See CC
+  // finding 307376c8 (Batch B review pass).
+  const iterator = (stream as AsyncIterable<unknown>)[
+    Symbol.asyncIterator
+  ]();
+
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeoutHandle = setTimeout(() => {
@@ -242,7 +250,14 @@ export async function waitForIdle(
   });
 
   const drainPromise = (async (): Promise<SessionWaitResult> => {
-    for await (const event of stream as AsyncIterable<unknown>) {
+    // Manually iterate using the iterator we grabbed above so the
+    // finally block can close the SDK stream. Using `for await ... of
+    // stream` directly would hide the iterator handle and defeat
+    // cleanup.
+    while (true) {
+      const step = await iterator.next();
+      if (step.done) break;
+      const event = step.value;
       events.push(event);
 
       if (isAgentMessage(event)) {
@@ -307,6 +322,19 @@ export async function waitForIdle(
   } finally {
     if (timeoutHandle !== null) {
       clearTimeout(timeoutHandle);
+    }
+    // Close the SDK stream on every exit path — happy path, throw path,
+    // and timeout path. Without this, a timeout leaves the underlying
+    // fetch response body open until GC, which matters for long-lived
+    // nightly processes running many sessions sequentially.
+    try {
+      if (typeof iterator.return === 'function') {
+        await iterator.return(undefined);
+      }
+    } catch {
+      // swallow — stream may already be closed or the SDK may not
+      // support cancellation; either way, the primary result/error
+      // should not be masked by a cleanup failure.
     }
   }
 }
