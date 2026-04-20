@@ -47,6 +47,7 @@ import {
   type UpsertAgentStateParams,
   type LogAgentActivityParams,
   type SupabaseWriterClient,
+  type AgentRunHistoryRow,
 } from './supabase-writer.js';
 import type { Roster } from './types.js';
 
@@ -180,6 +181,14 @@ export async function mintGithubAppToken(_repoUrl: string): Promise<string> {
 }
 
 /**
+ * Canonical column name for the agent_runs_v2 started-at timestamp.
+ * Pulled out as a constant so a rename at the DB layer fails loudly in
+ * one place (here) rather than silently returning an empty history set
+ * from the `.gte()` call below. — CC d368a643 sub-item 1.
+ */
+export const AGENT_RUNS_STARTED_AT_COLUMN = 'started_at';
+
+/**
  * Estimates the USD spend for a given roster based on the last 7 days
  * of agent_runs_v2. For each entry we look up the average cost of
  * (agent_id, project) pairs in history; if no history exists, we fall
@@ -209,27 +218,26 @@ export async function estimateSpend(
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   let rows: Array<{ agent_id: string; project: string; cost_estimate: number }> = [];
   try {
-    // Supabase's real client exposes .from(table).select(cols).gte(...),
-    // but our narrow SupabaseWriterClient only models insert/upsert/select(...).
-    // We escape to `any` here because the real client supports the chain
-    // and this helper is glue code for the cron path, not a hot loop.
-    const anyClient = supabase as unknown as {
-      from: (t: string) => {
-        select: (c: string) => {
-          gte: (col: string, val: string) => Promise<{
-            data:
-              | Array<{ agent_id: string; project: string; cost_estimate: number | null }>
-              | null;
-            error: unknown;
-          }>;
-        };
-      };
-    };
-    const { data } = await anyClient
-      .from('agent_runs_v2')
-      .select('agent_id, project, cost_estimate')
-      .gte('started_at', sevenDaysAgo.toISOString());
-    rows = (data ?? [])
+    // SupabaseWriterTable now exposes an optional .gte() terminal that
+    // matches the real Supabase client's chain shape, so this helper no
+    // longer needs an `any` escape. If the underlying client or test
+    // fake doesn't implement .gte(), we fall through to the per-entry
+    // fallback below via the catch block.
+    const select = supabase.from('agent_runs_v2').select(
+      `agent_id, project, cost_estimate`,
+    );
+    if (typeof select.gte !== 'function') {
+      throw new Error(
+        'Supabase client select chain does not expose .gte() — ' +
+          'cannot query agent_runs_v2 history for spend estimate',
+      );
+    }
+    const { data } = await select.gte(
+      AGENT_RUNS_STARTED_AT_COLUMN,
+      sevenDaysAgo.toISOString(),
+    );
+    const raw: AgentRunHistoryRow[] = data ?? [];
+    rows = raw
       .filter((r) => r.cost_estimate !== null && r.cost_estimate !== undefined)
       .map((r) => ({
         agent_id: r.agent_id,
@@ -392,6 +400,28 @@ export async function main(
     return 0;
   }
 
+  // Enforce the (agent_id, project) uniqueness invariant that
+  // supabase-writer.ts::upsertAgentState relies on. The orchestrator is
+  // instructed to emit at most one entry per pair today, but the
+  // run_summaries rolling-window is read-modify-write, so two parallel
+  // reviewers for the same pair would silently clobber one history
+  // entry. See CC 97e958e6 and the CONCURRENCY INVARIANT comment in
+  // supabase-writer.ts.
+  const seenPairs = new Set<string>();
+  const duplicates: string[] = [];
+  for (const entry of roster.roster) {
+    const key = `${entry.agent_id}|${entry.project}`;
+    if (seenPairs.has(key)) duplicates.push(key);
+    seenPairs.add(key);
+  }
+  if (duplicates.length > 0) {
+    deps.logger.error(
+      `[${date}] INVARIANT VIOLATION: orchestrator produced duplicate (agent_id, project) roster entries: ${duplicates.join(', ')}. ` +
+        `Parallel upsertAgentState calls for the same pair would race and corrupt the rolling run_summaries window. Aborting.`,
+    );
+    return 1;
+  }
+
   // 4. Budget guardrail.
   const estimate = await deps.estimateSpend(roster);
   const cap = env.MANAGED_AGENTS_MAX_SPEND_USD;
@@ -410,14 +440,29 @@ export async function main(
   const concurrency = options.concurrency ?? env.MANAGED_AGENTS_CONCURRENCY;
   const limit = pLimit(concurrency);
 
+  // Per-step tagging: a silent corruption in upsertAgentState (rolling
+  // run_summaries history) would otherwise look identical to a reviewer
+  // session timeout in the summary log. Tagging lets CI triage tell which
+  // subsystem to investigate. — CC 195620b7.
+  type FailStep =
+    | 'resolve-repo'
+    | 'mint-token'
+    | 'reviewer'
+    | 'run-write'
+    | 'state-upsert'
+    | 'activity-log';
+
   const results = await Promise.all(
     roster.roster.map((entry) =>
       limit(async () => {
         const start = deps.now();
+        let step: FailStep = 'resolve-repo';
         try {
           const projectRepoUrl = deps.resolveProjectRepoUrl(entry.project);
+          step = 'mint-token';
           const authToken = await deps.mintGithubAppToken(projectRepoUrl);
 
+          step = 'reviewer';
           const result = await deps.runReviewer({
             reviewerAgentId: setup.reviewerId,
             envId: setup.envId,
@@ -429,6 +474,7 @@ export async function main(
 
           const durationMs = deps.now() - start;
 
+          step = 'run-write';
           await deps.writeAgentRun({
             agentId: entry.agent_id,
             project: entry.project,
@@ -442,6 +488,7 @@ export async function main(
             durationMs,
           });
 
+          step = 'state-upsert';
           await deps.upsertAgentState({
             agentId: entry.agent_id,
             project: entry.project,
@@ -454,6 +501,7 @@ export async function main(
             activeFindingIds: [],
           });
 
+          step = 'activity-log';
           await deps.logAgentActivity({
             agentId: entry.agent_id,
             project: entry.project,
@@ -475,12 +523,13 @@ export async function main(
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           deps.logger.error(
-            `[${date}] REVIEWER FAILED: ${entry.agent_id}@${entry.project}: ${msg}`,
+            `[${date}] REVIEWER FAILED [step=${step}]: ${entry.agent_id}@${entry.project}: ${msg}`,
           );
           return {
             ok: false as const,
             entry,
             error: msg,
+            step,
           };
         }
       }),
@@ -497,9 +546,28 @@ export async function main(
   // 7. Summary.
   const succeeded = results.filter((r) => r.ok).length;
   const failed = results.length - succeeded;
-  deps.logger.info(
-    `[${date}] SUMMARY: ${succeeded} succeeded, ${failed} failed, ${results.length} total`,
-  );
+
+  if (failed > 0) {
+    // Break down failures by step so CI triage can tell at a glance
+    // whether the issue is the reviewer session, Supabase writes, or
+    // state-upsert corruption risk.
+    const byStep = new Map<string, number>();
+    for (const r of results) {
+      if (!r.ok) {
+        byStep.set(r.step, (byStep.get(r.step) ?? 0) + 1);
+      }
+    }
+    const breakdown = [...byStep.entries()]
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ');
+    deps.logger.info(
+      `[${date}] SUMMARY: ${succeeded} succeeded, ${failed} failed (${breakdown}), ${results.length} total`,
+    );
+  } else {
+    deps.logger.info(
+      `[${date}] SUMMARY: ${succeeded} succeeded, 0 failed, ${results.length} total`,
+    );
+  }
 
   return failed > 0 ? 1 : 0;
 }

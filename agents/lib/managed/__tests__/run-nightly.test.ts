@@ -289,3 +289,69 @@ test('main: empty roster exits 0 without calling reviewer', async () => {
   assert.equal(code, 0);
   assert.equal(calls.filter((c) => c.name === 'runReviewer').length, 0);
 });
+
+test('main: duplicate (agent_id, project) roster entries abort with exit 1', async () => {
+  // Invariant enforcement from CC 97e958e6: parallel upsertAgentState
+  // for the same (agent, project) pair races on the rolling
+  // run_summaries window. Duplicate roster entries must be rejected.
+  const dupeRoster: Roster = {
+    roster: [ENTRY_A, ENTRY_A],
+    skipped: [],
+    signals_summary: '',
+  };
+  const { deps, calls } = makeDeps({
+    runOrchestrator: async () => dupeRoster,
+  });
+  const code = await main(BASE_OPTS, deps);
+  assert.equal(code, 1);
+  // Must abort before any reviewer runs.
+  assert.equal(calls.filter((c) => c.name === 'runReviewer').length, 0);
+  assert.equal(calls.filter((c) => c.name === 'writeAgentRun').length, 0);
+  // Error log must surface the invariant violation.
+  const errs = calls.filter((c) => c.name === 'log.error');
+  const hitInvariant = errs.some((c) =>
+    (c.args[0] as string)?.includes('INVARIANT VIOLATION'),
+  );
+  assert.ok(hitInvariant, 'error log should flag invariant violation');
+});
+
+test('main: reviewer step failure is tagged with step=reviewer in error log', async () => {
+  // CC 195620b7: per-reviewer error logs must tag which downstream
+  // step failed so CI triage can tell runReviewer timeouts apart from
+  // silent upsertAgentState corruption.
+  const { deps, calls } = makeDeps({
+    runReviewer: async () => {
+      throw new Error('reviewer boom');
+    },
+  });
+  const code = await main(BASE_OPTS, deps);
+  assert.equal(code, 1);
+  const errs = calls.filter((c) => c.name === 'log.error');
+  const tagged = errs.some((c) =>
+    (c.args[0] as string)?.includes('[step=reviewer]'),
+  );
+  assert.ok(tagged, 'error log must tag step=reviewer');
+});
+
+test('main: state-upsert failure is tagged with step=state-upsert', async () => {
+  // Ensure a silent upsert corruption is distinguishable from a
+  // reviewer timeout in the summary logs.
+  const { deps, calls } = makeDeps({
+    upsertAgentState: async () => {
+      throw new Error('supabase upsert boom');
+    },
+  });
+  const code = await main(BASE_OPTS, deps);
+  assert.equal(code, 1);
+  const errs = calls.filter((c) => c.name === 'log.error');
+  const tagged = errs.some((c) =>
+    (c.args[0] as string)?.includes('[step=state-upsert]'),
+  );
+  assert.ok(tagged, 'error log must tag step=state-upsert');
+  // Summary line should break down failures by step.
+  const infos = calls.filter((c) => c.name === 'log.info');
+  const hasBreakdown = infos.some((c) =>
+    (c.args[0] as string)?.includes('state-upsert='),
+  );
+  assert.ok(hasBreakdown, 'summary must include per-step failure counts');
+});

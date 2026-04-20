@@ -45,8 +45,35 @@ export interface SupabaseWriterTable {
   select: (columns: string) => SupabaseWriterSelectChain;
 }
 
+/**
+ * Row shape returned by the agent_runs_v2 .gte('started_at', ...) path.
+ * Kept narrow so estimateSpend in run-nightly.ts doesn't need an `any`
+ * escape to drive the real Supabase client's method chain. If future
+ * callers need additional columns, extend this row or add a sibling
+ * typed row interface per table rather than widening back to `any`.
+ */
+export interface AgentRunHistoryRow {
+  agent_id: string;
+  project: string;
+  cost_estimate: number | null;
+}
+
 export interface SupabaseWriterSelectChain {
   eq: (column: string, value: unknown) => SupabaseWriterSelectChain;
+  /**
+   * Optional `.gte()` terminal — resolves to a Supabase-shaped result.
+   * Typed as optional because the two write helpers in this module
+   * don't call it; only estimateSpend in run-nightly.ts does. Marking
+   * it optional lets hand-rolled test fakes for the write paths skip
+   * implementing it.
+   */
+  gte?: (
+    column: string,
+    value: string,
+  ) => Promise<{
+    data: AgentRunHistoryRow[] | null;
+    error: SupabaseError | null;
+  }>;
   single: () => Promise<{
     data: { run_summaries?: unknown; suppressed_patterns?: unknown } | null;
     error: SupabaseError | null;
@@ -72,6 +99,12 @@ export interface WriteAgentRunParams {
    * Verified allowed values as of 2026-04-10: 'manual', 'nightly',
    * 'orchestrator', 'work_loop_manager'. Do NOT pass 'dryrun' — the
    * constraint rejects it. Use metadata.dry_run to flag dry-run runs.
+   *
+   * IMPORTANT (CC d368a643): `trigger` is reserved for the CHECK-
+   * constrained vocabulary above. For runtime context (e.g. which cron
+   * shape invoked this, whether this is a retry, etc.), use the
+   * optional `source` field below — it lands in metadata.source and
+   * does not need a DB migration to extend.
    */
   trigger: 'orchestrator' | 'manual' | 'nightly';
   durationMs: number;
@@ -81,6 +114,14 @@ export interface WriteAgentRunParams {
    *  cutover since advisor tool isn't supported on Managed Agents).
    *  Override to 'opus-4-6' for orchestrator runs. */
   model?: string;
+  /**
+   * Free-form runtime context tag written to metadata.source. Unlike
+   * `trigger`, this is NOT CHECK-constrained so it can carry values
+   * like 'scheduled-cron', 'workflow-dispatch', 'retry', 'worker-loop'
+   * without a DB migration. Dashboard queries that want to distinguish
+   * cron vs dispatch should key on metadata.source, not `trigger`.
+   */
+  source?: string;
   /** Override the Supabase client — tests pass a fake. */
   supabase?: SupabaseWriterClient;
 }
@@ -115,6 +156,7 @@ export async function writeAgentRun(
       duration_ms: params.durationMs,
       runtime: 'managed-agents',
       ...(params.dryRun ? { dry_run: true } : {}),
+      ...(params.source ? { source: params.source } : {}),
     },
   };
 
@@ -159,6 +201,26 @@ export interface UpsertAgentStateParams {
  * - updated_at: written server-side via new Date().toISOString()
  *
  * Uses Supabase's native upsert with onConflict: 'agent_id,project'.
+ *
+ * CONCURRENCY INVARIANT (CC 97e958e6):
+ * This function is READ-MODIFY-WRITE on run_summaries and
+ * suppressed_patterns. If two callers hit it in parallel for the SAME
+ * (agent_id, project) pair, the later write silently clobbers the
+ * earlier one and one run_summary is lost from the rolling 5-window.
+ *
+ * The pipeline's invariant is that the nightly roster MUST contain at
+ * most ONE entry per (agent_id, project) pair — run-nightly.ts enforces
+ * this at the top of its reviewer loop and throws if it sees a duplicate
+ * roster entry. Any future code path that wants to dispatch multiple
+ * sessions for the same (agent, project) pair MUST EITHER:
+ *   (a) serialize the writes via p-limit keyed on `${agent}|${project}`,
+ *   (b) replace this read-modify-write with a Postgres RPC that appends
+ *       atomically (requires DB migration — see memory file
+ *       feedback_subagent-prod-authority before running it), OR
+ *   (c) adopt optimistic concurrency via an `updated_at` check column.
+ * Prefer (a) unless the workload genuinely needs concurrency; the
+ * nightly pipeline is dispatch-once-per-pair today and that shape
+ * should be preserved as the default.
  */
 export async function upsertAgentState(
   params: UpsertAgentStateParams,

@@ -24,7 +24,13 @@ const REQUIRED_VARS = [
   'COMMAND_CENTER_API_KEY',
 ] as const;
 
-const DEFAULTS = {
+/**
+ * Defaults for the numeric env vars. Exported so other modules can
+ * reference the canonical default when they need a fallback value
+ * (e.g. session-stream.ts when getEnv() throws because required vars
+ * are missing in a test env).
+ */
+export const DEFAULTS = {
   MANAGED_AGENTS_CONCURRENCY: 8,
   MANAGED_AGENTS_MAX_SPEND_USD: 20,
   SESSION_TIMEOUT_SEC: 1200,

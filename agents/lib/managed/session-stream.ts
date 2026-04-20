@@ -50,7 +50,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
 import { computeCostUsd } from './cost.js';
-import { getEnv } from './env.js';
+import { DEFAULTS, getEnv } from './env.js';
 import type { SessionUsage } from './types.js';
 
 // ---------------------------------------------------------------------------
@@ -164,11 +164,11 @@ function isStatusTerminated(e: unknown): e is SessionStatusTerminatedEventLike {
 }
 
 // Hard fallback if getEnv() throws because required vars are missing (e.g.
-// in tests that never set ANTHROPIC_API_KEY). The fallback matches the
-// same 1200-second default exposed via `DEFAULTS.SESSION_TIMEOUT_SEC` in
-// env.ts. Callers that want strict env enforcement should pass an
-// explicit `timeoutMs` or call `getEnv()` themselves upstream.
-const FALLBACK_TIMEOUT_MS = 1_200_000;
+// in tests that never set ANTHROPIC_API_KEY). Sourced from the canonical
+// DEFAULTS constant in env.ts so there is exactly one place to change the
+// default session timeout. Callers that want strict env enforcement should
+// pass an explicit `timeoutMs` or call `getEnv()` themselves upstream.
+const FALLBACK_TIMEOUT_MS = DEFAULTS.SESSION_TIMEOUT_SEC * 1000;
 
 function resolveDefaultTimeoutMs(): number {
   try {

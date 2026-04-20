@@ -18,6 +18,24 @@
  * The advisor tool pairs an executor model with an advisor model; both
  * are charged at their respective per-million rates. An executor-only
  * call (advisor tokens all zero) simply skips the advisor math.
+ *
+ * ADVISOR STATUS ON MANAGED AGENTS (2026-04 cutover):
+ * Advisor tool (advisor_20260301) is NOT yet supported on the Managed
+ * Agents SDK — only on the Messages API. See the repo skill
+ * `anthropic-advisor-tool-managed-agents-mismatch` and the BETAS lists
+ * in reviewer.ts / worker.ts (neither includes an advisor beta).
+ * session-stream.ts::waitForIdle documents this explicitly and aggregates
+ * every `span.model_request_end` token count into `executor_*`, leaving
+ * `advisor_*` at 0.
+ *
+ * Net effect on the math here: computeCostUsd's advisor branch is
+ * exercised by tests (see __tests__/cost.test.ts) but contributes $0.00
+ * to every real session today. We keep the branch in place rather than
+ * stripping it because (a) the math is correct at zero (no change needed
+ * when the SDK adds advisor support), and (b) the Messages API path in
+ * other tools in this repo DOES use advisor and shares this helper.
+ * Re-evaluate this decision if the advisor code paths remain unused when
+ * Managed Agents reaches GA. — CC 27544d33.
  */
 
 // ---------------------------------------------------------------------------
