@@ -584,6 +584,7 @@ run_worker() {
 
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
+  local error_details_json="null"
   if run_with_timeout 600 claude -p "$prompt" \
     --max-turns 15 \
     --output-format json \
@@ -597,15 +598,26 @@ run_worker() {
     if [ ! -s "$json_output" ]; then
       log "WORKER FAILED: $short_id (empty output from claude)"
       worker_run_status="failed"
-      update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker received empty response from claude -p\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+      local stderr_content=""
+      [ -s "$output_file.stderr" ] && stderr_content=$(head -c 4000 "$output_file.stderr" 2>/dev/null || true)
+      error_details_json=$(python3 -c "import json,sys; print(json.dumps({'reason':'empty_output','stderr':sys.argv[1],'stderr_log_path':sys.argv[2]}))" "$stderr_content" "$output_file.stderr")
+      local exec_log_json
+      exec_log_json=$(python3 -c "import json,sys; print(json.dumps(f'Worker received empty response from claude -p. stderr: {sys.argv[1]}'))" "${stderr_content:-<empty>}")
+      update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":$exec_log_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
       insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker received empty response from claude -p"
       cd - > /dev/null
-      curl -s \
+      local runs_resp
+      runs_resp=$(curl -s -w "\n%{http_code}" \
         -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
         -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
         -H "Content-Type: application/json" \
-        -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":0,\"cost_estimate\":0}" \
-        "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
+        -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":0,\"cost_estimate\":0,\"error_details\":$error_details_json}" \
+        "$SUPABASE_URL/rest/v1/agent_runs_v2" 2>&1 || true)
+      local runs_code
+      runs_code=$(echo "$runs_resp" | tail -n1)
+      if [ "$runs_code" != "201" ] && [ "$runs_code" != "200" ]; then
+        log "agent_runs_v2 insert failed ($runs_code): $(echo "$runs_resp" | head -n-1 | head -c 500)"
+      fi
       sleep 2
       return 1
     fi
@@ -695,22 +707,38 @@ print(f'tokens_input={ti} tokens_output={to} cost_usd={cost}')
       log "ESCALATE: $short_id — no diff generated"
     fi
   else
-    log "WORKER FAILED: $short_id (timeout or error)"
+    local exit_code=$?
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+    log "WORKER FAILED: $short_id (timeout or error, exit=$exit_code, ${duration}s)"
     worker_run_status="failed"
-    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":\"Worker timed out or crashed\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
-    insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker timed out or crashed"
+    local stderr_content=""
+    [ -s "$output_file.stderr" ] && stderr_content=$(head -c 4000 "$output_file.stderr" 2>/dev/null || true)
+    # Heuristic: run_with_timeout returns 124 on timeout (per coreutils convention)
+    local reason="crash"
+    [ "$exit_code" = "124" ] && reason="timeout"
+    error_details_json=$(python3 -c "import json,sys; print(json.dumps({'reason':sys.argv[1],'exit_code':int(sys.argv[2]),'duration_s':int(sys.argv[3]),'stderr':sys.argv[4],'stderr_log_path':sys.argv[5]}))" "$reason" "$exit_code" "$duration" "$stderr_content" "$output_file.stderr")
+    local exec_log_json
+    exec_log_json=$(python3 -c "import json,sys; print(json.dumps(f'Worker {sys.argv[1]} (exit={sys.argv[2]}, {sys.argv[3]}s). stderr: {sys.argv[4]}'))" "$reason" "$exit_code" "$duration" "${stderr_content:-<empty>}")
+    update_work_item "$item_id" "{\"status\":\"review\",\"execution_log\":$exec_log_json,\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    insert_event "$item_id" "worker_failed" "in_progress" "review" "Worker $reason (exit=$exit_code)"
   fi
 
   # Return to workspace root
   cd - > /dev/null
 
-  # Log run to agent_runs_v2
-  curl -s \
+  # Log run to agent_runs_v2 (de-silenced — failures get logged locally)
+  local runs_resp runs_code
+  runs_resp=$(curl -s -w "\n%{http_code}" \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Content-Type: application/json" \
-    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd}" \
-    "$SUPABASE_URL/rest/v1/agent_runs_v2" > /dev/null 2>&1 || true
+    -d "{\"agent_id\":\"worker\",\"project\":\"$project\",\"work_item_id\":\"$item_id\",\"trigger\":\"$RUN_TRIGGER\",\"status\":\"$worker_run_status\",\"started_at\":\"$worker_run_start\",\"completed_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"tokens_used\":$((tokens_input + tokens_output)),\"cost_estimate\":$cost_usd,\"error_details\":$error_details_json}" \
+    "$SUPABASE_URL/rest/v1/agent_runs_v2" 2>&1 || true)
+  runs_code=$(echo "$runs_resp" | tail -n1)
+  if [ "$runs_code" != "201" ] && [ "$runs_code" != "200" ]; then
+    log "agent_runs_v2 insert failed ($runs_code): $(echo "$runs_resp" | head -n-1 | head -c 500)"
+  fi
 
   # Brief pause between workers
   sleep 2
