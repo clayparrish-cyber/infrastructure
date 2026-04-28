@@ -415,11 +415,33 @@ async function maybeAutoApprove(
 
   const { data: rule } = await supabase
     .from('autonomy_rules')
-    .select('current_level')
+    .select('current_level, metadata')
     .eq('decision_category', category)
     .single();
 
   if (!rule || (rule.current_level || 1) < 3) return;
+
+  // Defensive max_level check: even if current_level >= 3 (somehow graduated
+  // past the cap), refuse to auto-approve when metadata.max_level forbids it.
+  // E.g. security-critical categories are pinned at L2 — never auto-approve.
+  const maxLevel = (rule.metadata as { max_level?: number } | null)?.max_level;
+  if (typeof maxLevel === 'number' && (rule.current_level || 1) > maxLevel) {
+    await supabase.from('work_item_events').insert({
+      work_item_id: workItemId,
+      event_type: 'auto_approval_blocked',
+      from_status: 'discovered',
+      to_status: 'discovered',
+      actor: 'system',
+      actor_type: 'system',
+      notes: `Auto-approval blocked: current_level L${rule.current_level} exceeds metadata.max_level L${maxLevel} for category ${category}.`,
+      metadata: {
+        decision_category: category,
+        autonomy_level: rule.current_level,
+        max_level: maxLevel,
+      },
+    });
+    return;
+  }
 
   const safety = assessment || await assessAndPersistAutonomySafety(supabase, workItemId);
   if (!safety?.autoApproveEligible) {
