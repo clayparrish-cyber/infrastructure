@@ -24,18 +24,6 @@
       "automationProfile": "core",
       "phase": "active-dev"
     },
-    "afoot": {
-      "entity": "mainline",
-      "path": "${PROJECTS_DIR}/afoot",
-      "repo": "clayparrish-cyber/afoot",
-      "contextFile": "CLAUDE.md",
-      "owner": "clay",
-      "stack": "next.js",
-      "reportDir": "~/Projects/agent-reports/afoot",
-      "note": "Voice-led mystery game (Next.js 16). Deterministic TS engine + LLM narrator. CRITICAL review invariant — the SACRED BOUNDARY (see CLAUDE.md): the LLM must NEVER receive the solution, culprit, undiscovered clues, or hidden state. Security and bug-hunt reviews must verify this boundary is intact.",
-      "automationProfile": "core",
-      "phase": "active-dev"
-    },
     "dosie": {
       "entity": "personal",
       "path": "${PROJECTS_DIR}/Dosie",

@@ -1,10 +1,10 @@
 {
   "updated": "2026-07-07",
-  "focus_projects": ["gt-ops", "afoot", "the-immortal-snail"],
+  "focus_projects": ["gt-ops", "the-immortal-snail"],
   "context": {
     "gt-ops": "Primary business focus post-leave (Clay back 2026-07-07). Full agent attention.",
-    "afoot": "New voice-led mystery game (Next.js). Just launched — wants active review coverage, especially the SACRED BOUNDARY invariant (LLM never sees solution/hidden state).",
     "the-immortal-snail": "Active priority project (maintenance phase). Keep security/bug coverage.",
+    "afoot": "Priority project, but NOT in the agent review rotation — internal game, public Vercel page, no backend/auth/user data (Clay 2026-07-07). Tracked in Command Center for tasks only. Re-add to registry if it ever connects to a backend/users; note the runner's GH_PAT currently lacks access to clayparrish-cyber/afoot.",
     "menu-autopilot": "KEEP active despite low commit activity — feeds Parcelle/Nashville Coop restaurant data. Not deprioritized.",
     "gt-website": "GT-owned, maintenance. Keep light coverage.",
     "glossy-sports": "Bill-led (Bill 75% / Clay 25%). Keep light agent coverage per Clay 2026-07-07.",
