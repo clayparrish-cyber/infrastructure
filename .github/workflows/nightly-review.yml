@@ -485,7 +485,7 @@ jobs:
 
           # Run orchestrator from workspace root (it reads agents/registry.json and agents/signals.json)
           cd ${{ github.workspace }}
-          claude -p "$(cat agents/orchestrator/decide-roster.md)" --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash"
+          claude -p "$(cat agents/orchestrator/decide-roster.md)" --model claude-sonnet-5 --effort high --max-turns 30 --allowedTools "Read,Write,Edit,Glob,Grep,Bash"
 
       - name: Persist orchestrator decision
         if: always()
@@ -800,7 +800,7 @@ jobs:
 
             cd "$PROJECT_DIR"
             if timeout --signal=TERM --kill-after=30s "$REVIEW_AGENT_TIMEOUT_SECONDS" \
-              claude -p "$AUGMENTED_PROMPT" --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
+              claude -p "$AUGMENTED_PROMPT" --model claude-sonnet-5 --effort high --max-turns "$MAX_TURNS" --output-format json --allowedTools "Read,Write,Edit,Glob,Grep,Bash" < /dev/null > "$OUTPUT_JSON" 2>"$LOG_FILE"; then
               echo "SUCCESS: $AGENT_ID on $PROJECT_ID"
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               # Extract usage data to sidecar file for sync step
@@ -1309,7 +1309,7 @@ jobs:
             cd "$PROJECT_DIR"
             set -o pipefail
             if PROJECT="$PROJECT_ID" PROJECT_DIR="$PROJECT_DIR" \
-              claude -p "$(cat "$WORKSPACE/agents/reviews/reconcile-stale.md")" \
+              claude -p "$(cat "$WORKSPACE/agents/reviews/reconcile-stale.md")" --model claude-sonnet-5 --effort high \
               --max-turns 30 \
               --allowedTools "Read,Glob,Grep,Bash" 2>&1 | tee "$LOG_FILE"; then
               echo "SUCCESS: Reconciliation for $PROJECT_ID"
@@ -1385,7 +1385,7 @@ jobs:
             fi
 
             cd "$working_dir"
-            if timeout 600 claude -p "$(cat "$prompt_file")" \
+            if timeout 600 claude -p "$(cat "$prompt_file")" --model claude-sonnet-5 --effort high \
               --max-turns "$max_turns" --output-format json \
               --allowedTools "Read,Glob,Grep,Bash" < /dev/null > "$log_file" 2>&1; then
               echo "SUCCESS: $agent_id"
@@ -1467,7 +1467,7 @@ jobs:
             echo "Running $agent_id"
             echo "=========================================="
 
-            if timeout 600 claude -p "$(cat "$prompt_file")" \
+            if timeout 600 claude -p "$(cat "$prompt_file")" --model claude-sonnet-5 --effort high \
               --max-turns "$max_turns" \
               --tools "Read,Glob,Grep,Bash" \
               --disable-slash-commands \
