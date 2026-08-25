@@ -1,16 +1,9 @@
 name: Nightly Agent Review
 
 on:
-  push:
-    paths:
-      - '.github/workflows/nightly-review.yml'
-      - 'agents/**'
-  schedule:
-    # 2am CST = 8am UTC
-    # Mon=security, Wed=bug-hunt, Fri=security+polish.
-    # Sunday removed 2026-08-25: weekly-cleanup/business-synthesis/strategic-portfolio-audit
-    # spawned unworked CC research_request items every week (32 closed as deferred 8/25).
-    - cron: '0 8 * * 1,3,5'
+  # Amputated 2026-08-25 per CC 7/7 audit item (Clay approved): pipeline had been
+  # dark 98 days (commit-gate broken, clone step broken, cost capture dead) while
+  # still burning credits and spawning unworked CC items. Manual dispatch only.
   workflow_dispatch:
     inputs:
       theme_override:
