@@ -3702,8 +3702,18 @@ ${data.count} work items:
           status: i.status,
           priority: i.priority || "-",
           project: i.project || "-",
-          title: i.title.slice(0, 60)
-        })), ["id", "status", "priority", "project", "title"]);
+          title: i.title.slice(0, 60),
+          notes: i.recent_notes?.length ? String(i.recent_notes.length) : "-"
+        })), ["id", "status", "priority", "project", "title", "notes"]);
+        const amended = data.items.filter((i) => i.recent_notes?.length);
+        if (amended.length) {
+          console.log(`
+${amended.length} item(s) carry notes \u2014 newest shown, run \`cc wi get <id>\` for all:`);
+          for (const i of amended) {
+            const n = i.recent_notes[0];
+            console.log(`  ${i.id.slice(0, 8)} [${n.created_at.slice(0, 10)}] ${n.note.slice(0, 160)}${n.note.length > 160 ? "\u2026" : ""}`);
+          }
+        }
       }
     } catch (e) {
       if (e instanceof ApiError) {
@@ -3809,12 +3819,59 @@ ${data.count} work items:
       throw e;
     }
   });
-  wi.command("update").description("Update a work item").requiredOption("-i, --id <id>", "Work item ID").option("-s, --status <status>", "New status").option("--assigned-to <who>", "Assign to").option("--notes <notes>", "Notes/comment").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+  wi.command("get").description("Show one work item in full, including its notes").argument("<id>", "Work item ID (full UUID or short prefix)").action(async (id) => {
+    try {
+      const client = createClient(program3.opts().url);
+      const fullId = await resolveId(client, id);
+      const data = await client.get(`/api/work-items/${fullId}`);
+      respond("cc work-items get", data, [
+        { command: `cc wi update --id ${fullId.slice(0, 8)} --description "..."`, description: "Correct the description" }
+      ]);
+      if (!isAgent) {
+        const i = data.item;
+        console.log(`
+${i.title}
+`);
+        console.log(`  id       ${i.id}`);
+        console.log(`  project  ${i.project || "-"}`);
+        console.log(`  status   ${i.status}   priority ${i.priority || "-"}   type ${i.type || "-"}`);
+        console.log(`  created  ${i.created_at}`);
+        console.log(`
+${i.description || "(no description)"}
+`);
+        if (data.notes?.length) {
+          console.log(`Notes (${data.notes.length}, newest first):`);
+          for (const n of data.notes) {
+            console.log(`  [${n.created_at.slice(0, 10)} ${n.actor}] ${n.note}`);
+          }
+        } else {
+          console.log("Notes: none");
+        }
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        respondError(
+          "cc work-items get",
+          e.body,
+          String(e.status),
+          e.status === 404 ? "Check work item ID" : "Check server logs"
+        );
+      }
+      throw e;
+    }
+  });
+  wi.command("update").description("Update a work item").requiredOption("-i, --id <id>", "Work item ID").option("-s, --status <status>", "New status").option("-t, --title <title>", "Replace the title").option(
+    "-d, --description <desc>",
+    "Replace the description. Use this to CORRECT an item whose description is wrong \u2014 a note does not override the description for readers who only list."
+  ).option("--priority <priority>", "New priority: critical, high, medium, low").option("--assigned-to <who>", "Assign to").option("--notes <notes>", "Append a note (visible via `cc wi get` and on list)").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const fullId = await resolveId(client, opts.id);
       const body = { id: fullId };
       if (opts.status) body.status = opts.status;
+      if (opts.title) body.title = opts.title;
+      if (opts.description !== void 0) body.description = opts.description;
+      if (opts.priority) body.priority = opts.priority;
       if (opts.assignedTo) body.assigned_to = opts.assignedTo;
       if (opts.notes) body.notes = opts.notes;
       if (opts.actor) body.actor = opts.actor;

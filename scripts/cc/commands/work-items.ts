@@ -2,10 +2,29 @@ import type { Command } from 'commander';
 import { createClient, ApiError } from '../lib/client.js';
 import { respond, respondError, table, isAgent } from '../lib/envelope.js';
 
+interface WorkItemNote {
+  note: string;
+  actor: string;
+  event_type: string;
+  created_at: string;
+}
+
+interface GetResponse {
+  item: WorkItem;
+  notes: WorkItemNote[];
+  events: unknown[];
+}
+
 interface WorkItem {
   id: string;
   title: string;
   description?: string;
+  /**
+   * Most recent notes, newest first. The API attaches these to every list and
+   * get response as of 2026-08-31 — before that notes were write-only, so a
+   * correction recorded as a note was invisible to whoever read the item next.
+   */
+  recent_notes?: WorkItemNote[];
   project?: string;
   status: string;
   priority?: string;
@@ -142,7 +161,20 @@ export function registerWorkItems(program: Command) {
             priority: i.priority || '-',
             project: i.project || '-',
             title: i.title.slice(0, 60),
-          })), ['id', 'status', 'priority', 'project', 'title']);
+            notes: i.recent_notes?.length ? String(i.recent_notes.length) : '-',
+          })), ['id', 'status', 'priority', 'project', 'title', 'notes']);
+
+          // A note is usually a CORRECTION to the description above it. Surface
+          // the newest one inline so a human skimming the table sees that the
+          // item has been amended, rather than trusting stale description text.
+          const amended = data.items.filter(i => i.recent_notes?.length);
+          if (amended.length) {
+            console.log(`\n${amended.length} item(s) carry notes — newest shown, run \`cc wi get <id>\` for all:`);
+            for (const i of amended) {
+              const n = i.recent_notes![0];
+              console.log(`  ${i.id.slice(0, 8)} [${n.created_at.slice(0, 10)}] ${n.note.slice(0, 160)}${n.note.length > 160 ? '…' : ''}`);
+            }
+          }
         }
       } catch (e) {
         if (e instanceof ApiError) {
@@ -279,12 +311,58 @@ export function registerWorkItems(program: Command) {
       }
     });
 
+  wi.command('get')
+    .description('Show one work item in full, including its notes')
+    .argument('<id>', 'Work item ID (full UUID or short prefix)')
+    .action(async (id: string) => {
+      try {
+        const client = createClient(program.opts().url);
+        const fullId = await resolveId(client, id);
+        const data = await client.get<GetResponse>(`/api/work-items/${fullId}`);
+
+        respond('cc work-items get', data, [
+          { command: `cc wi update --id ${fullId.slice(0, 8)} --description "..."`, description: 'Correct the description' },
+        ]);
+
+        if (!isAgent) {
+          const i = data.item;
+          console.log(`\n${i.title}\n`);
+          console.log(`  id       ${i.id}`);
+          console.log(`  project  ${i.project || '-'}`);
+          console.log(`  status   ${i.status}   priority ${i.priority || '-'}   type ${i.type || '-'}`);
+          console.log(`  created  ${i.created_at}`);
+          console.log(`\n${i.description || '(no description)'}\n`);
+          if (data.notes?.length) {
+            console.log(`Notes (${data.notes.length}, newest first):`);
+            for (const n of data.notes) {
+              console.log(`  [${n.created_at.slice(0, 10)} ${n.actor}] ${n.note}`);
+            }
+          } else {
+            console.log('Notes: none');
+          }
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          respondError('cc work-items get', e.body, String(e.status),
+            e.status === 404 ? 'Check work item ID' : 'Check server logs');
+        }
+        throw e;
+      }
+    });
+
   wi.command('update')
     .description('Update a work item')
     .requiredOption('-i, --id <id>', 'Work item ID')
     .option('-s, --status <status>', 'New status')
+    .option('-t, --title <title>', 'Replace the title')
+    .option(
+      '-d, --description <desc>',
+      'Replace the description. Use this to CORRECT an item whose description is ' +
+        'wrong — a note does not override the description for readers who only list.',
+    )
+    .option('--priority <priority>', 'New priority: critical, high, medium, low')
     .option('--assigned-to <who>', 'Assign to')
-    .option('--notes <notes>', 'Notes/comment')
+    .option('--notes <notes>', 'Append a note (visible via `cc wi get` and on list)')
     .option('--actor <actor>', 'Actor name', 'clay')
     .action(async (opts) => {
       try {
@@ -295,10 +373,17 @@ export function registerWorkItems(program: Command) {
         // rather than bulk-close schema (ids array) which only allows done/rejected/deferred.
         const body: Record<string, unknown> = { id: fullId };
         if (opts.status) body.status = opts.status;
+        if (opts.title) body.title = opts.title;
+        if (opts.description !== undefined) body.description = opts.description;
+        if (opts.priority) body.priority = opts.priority;
         if (opts.assignedTo) body.assigned_to = opts.assignedTo;
         if (opts.notes) body.notes = opts.notes;
         if (opts.actor) body.actor = opts.actor;
 
+        // Deliberately the COLLECTION endpoint, not /api/work-items/<id>.
+        // Both accept the same worker-update payload, but the collection route
+        // has always existed — pinning to it means the CLI keeps working even
+        // if it is running against an older deploy of the dashboard.
         const data = await client.patch<UpdateResponse>('/api/work-items', body);
 
         respond('cc work-items update', data, [
