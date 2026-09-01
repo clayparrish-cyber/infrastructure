@@ -3587,7 +3587,7 @@ function createClient(urlOverride) {
     );
     process.exit(1);
   }
-  const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || "https://app.mainlineapps.com";
+  const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || "https://cc.gallanttiger.com";
   return new CommandCenterClient({ apiKey, baseUrl });
 }
 __name(createClient, "createClient");
@@ -4117,7 +4117,7 @@ __name(registerSync, "registerSync");
 
 // scripts/cc/cc.ts
 var program2 = new Command();
-program2.name("cc").description("Command Center CLI \u2014 manage work items, context, and integrations").version("1.0.0").option("--url <url>", "Override base URL (default: https://app.mainlineapps.com)").action(() => {
+program2.name("cc").description("Command Center CLI \u2014 manage work items, context, and integrations").version("1.0.0").option("--url <url>", "Override base URL (default: https://cc.gallanttiger.com)").action(() => {
   const commands = program2.commands.map((cmd) => ({
     command: `cc ${cmd.name()}`,
     aliases: cmd.aliases(),

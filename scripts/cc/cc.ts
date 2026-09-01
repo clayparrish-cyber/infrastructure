@@ -10,7 +10,7 @@
 //
 // Environment:
 //   COMMAND_CENTER_API_KEY  — Required. Bearer token for API auth.
-//   COMMAND_CENTER_URL      — Optional. Defaults to https://app.mainlineapps.com
+//   COMMAND_CENTER_URL      — Optional. Defaults to https://cc.gallanttiger.com
 
 import { Command } from 'commander';
 import { registerWorkItems } from './commands/work-items.js';
@@ -23,7 +23,7 @@ program
   .name('cc')
   .description('Command Center CLI — manage work items, context, and integrations')
   .version('1.0.0')
-  .option('--url <url>', 'Override base URL (default: https://app.mainlineapps.com)')
+  .option('--url <url>', 'Override base URL (default: https://cc.gallanttiger.com)')
   .action(() => {
     // Self-documenting root: no args → print command tree as JSON
     const commands = program.commands.map(cmd => ({

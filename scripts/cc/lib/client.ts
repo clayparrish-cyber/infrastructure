@@ -130,7 +130,7 @@ export function createClient(urlOverride?: string): CommandCenterClient {
     process.exit(1);
   }
 
-  const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || 'https://app.mainlineapps.com';
+  const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || 'https://cc.gallanttiger.com';
 
   return new CommandCenterClient({ apiKey, baseUrl });
 }

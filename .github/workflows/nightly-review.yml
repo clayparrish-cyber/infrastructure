@@ -1045,7 +1045,7 @@ jobs:
         run: |
           echo "Refreshing autonomy safety for open agent items..."
           SAFETY_RESULT=$(curl -s -X POST \
-            "https://app.mainlineapps.com/api/ops/autonomy-safety/rebuild?scope=open&limit=1000" \
+            "https://cc.gallanttiger.com/api/ops/autonomy-safety/rebuild?scope=open&limit=1000" \
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
             -H "Content-Type: application/json")
 
@@ -1060,7 +1060,7 @@ jobs:
 
           echo "Sweeping L3+ backlog for newly eligible auto-approvals..."
           SWEEP_RESULT=$(curl -s -X POST \
-            "https://app.mainlineapps.com/api/ops/autonomy-auto-approve-sweep?limit=1000" \
+            "https://cc.gallanttiger.com/api/ops/autonomy-auto-approve-sweep?limit=1000" \
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
             -H "Content-Type: application/json")
 
@@ -1075,7 +1075,7 @@ jobs:
 
           echo "Running autonomy evaluation loop..."
           RESULT=$(curl -s -X POST \
-            "https://app.mainlineapps.com/api/autonomy/evaluate" \
+            "https://cc.gallanttiger.com/api/autonomy/evaluate" \
             -H "Authorization: Bearer $COMMAND_CENTER_API_KEY" \
             -H "Content-Type: application/json")
 
