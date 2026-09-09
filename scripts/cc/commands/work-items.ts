@@ -31,6 +31,12 @@ interface WorkItem {
   type?: string;
   source_type?: string;
   assigned_to?: string;
+  /**
+   * Every item carries one (ruling 2026-09-02: "Rocks are priorities. Those
+   * are what all priorities should be filtering through."). 'none' is the
+   * explicit default for untagged items, not an absence of the field.
+   */
+  rock?: string;
   created_at: string;
   updated_at: string;
 }
@@ -123,6 +129,36 @@ interface UpdateResponse {
   summary?: { requested: number; succeeded: number; failed: number };
 }
 
+interface RockGroup {
+  rock: string;
+  items: WorkItem[];
+}
+
+interface PrioritiesResponse {
+  rocks: RockGroup[];
+  serves_no_rock: RockGroup;
+  count: number;
+}
+
+export const ROCK_DISPLAY_NAMES: Record<string, string> = {
+  'prepare-gt-2027': 'Prepare GT 2027',
+  'raise-capital': 'Raise Capital',
+  '500-doors': '500 Doors',
+  'national-brand': 'National Brand',
+  'third-flavor': 'Third Flavor',
+  'none': 'No Rock',
+};
+
+/**
+ * Human label for a rock slug, used by `cc wi priorities`'s TTY output.
+ * Falls back to the raw slug for anything not in ROCK_DISPLAY_NAMES so a
+ * newly added rock the CLI doesn't know about yet still renders, rather
+ * than showing "undefined".
+ */
+export function formatRockLabel(rock: string): string {
+  return ROCK_DISPLAY_NAMES[rock] || rock;
+}
+
 export function registerWorkItems(program: Command) {
   const wi = program.command('work-items').alias('wi').description('Manage work items');
 
@@ -132,6 +168,7 @@ export function registerWorkItems(program: Command) {
     .option('-s, --status <status>', 'Filter by status (comma-separated)', 'discovered,triaged,approved,in_progress,review')
     .option('-l, --limit <n>', 'Max results', '50')
     .option('--type <type>', 'Filter by type (comma-separated)')
+    .option('--rock <rock>', 'Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none')
     .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
     .action(async (opts) => {
       try {
@@ -140,6 +177,7 @@ export function registerWorkItems(program: Command) {
         if (opts.project) params.set('project', opts.project);
         if (opts.status) params.set('status', opts.status);
         if (opts.limit) params.set('limit', opts.limit);
+        if (opts.rock) params.set('rock', opts.rock);
         if (opts.type) {
           params.set('type', opts.type);
         } else if (!opts.includeInitiatives) {
@@ -160,9 +198,10 @@ export function registerWorkItems(program: Command) {
             status: i.status,
             priority: i.priority || '-',
             project: i.project || '-',
+            rock: i.rock || 'none',
             title: i.title.slice(0, 60),
             notes: i.recent_notes?.length ? String(i.recent_notes.length) : '-',
-          })), ['id', 'status', 'priority', 'project', 'title', 'notes']);
+          })), ['id', 'status', 'priority', 'project', 'rock', 'title', 'notes']);
 
           // A note is usually a CORRECTION to the description above it. Surface
           // the newest one inline so a human skimming the table sees that the
@@ -194,6 +233,7 @@ export function registerWorkItems(program: Command) {
     .option('--type <type>', 'Type: task, finding, initiative, research_request', 'task')
     .option('--source <source>', 'Source type: human, agent', 'human')
     .option('--assigned-to <who>', 'Assign to')
+    .option('--rock <rock>', 'Rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none (defaults to none)')
     .option('--created-by <who>', 'Created by', 'clay')
     .option(
       '--metadata <json>',
@@ -232,6 +272,7 @@ export function registerWorkItems(program: Command) {
           type: opts.type,
           source_type: opts.source,
           assigned_to: opts.assignedTo,
+          rock: opts.rock,
           created_by: opts.createdBy,
         };
         if (metadata) body.metadata = metadata;
@@ -362,6 +403,7 @@ export function registerWorkItems(program: Command) {
     )
     .option('--priority <priority>', 'New priority: critical, high, medium, low')
     .option('--assigned-to <who>', 'Assign to')
+    .option('--rock <rock>', 'Re-tag rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none')
     .option('--notes <notes>', 'Append a note (visible via `cc wi get` and on list)')
     .option('--actor <actor>', 'Actor name', 'clay')
     .action(async (opts) => {
@@ -377,6 +419,7 @@ export function registerWorkItems(program: Command) {
         if (opts.description !== undefined) body.description = opts.description;
         if (opts.priority) body.priority = opts.priority;
         if (opts.assignedTo) body.assigned_to = opts.assignedTo;
+        if (opts.rock) body.rock = opts.rock;
         if (opts.notes) body.notes = opts.notes;
         if (opts.actor) body.actor = opts.actor;
 
@@ -431,6 +474,61 @@ export function registerWorkItems(program: Command) {
       } catch (e) {
         if (e instanceof ApiError) {
           respondError('cc work-items bulk-close', e.body, String(e.status), 'Check IDs and status');
+        }
+        throw e;
+      }
+    });
+
+  wi.command('priorities')
+    .description('Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)')
+    .option('-p, --project <project>', 'Filter by project')
+    .action(async (opts) => {
+      try {
+        const client = createClient(program.opts().url);
+        const params = new URLSearchParams();
+        if (opts.project) params.set('project', opts.project);
+        const query = params.toString();
+        const data = await client.get<PrioritiesResponse>(`/api/work-items/priorities${query ? `?${query}` : ''}`);
+
+        respond('cc work-items priorities', data, [
+          { command: `cc wi list --rock=<rock>`, description: 'List all items in one rock' },
+        ]);
+
+        if (!isAgent) {
+          console.log(`\n${data.count} open item(s) across ${data.rocks.length} rocks:\n`);
+          for (const group of data.rocks) {
+            console.log(`${formatRockLabel(group.rock)} (${group.items.length})`);
+            if (group.items.length === 0) {
+              console.log('  (none)');
+            } else {
+              table(group.items.map(i => ({
+                id: i.id.slice(0, 8),
+                status: i.status,
+                priority: i.priority || '-',
+                type: i.type || '-',
+                title: i.title.slice(0, 60),
+              })), ['id', 'status', 'priority', 'type', 'title']);
+            }
+            console.log();
+          }
+
+          console.log(`${formatRockLabel(data.serves_no_rock.rock)} — serves_no_rock (${data.serves_no_rock.items.length})`);
+          if (data.serves_no_rock.items.length === 0) {
+            console.log('  (none)');
+          } else {
+            table(data.serves_no_rock.items.map(i => ({
+              id: i.id.slice(0, 8),
+              status: i.status,
+              priority: i.priority || '-',
+              type: i.type || '-',
+              title: i.title.slice(0, 60),
+            })), ['id', 'status', 'priority', 'type', 'title']);
+          }
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          respondError('cc work-items priorities', e.body, String(e.status),
+            e.status === 401 ? 'Check COMMAND_CENTER_API_KEY' : 'Check server logs');
         }
         throw e;
       }

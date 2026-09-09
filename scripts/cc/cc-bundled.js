@@ -3674,15 +3674,28 @@ async function resolveIds(client, ids) {
   });
 }
 __name(resolveIds, "resolveIds");
+var ROCK_DISPLAY_NAMES = {
+  "prepare-gt-2027": "Prepare GT 2027",
+  "raise-capital": "Raise Capital",
+  "500-doors": "500 Doors",
+  "national-brand": "National Brand",
+  "third-flavor": "Third Flavor",
+  "none": "No Rock"
+};
+function formatRockLabel(rock) {
+  return ROCK_DISPLAY_NAMES[rock] || rock;
+}
+__name(formatRockLabel, "formatRockLabel");
 function registerWorkItems(program3) {
   const wi = program3.command("work-items").alias("wi").description("Manage work items");
-  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").action(async (opts) => {
+  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const params = new URLSearchParams();
       if (opts.project) params.set("project", opts.project);
       if (opts.status) params.set("status", opts.status);
       if (opts.limit) params.set("limit", opts.limit);
+      if (opts.rock) params.set("rock", opts.rock);
       if (opts.type) {
         params.set("type", opts.type);
       } else if (!opts.includeInitiatives) {
@@ -3702,9 +3715,10 @@ ${data.count} work items:
           status: i.status,
           priority: i.priority || "-",
           project: i.project || "-",
+          rock: i.rock || "none",
           title: i.title.slice(0, 60),
           notes: i.recent_notes?.length ? String(i.recent_notes.length) : "-"
-        })), ["id", "status", "priority", "project", "title", "notes"]);
+        })), ["id", "status", "priority", "project", "rock", "title", "notes"]);
         const amended = data.items.filter((i) => i.recent_notes?.length);
         if (amended.length) {
           console.log(`
@@ -3727,7 +3741,7 @@ ${amended.length} item(s) carry notes \u2014 newest shown, run \`cc wi get <id>\
       throw e;
     }
   });
-  wi.command("create").description("Create a work item").requiredOption("-t, --title <title>", "Title").option("-d, --description <desc>", "Description").option("-p, --project <project>", "Project name").option("--priority <priority>", "Priority: high, medium, low", "medium").option("--type <type>", "Type: task, finding, initiative, research_request", "task").option("--source <source>", "Source type: human, agent", "human").option("--assigned-to <who>", "Assign to").option("--created-by <who>", "Created by", "clay").option(
+  wi.command("create").description("Create a work item").requiredOption("-t, --title <title>", "Title").option("-d, --description <desc>", "Description").option("-p, --project <project>", "Project name").option("--priority <priority>", "Priority: high, medium, low", "medium").option("--type <type>", "Type: task, finding, initiative, research_request", "task").option("--source <source>", "Source type: human, agent", "human").option("--assigned-to <who>", "Assign to").option("--rock <rock>", "Rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none (defaults to none)").option("--created-by <who>", "Created by", "clay").option(
     "--metadata <json>",
     `Structured metadata as JSON object (e.g. '{"severity":"high","files":["a.ts"]}') \u2014 used by nightly reviewers to attach severity, decision_category, files, suggested_fix, and effort without stuffing them into the description.`
   ).action(async (opts) => {
@@ -3754,6 +3768,7 @@ ${amended.length} item(s) carry notes \u2014 newest shown, run \`cc wi get <id>\
         type: opts.type,
         source_type: opts.source,
         assigned_to: opts.assignedTo,
+        rock: opts.rock,
         created_by: opts.createdBy
       };
       if (metadata) body.metadata = metadata;
@@ -3863,7 +3878,7 @@ ${i.description || "(no description)"}
   wi.command("update").description("Update a work item").requiredOption("-i, --id <id>", "Work item ID").option("-s, --status <status>", "New status").option("-t, --title <title>", "Replace the title").option(
     "-d, --description <desc>",
     "Replace the description. Use this to CORRECT an item whose description is wrong \u2014 a note does not override the description for readers who only list."
-  ).option("--priority <priority>", "New priority: critical, high, medium, low").option("--assigned-to <who>", "Assign to").option("--notes <notes>", "Append a note (visible via `cc wi get` and on list)").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+  ).option("--priority <priority>", "New priority: critical, high, medium, low").option("--assigned-to <who>", "Assign to").option("--rock <rock>", "Re-tag rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--notes <notes>", "Append a note (visible via `cc wi get` and on list)").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const fullId = await resolveId(client, opts.id);
@@ -3873,6 +3888,7 @@ ${i.description || "(no description)"}
       if (opts.description !== void 0) body.description = opts.description;
       if (opts.priority) body.priority = opts.priority;
       if (opts.assignedTo) body.assigned_to = opts.assignedTo;
+      if (opts.rock) body.rock = opts.rock;
       if (opts.notes) body.notes = opts.notes;
       if (opts.actor) body.actor = opts.actor;
       const data = await client.patch("/api/work-items", body);
@@ -3915,6 +3931,60 @@ ${i.description || "(no description)"}
     } catch (e) {
       if (e instanceof ApiError) {
         respondError("cc work-items bulk-close", e.body, String(e.status), "Check IDs and status");
+      }
+      throw e;
+    }
+  });
+  wi.command("priorities").description("Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)").option("-p, --project <project>", "Filter by project").action(async (opts) => {
+    try {
+      const client = createClient(program3.opts().url);
+      const params = new URLSearchParams();
+      if (opts.project) params.set("project", opts.project);
+      const query = params.toString();
+      const data = await client.get(`/api/work-items/priorities${query ? `?${query}` : ""}`);
+      respond("cc work-items priorities", data, [
+        { command: `cc wi list --rock=<rock>`, description: "List all items in one rock" }
+      ]);
+      if (!isAgent) {
+        console.log(`
+${data.count} open item(s) across ${data.rocks.length} rocks:
+`);
+        for (const group of data.rocks) {
+          console.log(`${formatRockLabel(group.rock)} (${group.items.length})`);
+          if (group.items.length === 0) {
+            console.log("  (none)");
+          } else {
+            table(group.items.map((i) => ({
+              id: i.id.slice(0, 8),
+              status: i.status,
+              priority: i.priority || "-",
+              type: i.type || "-",
+              title: i.title.slice(0, 60)
+            })), ["id", "status", "priority", "type", "title"]);
+          }
+          console.log();
+        }
+        console.log(`${formatRockLabel(data.serves_no_rock.rock)} \u2014 serves_no_rock (${data.serves_no_rock.items.length})`);
+        if (data.serves_no_rock.items.length === 0) {
+          console.log("  (none)");
+        } else {
+          table(data.serves_no_rock.items.map((i) => ({
+            id: i.id.slice(0, 8),
+            status: i.status,
+            priority: i.priority || "-",
+            type: i.type || "-",
+            title: i.title.slice(0, 60)
+          })), ["id", "status", "priority", "type", "title"]);
+        }
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        respondError(
+          "cc work-items priorities",
+          e.body,
+          String(e.status),
+          e.status === 401 ? "Check COMMAND_CENTER_API_KEY" : "Check server logs"
+        );
       }
       throw e;
     }
