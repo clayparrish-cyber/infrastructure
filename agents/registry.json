@@ -3,7 +3,7 @@
   "projects": {
     "sidelineiq": {
       "entity": "personal",
-      "path": "${PROJECTS_DIR}/SidelineIQ/sideline-iq",
+      "path": "${PROJECTS_DIR}/Personal/SidelineIQ/sideline-iq",
       "repo": "clayparrish-cyber/sidelineiq",
       "contextFile": "CLAUDE_CONTEXT.md",
       "owner": "clay",
@@ -14,7 +14,7 @@
     },
     "airtip": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/menu-autopilot",
+      "path": "${PROJECTS_DIR}/Apolis/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
       "owner": "clay",
@@ -26,7 +26,7 @@
     },
     "dosie": {
       "entity": "personal",
-      "path": "${PROJECTS_DIR}/Dosie",
+      "path": "${PROJECTS_DIR}/Personal/Dosie",
       "repo": "clayparrish-cyber/dosie",
       "contextFile": "CLAUDE.md",
       "owner": "clay",
@@ -37,7 +37,7 @@
     },
     "gt-ops": {
       "entity": "gt",
-      "path": "${PROJECTS_DIR}/gt-ops",
+      "path": "${PROJECTS_DIR}/Gallant Tiger/gt-ops",
       "repo": "clayparrish-cyber/gt-ims",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
@@ -49,7 +49,7 @@
     },
     "menu-autopilot": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/menu-autopilot",
+      "path": "${PROJECTS_DIR}/Apolis/menu-autopilot",
       "repo": "clayparrish-cyber/menu-autopilot",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
@@ -61,7 +61,7 @@
     },
     "glossy-sports": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/glossy-sports",
+      "path": "${PROJECTS_DIR}/Mainline Apps/glossy-sports",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "glossy-sports",
       "contextFile": "CLAUDE.md",
@@ -74,7 +74,7 @@
     },
     "mainline-apps": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/mainline-apps",
+      "path": "${PROJECTS_DIR}/Mainline Apps",
       "repo": "clayparrish-cyber/mainline-apps",
       "contextFile": "README.md",
       "owner": "shared",
@@ -86,7 +86,7 @@
     },
     "mainline-dashboard": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/dashboard",
+      "path": "${PROJECTS_DIR}/Mainline Apps/dashboard",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "dashboard",
       "contextFile": "CLAUDE.md",
@@ -99,7 +99,7 @@
     },
     "the-immortal-snail": {
       "entity": "mainline",
-      "path": "${PROJECTS_DIR}/the-immortal-snail",
+      "path": "${PROJECTS_DIR}/Mainline Apps/the-immortal-snail",
       "repo": "clayparrish-cyber/mainline-apps",
       "subdir": "the-immortal-snail",
       "contextFile": "CLAUDE.md",
@@ -112,7 +112,7 @@
     },
     "gt-website": {
       "entity": "gt",
-      "path": "${PROJECTS_DIR}/gt-website",
+      "path": "${PROJECTS_DIR}/Gallant Tiger/gt-website",
       "repo": "clayparrish-cyber/gt-website",
       "contextFile": "CLAUDE.md",
       "owner": "shared",
