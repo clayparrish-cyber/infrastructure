@@ -3935,11 +3935,12 @@ ${i.description || "(no description)"}
       throw e;
     }
   });
-  wi.command("priorities").description("Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)").option("-p, --project <project>", "Filter by project").action(async (opts) => {
+  wi.command("priorities").description("Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)").option("-p, --project <project>", "Filter by project").option("--all", "Include everything cc wi list hides by default (initiative/sprint containers, system items)").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const params = new URLSearchParams();
       if (opts.project) params.set("project", opts.project);
+      if (opts.all) params.set("include", "all");
       const query = params.toString();
       const data = await client.get(`/api/work-items/priorities${query ? `?${query}` : ""}`);
       respond("cc work-items priorities", data, [
