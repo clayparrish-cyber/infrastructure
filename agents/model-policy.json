@@ -1,0 +1,191 @@
+{
+  "version": 1,
+  "updatedAt": "2026-09-10",
+  "owner": "Clay Parrish",
+  "reviewBy": "2026-10-10",
+  "domains": [
+    "general",
+    "finance",
+    "logistics",
+    "specs"
+  ],
+  "runtimes": {
+    "claude-cli": {
+      "command": "claude",
+      "models": {
+        "claude-sonnet-5": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "defaultEffort": "high",
+          "source": "Claude Code 2.1.267 --help; https://code.claude.com/docs/en/model-config (verified 2026-09-10)"
+        },
+        "claude-opus-5": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "defaultEffort": "medium",
+          "source": "Claude Code 2.1.267 --help; https://code.claude.com/docs/en/model-config (verified 2026-09-10)"
+        }
+      }
+    },
+    "codex-cli": {
+      "command": "codex",
+      "models": {
+        "gpt-6-astra": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ],
+          "defaultEffort": "low",
+          "source": "Codex 0.153.4 models_cache.json, fetched 2026-09-10T16:12:18.969281Z"
+        },
+        "gpt-5.6-sol": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ],
+          "defaultEffort": "low",
+          "source": "Codex 0.153.4 models_cache.json, fetched 2026-09-10T16:12:18.969281Z"
+        },
+        "gpt-5.6-terra": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max",
+            "ultra"
+          ],
+          "defaultEffort": "medium",
+          "source": "Codex 0.153.4 models_cache.json, fetched 2026-09-10T16:12:18.969281Z"
+        },
+        "gpt-5.6-luna": {
+          "efforts": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "defaultEffort": "medium",
+          "source": "Codex 0.153.4 models_cache.json, fetched 2026-09-10T16:12:18.969281Z"
+        }
+      }
+    }
+  },
+  "profiles": {
+    "deterministic": {
+      "kind": "deterministic",
+      "why": "Use code, queries, formulas or a parser for exact repeatable work. No model is needed."
+    },
+    "legacy-worker": {
+      "kind": "model",
+      "why": "Apply the approved Sonnet/high delegation choice to the existing worker. Legacy continuity is not domain certification or a measured historical runtime default.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-sonnet-5",
+          "effort": "high"
+        }
+      }
+    },
+    "routine": {
+      "kind": "model",
+      "why": "Bounded editing or extraction with supplied sources and an objective acceptance check. Evaluate cheaper candidates before promotion.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-sonnet-5",
+          "effort": "high"
+        },
+        "codex-cli": {
+          "model": "gpt-5.6-luna",
+          "effort": "medium"
+        }
+      }
+    },
+    "source-analysis": {
+      "kind": "model",
+      "why": "Combine supplied evidence, retain source citations and flag conflicts. Qualify separately for each business domain.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-sonnet-5",
+          "effort": "high"
+        },
+        "codex-cli": {
+          "model": "gpt-5.6-terra",
+          "effort": "medium"
+        }
+      }
+    },
+    "hard-code": {
+      "kind": "model",
+      "why": "Cross-module changes, difficult debugging or unfamiliar architecture require stronger reasoning and tests.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-opus-5",
+          "effort": "medium"
+        },
+        "codex-cli": {
+          "model": "gpt-5.6-sol",
+          "effort": "high"
+        }
+      }
+    },
+    "ambiguous-strategy": {
+      "kind": "model",
+      "why": "Resolve competing goals and uncertain assumptions; require evidence and human approval for consequential choices.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-opus-5",
+          "effort": "high"
+        },
+        "codex-cli": {
+          "model": "gpt-6-astra",
+          "effort": "high"
+        }
+      }
+    },
+    "adversarial-review": {
+      "kind": "model",
+      "why": "Challenge consequential conclusions and look for counterexamples; separate the reviewer from the author.",
+      "routes": {
+        "claude-cli": {
+          "model": "claude-opus-5",
+          "effort": "high"
+        },
+        "codex-cli": {
+          "model": "gpt-6-astra",
+          "effort": "high"
+        }
+      }
+    }
+  },
+  "qualifications": [
+    {
+      "runtime": "claude-cli",
+      "model": "claude-sonnet-5",
+      "effort": "high",
+      "profile": "legacy-worker",
+      "domain": "general",
+      "status": "legacy",
+      "evidence": "docs/knowledge/canonical/model-routing.md#existing-baseline",
+      "reviewBy": "2026-10-10"
+    }
+  ]
+}

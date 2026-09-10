@@ -18,6 +18,14 @@ infrastructure/
 
 ## Packages
 
+### Shared model selection
+
+The [model routing policy](docs/knowledge/canonical/model-routing.md) separates
+task candidates from approved production routes. It supports Claude and Codex
+CLI arguments, preserves explicit user selections, and checks effort, domain
+qualification and budget before dispatch. Run `npm run test:model-routing`;
+these checks make no model calls.
+
 ### @clayparrish/agent-learning
 
 **Version:** 0.1.0-phase1 (released 2026-01-22)
