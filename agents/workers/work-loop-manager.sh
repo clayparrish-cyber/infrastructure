@@ -18,6 +18,9 @@ CUMULATIVE_COST="0"
 DATE=$(date +%Y-%m-%d)
 RUN_TRIGGER="work_loop_manager"
 SCRIPT_ROOT="$(pwd)"
+# The policy supplies model/effort only. Existing tools, permissions and limits
+# remain below, owned by this caller. Resolving a route never runs a model.
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/model-routing/work-item-args.sh"
 
 resolve_repo_relative_path() {
   local path_value="$1"
@@ -549,6 +552,14 @@ run_worker() {
   worker_run_status="completed"
   log "WORKER START: $short_id ($project) — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
 
+  local routing_args model_arg
+  local -a model_args=()
+  if ! routing_args=$(model_route_work_item "$item_json" "$NIGHTLY_COST_CAP" "$CUMULATIVE_COST"); then
+    log "WORKER SKIPPED: $short_id (model policy or budget rejected dispatch)"
+    return 1
+  fi
+  while IFS= read -r model_arg; do model_args+=("$model_arg"); done <<< "$routing_args"
+
   # Mark as in_progress + assigned to worker
   update_work_item "$item_id" "{\"status\":\"in_progress\",\"assigned_to\":\"worker-agent\",\"execution_mode\":\"live\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
   insert_event "$item_id" "assigned" "approved" "in_progress" "Assigned to worker agent"
@@ -586,6 +597,7 @@ run_worker() {
   local json_output="$LOG_DIR/$DATE-worker-$short_id-output.json"
   local error_details_json="null"
   if run_with_timeout 600 claude -p "$prompt" \
+    "${model_args[@]}" \
     --max-turns 15 \
     --output-format json \
     --permission-mode bypassPermissions \
@@ -886,6 +898,14 @@ run_specialist() {
   specialist_run_status="completed"
   log "SPECIALIST START: $short_id ($project) — $specialist — $(echo "$item_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['title'][:60])")"
 
+  local routing_args model_arg
+  local -a model_args=()
+  if ! routing_args=$(model_route_work_item "$item_json" "$NIGHTLY_COST_CAP" "$CUMULATIVE_COST"); then
+    log "SPECIALIST SKIPPED: $short_id (model policy or budget rejected dispatch)"
+    return 1
+  fi
+  while IFS= read -r model_arg; do model_args+=("$model_arg"); done <<< "$routing_args"
+
   # Mark as in_progress
   update_work_item "$item_id" "{\"status\":\"in_progress\",\"execution_mode\":\"specialist\",\"updated_at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
   insert_event "$item_id" "assigned" "approved" "in_progress" "Dispatched to specialist: $specialist"
@@ -915,6 +935,7 @@ run_specialist() {
   set -o pipefail
   local json_output="$LOG_DIR/$DATE-specialist-$short_id-output.json"
   if run_with_timeout 600 claude -p "$prompt" \
+    "${model_args[@]}" \
     --max-turns 10 \
     --output-format json \
     --permission-mode bypassPermissions \

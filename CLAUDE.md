@@ -2,7 +2,9 @@
 
 ## What This Is
 
-Registry-driven, multi-project agent infrastructure. Runs nightly via GitHub Actions, Supabase is the source of truth. Reviews 6+ codebases automatically for security, bugs, UX, content, polish, and performance issues.
+Registry-driven, multi-project agent infrastructure. Supabase is the work-item source of truth. Both nightly review workflows are currently manual-only (regular pipeline disabled August 25, 2026; managed pipeline disabled April 13). The historical schedule below is not active.
+
+Shared model selection and qualification rules: [model-routing.md](docs/knowledge/canonical/model-routing.md). Current agent instructions and recent routing changes: [AGENTS.md](AGENTS.md).
 
 ## Architecture
 

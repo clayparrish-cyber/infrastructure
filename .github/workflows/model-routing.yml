@@ -1,0 +1,34 @@
+name: Model routing policy
+
+on:
+  pull_request:
+    paths:
+      - 'agents/model-policy.json'
+      - 'agents/workers/work-loop-manager.sh'
+      - 'scripts/model-routing/**'
+      - '.github/workflows/model-routing.yml'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - 'agents/model-policy.json'
+      - 'agents/workers/work-loop-manager.sh'
+      - 'scripts/model-routing/**'
+      - '.github/workflows/model-routing.yml'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  policy-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run test:model-routing
+      - run: |
+          bash -n scripts/model-routing/work-item-args.sh
+          bash -n agents/workers/work-loop-manager.sh

@@ -12,7 +12,8 @@
     "test:agent-learning:esm": "npm --prefix packages/agent-learning run build && node scripts/validate-agent-learning-esm.mjs",
     "test:cc": "npx tsx --test scripts/cc/commands/__tests__/*.test.ts scripts/cc/lib/__tests__/*.test.ts",
     "build:cc": "node scripts/cc/build-bundle.mjs",
-    "test": "npm run lint:shell && npm run test:registry && npm run test:agent-learning:esm && npm run test:cc"
+    "test": "npm run lint:shell && npm run test:registry && npm run test:agent-learning:esm && npm run test:cc && npm run test:model-routing",
+    "test:model-routing": "node --test scripts/model-routing/*.test.mjs"
   },
   "repository": {
     "type": "git",
