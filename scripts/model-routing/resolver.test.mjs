@@ -153,10 +153,34 @@ test('policy validation rejects shell syntax, commands, missing evidence and max
 test('CC task preferences cannot supply authority, runtime, budget or production mode', () => {
   const defaults = { ...request, mode: 'production', budget }
   assert.equal(requestFromWorkItem({ metadata: { model_routing: { domain: 'finance' } } }, defaults).domain, 'finance')
-  for (const field of ['runtime', 'budget', 'mode', 'tools', 'permissionMode']) {
+  for (const field of ['runtime', 'budget', 'mode', 'tools', 'permissionMode', 'perRunOverride', 'perRunCurrentSelection']) {
     assert.throws(() => requestFromWorkItem({ metadata: { model_routing: { [field]: 'anything' } } }, defaults), /Unsupported/)
   }
   assert.throws(() => requestFromWorkItem({ metadata: { model_routing: null } }, defaults), /must be an object/)
+})
+
+test('explicit per-run choices win over stored task model preferences', () => {
+  const item = { metadata: { model_routing: { override: { model: 'gpt-5.6-luna', effort: 'medium' } } } }
+  const explicit = requestFromWorkItem(item, { ...request, override: { model: 'gpt-6-astra', effort: 'high' } })
+  assert.equal(resolveRoute(policy, explicit).model, 'gpt-6-astra')
+  assert.equal(resolveRoute(policy, explicit).effort, 'high')
+  const current = requestFromWorkItem(item, { ...request, currentSelection: { model: 'gpt-6-astra', effort: 'ultra' } })
+  assert.equal(resolveRoute(policy, current).model, 'gpt-6-astra')
+  assert.equal(resolveRoute(policy, current).effort, 'ultra')
+  const final = requestFromWorkItem(item, { ...request, currentSelection: { model: 'gpt-6-astra', effort: 'ultra' }, override: { model: 'gpt-5.6-sol' } })
+  assert.equal(resolveRoute(policy, final).model, 'gpt-5.6-sol')
+  assert.equal(resolveRoute(policy, final).effort, 'low')
+  const storedAstra = { metadata: { model_routing: { override: { model: 'gpt-6-astra', effort: 'ultra' } } } }
+  const effortOnly = requestFromWorkItem(storedAstra, { ...request, override: { effort: 'high' } })
+  assert.equal(resolveRoute(policy, effortOnly).model, 'gpt-6-astra')
+  assert.equal(resolveRoute(policy, effortOnly).effort, 'high')
+  const result = cli(['--work-item', '--runtime', 'codex-cli', '--profile', 'routine', '--model', 'gpt-6-astra', '--effort', 'high'], JSON.stringify(item))
+  assert.equal(result.status, 0, result.stderr)
+  assert.equal(JSON.parse(result.stdout).model, 'gpt-6-astra')
+  assert.equal(JSON.parse(result.stdout).selectionSource, 'per-run-override')
+  const storedContext = { modelRevision: 'old-model', suiteId: 'suite', suiteVersion: 'a'.repeat(40) }
+  const currentContext = { ...storedContext, modelRevision: 'new-model', suiteVersion: 'b'.repeat(40) }
+  assert.deepEqual(requestFromWorkItem({ metadata: { model_routing: { qualificationContext: storedContext } } }, { ...request, qualificationContext: currentContext }).qualificationContext, currentContext)
 })
 
 test('CLI emits real argv elements, rejects malformed input and cannot launch a command', () => {
