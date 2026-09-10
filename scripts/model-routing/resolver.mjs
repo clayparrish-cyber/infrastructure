@@ -159,7 +159,10 @@ export function resolveRoute(policy, request, { today = new Date().toISOString()
   const defaultRoute = known(profile.routes, runtime, 'profile route for runtime')
   const current = selectionOverride(request.currentSelection, 'current selection')
   const override = selectionOverride(request.override, 'override')
-  for (const selection of [current, override]) {
+  const perRunCurrent = selectionOverride(request.perRunCurrentSelection, 'per-run current selection')
+  const perRunOverride = selectionOverride(request.perRunOverride, 'per-run override')
+  const selections = [current, override, perRunCurrent, perRunOverride]
+  for (const selection of selections) {
     if (selection.runtime !== undefined && selection.runtime !== runtime) throw new Error('Runtime switch requires a separate request; no provider fallback')
     if (selection.model !== undefined) known(runtimePolicy.models, selection.model, 'selected model for runtime')
   }
@@ -167,7 +170,7 @@ export function resolveRoute(policy, request, { today = new Date().toISOString()
   // explicitly supplied. Otherwise preserve the user's current model AND effort.
   let model = defaultRoute.model
   let effort = defaultRoute.effort
-  for (const selection of [current, override]) {
+  for (const selection of selections) {
     if (selection.model !== undefined && selection.model !== model) {
       model = selection.model
       effort = runtimePolicy.models[model].defaultEffort
@@ -190,7 +193,8 @@ export function resolveRoute(policy, request, { today = new Date().toISOString()
       qualificationContext?.modelRevision === q.modelRevision &&
       qualificationContext?.suiteId === q.testSuite.id && qualificationContext?.suiteVersion === q.testSuite.version)))
   if (mode === 'production' && !qualification) throw new Error('Route is not qualified for this profile/domain; evaluate and approve evidence first')
-  const selectionSource = Object.keys(override).length ? 'explicit-override' : Object.keys(current).length ? 'current-selection' : 'profile-candidate'
+  const selectionSource = Object.keys(perRunOverride).length ? 'per-run-override' : Object.keys(perRunCurrent).length ? 'per-run-current-selection'
+    : Object.keys(override).length ? 'explicit-override' : Object.keys(current).length ? 'current-selection' : 'profile-candidate'
   const dispatchEligible = mode !== 'recommend'
   const argv = runtime === 'claude-cli'
     ? ['--model', model, '--effort', effort]
@@ -214,5 +218,13 @@ export function requestFromWorkItem(item, defaults) {
   for (const key of Object.keys(route)) {
     if (!['profile', 'domain', 'currentSelection', 'override', 'qualificationContext'].includes(key)) throw new Error('Unsupported work item routing field')
   }
-  return { ...defaults, ...route }
+  // Profile/domain flags act as caller defaults when reading a stored task.
+  // Model/effort flags are explicit per-run choices and must win over stale
+  // metadata. Keep the layers so an effort-only override preserves the model,
+  // and an explicit model switch can reset an incompatible inherited effort.
+  const { currentSelection, override, qualificationContext, ...callerDefaults } = defaults
+  return {
+    ...callerDefaults, ...route, perRunCurrentSelection: currentSelection, perRunOverride: override,
+    qualificationContext: qualificationContext !== undefined ? qualificationContext : route.qualificationContext,
+  }
 }

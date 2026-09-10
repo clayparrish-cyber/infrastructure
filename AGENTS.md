@@ -9,4 +9,4 @@ permission to reactivate schedules or change tool/approval boundaries.
 
 ## Recent Changes
 
-- **2026-09-10** — Added shared runtime-aware model candidates, scoped qualification gates and a tested CLI. Existing worker model/effort selection now runs before claiming a task; subscription capacity is unchanged.
+- **2026-09-10** — Added shared runtime-aware model candidates, scoped qualification gates and a tested CLI. Explicit per-run model choices override stored task preferences; worker selection runs before claiming a task.

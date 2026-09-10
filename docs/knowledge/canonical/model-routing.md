@@ -111,7 +111,13 @@ Task preferences may be stored under CC `metadata.model_routing`:
 ```
 
 The example will fail production until this exact route has finance evidence.
-With `--work-item`, these fields override the caller's preference defaults.
+With `--work-item`, stored profile/domain fields override the caller's defaults.
+Explicit CLI model/effort choices win over stored task selections. Precedence is
+profile candidate, stored current selection, stored override, explicit per-run
+current selection, then explicit per-run override. An effort-only override keeps
+the selected model; a model change without effort uses the new model's default.
+Explicit per-run qualification revisions also win over stored revisions, so a
+stale task cannot mask a changed model or test suite.
 CC metadata cannot set runtime, mode, budget or permissions. Existing untagged
 items retain the `legacy-worker/general` continuity scope; this does not infer
 their business domain. A new domain workflow must declare its domain and pass
@@ -145,12 +151,16 @@ model IDs, errors, latency and usage. Include withheld cases and failures, not
 only successful examples. Compare with the same accepted baseline and have the
 domain owner approve the evidence and error tolerances before updating policy.
 
-- **Finance:** reconcile to Adam's accepted data, periods, formulas and totals;
+- **Finance:** reconcile to company financial data, periods, formulas and totals
+  stewarded by Adam;
   include conflicting sources, missing data and unsupported assumptions.
 - **Logistics:** test units, lead times, stock, allocations, dates and constraints
   against reviewed operations cases.
 - **Specifications:** test SKU/version identity, units, ingredients and source
   authority. Reject invented or stale facts.
+
+The shared `specs` domain maps to GT's `retailer-spec` domain. An integration must
+make that mapping explicit; names are not interchangeable qualification evidence.
 
 Review qualification and budget results after onboarding in one month. Adjust
 routes from observed quality, rework and capacity, not model marketing. The model
