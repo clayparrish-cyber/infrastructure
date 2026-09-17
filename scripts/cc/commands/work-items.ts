@@ -15,7 +15,7 @@ interface GetResponse {
   events: unknown[];
 }
 
-interface WorkItem {
+export interface WorkItem {
   id: string;
   title: string;
   description?: string;
@@ -129,12 +129,12 @@ interface UpdateResponse {
   summary?: { requested: number; succeeded: number; failed: number };
 }
 
-interface RockGroup {
+export interface RockGroup {
   rock: string;
   items: WorkItem[];
 }
 
-interface PrioritiesResponse {
+export interface PrioritiesResponse {
   rocks: RockGroup[];
   serves_no_rock: RockGroup;
   count: number;
@@ -159,6 +159,28 @@ export function formatRockLabel(rock: string): string {
   return ROCK_DISPLAY_NAMES[rock] || rock;
 }
 
+/**
+ * Client-side assignee filter for `cc wi priorities --assigned-to <who>`.
+ *
+ * Verified 2026-09-16: /api/work-items/priorities ignores an `assigned_to`
+ * query param (identical rocks/count with and without it), unlike
+ * /api/work-items (list), which does filter server-side. So this endpoint's
+ * filter has to happen here, after the fetch. Case-insensitive match, since
+ * assignees are typed by hand ("clay", "Clay", "CLAY" should all match).
+ * Rocks and serves_no_rock are each filtered down to their matching items;
+ * `count` is recomputed from what is actually returned, not copied from the
+ * unfiltered response, so a CLI/agent reading `count` never sees a number
+ * that does not match the items shown.
+ */
+export function filterPrioritiesByAssignee(data: PrioritiesResponse, assignedTo: string): PrioritiesResponse {
+  const want = assignedTo.trim().toLowerCase();
+  const keep = (item: WorkItem) => (item.assigned_to ?? '').trim().toLowerCase() === want;
+  const rocks = data.rocks.map((group) => ({ rock: group.rock, items: group.items.filter(keep) }));
+  const serves_no_rock = { rock: data.serves_no_rock.rock, items: data.serves_no_rock.items.filter(keep) };
+  const count = rocks.reduce((n, g) => n + g.items.length, 0) + serves_no_rock.items.length;
+  return { rocks, serves_no_rock, count };
+}
+
 export function registerWorkItems(program: Command) {
   const wi = program.command('work-items').alias('wi').description('Manage work items');
 
@@ -169,6 +191,7 @@ export function registerWorkItems(program: Command) {
     .option('-l, --limit <n>', 'Max results', '50')
     .option('--type <type>', 'Filter by type (comma-separated)')
     .option('--rock <rock>', 'Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none')
+    .option('--assigned-to <who>', 'Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)')
     .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
     .action(async (opts) => {
       try {
@@ -178,6 +201,7 @@ export function registerWorkItems(program: Command) {
         if (opts.status) params.set('status', opts.status);
         if (opts.limit) params.set('limit', opts.limit);
         if (opts.rock) params.set('rock', opts.rock);
+        if (opts.assignedTo) params.set('assigned_to', opts.assignedTo);
         if (opts.type) {
           params.set('type', opts.type);
         } else if (!opts.includeInitiatives) {
@@ -483,6 +507,7 @@ export function registerWorkItems(program: Command) {
     .description('Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)')
     .option('-p, --project <project>', 'Filter by project')
     .option('--all', 'Include everything cc wi list hides by default (initiative/sprint containers, system items)')
+    .option('--assigned-to <who>', 'Filter to one assignee (client-side: /api/work-items/priorities does not accept this param)')
     .action(async (opts) => {
       try {
         const client = createClient(program.opts().url);
@@ -490,7 +515,8 @@ export function registerWorkItems(program: Command) {
         if (opts.project) params.set('project', opts.project);
         if (opts.all) params.set('include', 'all');
         const query = params.toString();
-        const data = await client.get<PrioritiesResponse>(`/api/work-items/priorities${query ? `?${query}` : ''}`);
+        let data = await client.get<PrioritiesResponse>(`/api/work-items/priorities${query ? `?${query}` : ''}`);
+        if (opts.assignedTo) data = filterPrioritiesByAssignee(data, opts.assignedTo);
 
         respond('cc work-items priorities', data, [
           { command: `cc wi list --rock=<rock>`, description: 'List all items in one rock' },
