@@ -3686,9 +3686,18 @@ function formatRockLabel(rock) {
   return ROCK_DISPLAY_NAMES[rock] || rock;
 }
 __name(formatRockLabel, "formatRockLabel");
+function filterPrioritiesByAssignee(data, assignedTo) {
+  const want = assignedTo.trim().toLowerCase();
+  const keep = /* @__PURE__ */ __name((item) => (item.assigned_to ?? "").trim().toLowerCase() === want, "keep");
+  const rocks = data.rocks.map((group) => ({ rock: group.rock, items: group.items.filter(keep) }));
+  const serves_no_rock = { rock: data.serves_no_rock.rock, items: data.serves_no_rock.items.filter(keep) };
+  const count = rocks.reduce((n, g) => n + g.items.length, 0) + serves_no_rock.items.length;
+  return { rocks, serves_no_rock, count };
+}
+__name(filterPrioritiesByAssignee, "filterPrioritiesByAssignee");
 function registerWorkItems(program3) {
   const wi = program3.command("work-items").alias("wi").description("Manage work items");
-  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").action(async (opts) => {
+  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--assigned-to <who>", "Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const params = new URLSearchParams();
@@ -3696,6 +3705,7 @@ function registerWorkItems(program3) {
       if (opts.status) params.set("status", opts.status);
       if (opts.limit) params.set("limit", opts.limit);
       if (opts.rock) params.set("rock", opts.rock);
+      if (opts.assignedTo) params.set("assigned_to", opts.assignedTo);
       if (opts.type) {
         params.set("type", opts.type);
       } else if (!opts.includeInitiatives) {
@@ -3935,14 +3945,15 @@ ${i.description || "(no description)"}
       throw e;
     }
   });
-  wi.command("priorities").description("Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)").option("-p, --project <project>", "Filter by project").option("--all", "Include everything cc wi list hides by default (initiative/sprint containers, system items)").action(async (opts) => {
+  wi.command("priorities").description("Show open work items grouped by rock (ruling 2026-09-02: rocks are priorities)").option("-p, --project <project>", "Filter by project").option("--all", "Include everything cc wi list hides by default (initiative/sprint containers, system items)").option("--assigned-to <who>", "Filter to one assignee (client-side: /api/work-items/priorities does not accept this param)").action(async (opts) => {
     try {
       const client = createClient(program3.opts().url);
       const params = new URLSearchParams();
       if (opts.project) params.set("project", opts.project);
       if (opts.all) params.set("include", "all");
       const query = params.toString();
-      const data = await client.get(`/api/work-items/priorities${query ? `?${query}` : ""}`);
+      let data = await client.get(`/api/work-items/priorities${query ? `?${query}` : ""}`);
+      if (opts.assignedTo) data = filterPrioritiesByAssignee(data, opts.assignedTo);
       respond("cc work-items priorities", data, [
         { command: `cc wi list --rock=<rock>`, description: "List all items in one rock" }
       ]);
