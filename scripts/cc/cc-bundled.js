@@ -3661,6 +3661,13 @@ function parseMetadataFlag(raw) {
   return parsed;
 }
 __name(parseMetadataFlag, "parseMetadataFlag");
+function parseExitCodeFlag(raw) {
+  if (!/^-?\d+$/.test(raw.trim())) {
+    throw new Error(`--exit must be an integer exit code (got "${raw}")`);
+  }
+  return parseInt(raw, 10);
+}
+__name(parseExitCodeFlag, "parseExitCodeFlag");
 async function resolveIds(client, ids) {
   const needsResolve = ids.some((id) => id.length < UUID_LENGTH);
   if (!needsResolve) return ids;
@@ -3917,6 +3924,49 @@ ${i.description || "(no description)"}
           e.body,
           String(e.status),
           e.status === 404 ? "Check work item ID" : "Check allowed status values"
+        );
+      }
+      throw e;
+    }
+  });
+  wi.command("validate").description(
+    'Record a validation run on a work item (POST /api/work-items/<id>/validation). A "finding" item cannot be closed done until a real run is recorded here \u2014 see command-center src/lib/server/autonomy-safety.ts getCloseEvidenceBlock.'
+  ).requiredOption("-i, --id <id>", "Work item ID (full UUID or short prefix)").requiredOption("--runner <runner>", "What ran it, e.g. vitest, tsc, manual").requiredOption("--revision <sha>", "Git revision the run was against").requiredOption("--command <cmd>", "Exact command that was run").requiredOption("--exit <code>", "Exit code the command returned (integer; 0 means passed)").option("--notes <notes>", "Free-text summary of the run (counts, environment, timestamp, etc.)").option("--artifact-url <url>", "Link to logs/CI output for the run").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+    try {
+      let exitCode;
+      try {
+        exitCode = parseExitCodeFlag(opts.exit);
+      } catch (parseErr) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        respondError("cc work-items validate", msg, "400", "Pass the integer exit code the command returned, e.g. --exit 0");
+        return;
+      }
+      const client = createClient(program3.opts().url);
+      const fullId = await resolveId(client, opts.id);
+      const body = {
+        runner: opts.runner,
+        revision: opts.revision,
+        command: opts.command,
+        status: exitCode === 0 ? "passed" : "failed",
+        exit_code: exitCode
+      };
+      if (opts.notes) body.notes = opts.notes;
+      if (opts.artifactUrl) body.artifact_url = opts.artifactUrl;
+      if (opts.actor) body.actor = opts.actor;
+      const data = await client.post(`/api/work-items/${fullId}/validation`, body);
+      respond("cc work-items validate", data, [
+        { command: `cc wi update -i ${fullId.slice(0, 8)} -s done --notes "..."`, description: "Close the item now that a validation run is recorded" }
+      ]);
+      if (!isAgent) {
+        console.log(`Recorded ${data.run?.status || body.status} run on ${fullId.slice(0, 8)} \u2014 ${opts.runner} @ ${opts.revision} (exit ${exitCode})`);
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        respondError(
+          "cc work-items validate",
+          e.body,
+          String(e.status),
+          e.status === 404 ? "Check work item ID" : e.status === 403 ? "This key must own or have proposed the item" : "Check runner/revision/command/exit fields match the server schema"
         );
       }
       throw e;

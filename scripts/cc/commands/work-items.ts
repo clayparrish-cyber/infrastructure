@@ -96,6 +96,25 @@ export function parseMetadataFlag(
   return parsed as Record<string, unknown>;
 }
 
+/**
+ * Parse the --exit flag value into an integer exit code.
+ *
+ * Pure helper (mirrors parseMetadataFlag) so the validation is
+ * unit-testable without commander + fetch. `cc wi validate` requires this
+ * before it can derive the server's required `status` field
+ * (passed/failed) — the API's apiValidationRunSchema (command-center
+ * src/lib/validation.ts) rejects a 'passed' status unless exit_code is
+ * exactly 0, so getting this parse right matters.
+ *
+ * Throws Error on anything that isn't a base-10 integer string.
+ */
+export function parseExitCodeFlag(raw: string): number {
+  if (!/^-?\d+$/.test(raw.trim())) {
+    throw new Error(`--exit must be an integer exit code (got "${raw}")`);
+  }
+  return parseInt(raw, 10);
+}
+
 async function resolveIds(client: ReturnType<typeof createClient>, ids: string[]): Promise<string[]> {
   const needsResolve = ids.some(id => id.length < UUID_LENGTH);
   if (!needsResolve) return ids;
@@ -127,6 +146,32 @@ interface UpdateResponse {
   updated?: string[];
   errors?: { id: string; error: string }[];
   summary?: { requested: number; succeeded: number; failed: number };
+}
+
+/**
+ * Response shape from POST /api/work-items/<id>/validation
+ * (command-center src/app/api/work-items/[id]/validation/route.ts).
+ * The route returns the inserted row as-is from
+ * recordValidationRun/work_item_validation_runs, so we only type the
+ * fields the CLI itself prints and leave the rest as unknown passthrough
+ * for the JSON envelope.
+ */
+interface ValidationRunResponse {
+  run: {
+    id?: string;
+    work_item_id?: string;
+    runner?: string;
+    revision?: string;
+    command?: string;
+    status?: string;
+    exit_code?: number | null;
+    artifact_url?: string | null;
+    notes?: string | null;
+    recorded_by?: string;
+    recorded_by_type?: string;
+    created_at?: string;
+    [key: string]: unknown;
+  };
 }
 
 export interface RockGroup {
@@ -466,6 +511,69 @@ export function registerWorkItems(program: Command) {
         if (e instanceof ApiError) {
           respondError('cc work-items update', e.body, String(e.status),
             e.status === 404 ? 'Check work item ID' : 'Check allowed status values');
+        }
+        throw e;
+      }
+    });
+
+  wi.command('validate')
+    .description(
+      'Record a validation run on a work item (POST /api/work-items/<id>/validation). ' +
+        'A "finding" item cannot be closed done until a real run is recorded here — ' +
+        'see command-center src/lib/server/autonomy-safety.ts getCloseEvidenceBlock.',
+    )
+    .requiredOption('-i, --id <id>', 'Work item ID (full UUID or short prefix)')
+    .requiredOption('--runner <runner>', 'What ran it, e.g. vitest, tsc, manual')
+    .requiredOption('--revision <sha>', 'Git revision the run was against')
+    .requiredOption('--command <cmd>', 'Exact command that was run')
+    .requiredOption('--exit <code>', 'Exit code the command returned (integer; 0 means passed)')
+    .option('--notes <notes>', 'Free-text summary of the run (counts, environment, timestamp, etc.)')
+    .option('--artifact-url <url>', 'Link to logs/CI output for the run')
+    .option('--actor <actor>', 'Actor name', 'clay')
+    .action(async (opts) => {
+      try {
+        let exitCode: number;
+        try {
+          exitCode = parseExitCodeFlag(opts.exit);
+        } catch (parseErr) {
+          const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+          respondError('cc work-items validate', msg, '400', 'Pass the integer exit code the command returned, e.g. --exit 0');
+          return;
+        }
+
+        const client = createClient(program.opts().url);
+        const fullId = await resolveId(client, opts.id);
+
+        // status is derived, not a flag: the server (apiValidationRunSchema)
+        // rejects status: 'passed' unless exit_code is exactly 0, so there is
+        // no honest way for the caller to pick it independently of the code
+        // that was actually observed.
+        const body: Record<string, unknown> = {
+          runner: opts.runner,
+          revision: opts.revision,
+          command: opts.command,
+          status: exitCode === 0 ? 'passed' : 'failed',
+          exit_code: exitCode,
+        };
+        if (opts.notes) body.notes = opts.notes;
+        if (opts.artifactUrl) body.artifact_url = opts.artifactUrl;
+        if (opts.actor) body.actor = opts.actor;
+
+        const data = await client.post<ValidationRunResponse>(`/api/work-items/${fullId}/validation`, body);
+
+        respond('cc work-items validate', data, [
+          { command: `cc wi update -i ${fullId.slice(0, 8)} -s done --notes "..."`, description: 'Close the item now that a validation run is recorded' },
+        ]);
+
+        if (!isAgent) {
+          console.log(`Recorded ${data.run?.status || body.status} run on ${fullId.slice(0, 8)} — ${opts.runner} @ ${opts.revision} (exit ${exitCode})`);
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          respondError('cc work-items validate', e.body, String(e.status),
+            e.status === 404 ? 'Check work item ID' :
+            e.status === 403 ? 'This key must own or have proposed the item' :
+            'Check runner/revision/command/exit fields match the server schema');
         }
         throw e;
       }
