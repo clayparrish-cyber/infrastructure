@@ -5,6 +5,8 @@ import {
   chicagoToday,
   isOverdueWake,
   isSnoozed,
+  isTruncatedPage,
+  SNOOZED_FETCH_LIMIT,
   isValidSnoozeDate,
   mergeOverdueWakes,
   parseSnoozeUntilFlag,
@@ -302,6 +304,71 @@ test('cc wi list --snoozed: snoozed items only, soonest wake first, overdue flag
   );
   assert.equal(envelope.result.count, 3);
   assert.equal(envelope.result.snooze_summary.next_wake, '2999-01-01');
+});
+
+// --- the API's page cap ------------------------------------------------------
+// GET /api/work-items clamps `limit` to 200 and has no offset, so the CLI cannot
+// see past 200 snoozed items. The daily wake job reads up to 1000. The CLI asks
+// for exactly what the API allows, and says so out loud when a page comes back
+// full, because the API drops the oldest items when it cuts a page short.
+
+function manySnoozed(n: number): WorkItem[] {
+  return Array.from({ length: n }, (_, i) => snoozedItem(
+    `40000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    // Dates are all in the future so nothing is overdue and only the cap matters.
+    `2999-${String((i % 12) + 1).padStart(2, '0')}-15`,
+  ));
+}
+
+test('SNOOZED_FETCH_LIMIT is the API maximum, 200, and only a full page counts as cut off', () => {
+  assert.equal(SNOOZED_FETCH_LIMIT, 200);
+  assert.equal(isTruncatedPage(0), false);
+  assert.equal(isTruncatedPage(199), false);
+  assert.equal(isTruncatedPage(200), true);
+  assert.equal(isTruncatedPage(201), true);
+});
+
+test('summarizeSnoozed: a cut-off page adds a loud warning and sets truncated', () => {
+  const cut = summarizeSnoozed([snoozedItem(ID_FUTURE, '2999-03-01')], '2026-10-13', true);
+  assert.equal(cut.truncated, true);
+  assert.match(cut.line, /^Snoozed: 1 item, next wake 2999-03-01\. WARNING: the API sent its 200-item maximum/);
+  const whole = summarizeSnoozed([snoozedItem(ID_FUTURE, '2999-03-01')], '2026-10-13');
+  assert.equal(whole.truncated, false);
+  assert.ok(!/WARNING/.test(whole.line));
+  assert.equal(snoozeCheckFailedSummary('API 500').truncated, false);
+});
+
+test('cc wi list and cc wi list --snoozed: both ask the API for its maximum page, 200', async (t) => {
+  const asDefault = await runWi(t, ['list'], listReplies);
+  assert.equal(asDefault.calls[1].search.get('snoozed'), 'true');
+  assert.equal(asDefault.calls[1].search.get('limit'), '200');
+  const asSnoozed = await runWi(t, ['list', '--snoozed'], listReplies);
+  assert.equal(asSnoozed.calls[0].search.get('limit'), '200');
+});
+
+test('cc wi list: a full page of 200 snoozed items is flagged as possibly cut off, on both commands', async (t) => {
+  const full = manySnoozed(200);
+  const reply = (call: Call): Reply => call.search.get('snoozed') === 'true'
+    ? { json: { items: full, count: full.length } }
+    : { json: { items: OPEN_ITEMS, count: 1 } };
+
+  const asDefault = await runWi(t, ['list'], reply);
+  assert.equal(asDefault.envelope.result.snooze_summary.truncated, true);
+  assert.equal(asDefault.envelope.result.snooze_summary.count, 200);
+  assert.match(asDefault.envelope.result.snooze_summary.line, /WARNING: the API sent its 200-item maximum/);
+
+  const asSnoozed = await runWi(t, ['list', '--snoozed'], reply);
+  assert.equal(asSnoozed.envelope.result.snooze_summary.truncated, true);
+  assert.match(asSnoozed.envelope.result.snooze_summary.line, /WARNING/);
+});
+
+test('cc wi list: 199 snoozed items is a whole page, with no warning', async (t) => {
+  const some = manySnoozed(199);
+  const { envelope } = await runWi(t, ['list'], (call) => call.search.get('snoozed') === 'true'
+    ? { json: { items: some, count: some.length } }
+    : { json: { items: OPEN_ITEMS, count: 1 } });
+  assert.equal(envelope.result.snooze_summary.truncated, false);
+  assert.ok(!/WARNING/.test(envelope.result.snooze_summary.line));
 });
 
 test('cc wi snooze: sends the snooze operation with the date, and the reason under `reason` (never `notes`)', async (t) => {

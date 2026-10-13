@@ -3686,7 +3686,7 @@ function sortBySnoozeWake(items) {
   return items.filter(isSnoozed).sort((a, b) => (snoozeUntil(a) ?? "").localeCompare(snoozeUntil(b) ?? "") || a.id.localeCompare(b.id));
 }
 __name(sortBySnoozeWake, "sortBySnoozeWake");
-function summarizeSnoozed(snoozedItems, today) {
+function summarizeSnoozed(snoozedItems, today, truncated = false) {
   const snoozed = sortBySnoozeWake(snoozedItems);
   const overdue = snoozed.filter((i) => isOverdueWake(i, today));
   const upcoming = snoozed.map(snoozeUntil).filter((d) => d !== null && d > today);
@@ -3695,7 +3695,10 @@ function summarizeSnoozed(snoozedItems, today) {
   if (overdue.length) {
     line += `. ${overdue.length} OVERDUE WAKE (date passed, wake job has not run): shown above`;
   }
-  return { count: snoozed.length, next_wake, overdue_count: overdue.length, checked: true, line };
+  if (truncated) {
+    line += `. WARNING: the API sent its ${SNOOZED_FETCH_LIMIT}-item maximum, so more snoozed items may exist than are listed. Overdue tripwires may be missing`;
+  }
+  return { count: snoozed.length, next_wake, overdue_count: overdue.length, checked: true, truncated, line };
 }
 __name(summarizeSnoozed, "summarizeSnoozed");
 function snoozeCheckFailedSummary(reason) {
@@ -3704,6 +3707,7 @@ function snoozeCheckFailedSummary(reason) {
     next_wake: null,
     overdue_count: 0,
     checked: false,
+    truncated: false,
     line: `Snoozed: CHECK FAILED (${reason}). Overdue tripwires may be missing. Run \`cc wi list --snoozed\``
   };
 }
@@ -3718,9 +3722,14 @@ function mergeOverdueWakes(listItems, snoozedItems, today) {
   ];
 }
 __name(mergeOverdueWakes, "mergeOverdueWakes");
+var SNOOZED_FETCH_LIMIT = 200;
+function isTruncatedPage(returned) {
+  return returned >= SNOOZED_FETCH_LIMIT;
+}
+__name(isTruncatedPage, "isTruncatedPage");
 async function fetchSnoozed(client) {
-  const data = await client.get("/api/work-items?status=deferred&snoozed=true&limit=200");
-  return sortBySnoozeWake(data.items);
+  const data = await client.get(`/api/work-items?status=deferred&snoozed=true&limit=${SNOOZED_FETCH_LIMIT}`);
+  return { items: sortBySnoozeWake(data.items), truncated: isTruncatedPage(data.items.length) };
 }
 __name(fetchSnoozed, "fetchSnoozed");
 async function resolveId(client, shortId) {
@@ -3800,11 +3809,12 @@ function registerWorkItems(program3) {
       const client = createClient(program3.opts().url);
       const today = chicagoToday();
       if (opts.snoozed) {
-        let snoozed = await fetchSnoozed(client);
+        const fetched = await fetchSnoozed(client);
+        let snoozed = fetched.items;
         if (opts.project) snoozed = snoozed.filter((i) => i.project === opts.project);
         if (opts.assignedTo) snoozed = snoozed.filter((i) => i.assigned_to === opts.assignedTo);
         if (opts.rock) snoozed = snoozed.filter((i) => (i.rock || "none") === opts.rock);
-        const summary = summarizeSnoozed(snoozed, today);
+        const summary = summarizeSnoozed(snoozed, today, fetched.truncated);
         const items = snoozed.map((i) => isOverdueWake(i, today) ? { ...i, overdue_wake: true } : i);
         respond("cc work-items list --snoozed", { items, count: items.length, snooze_summary: summary }, [
           { command: `cc wi wake -i <id>`, description: "Wake one now, before its date" },
@@ -3841,9 +3851,9 @@ ${summary.line.replace(": shown above", "")}`);
       let data = listed;
       if (cmd.getOptionValueSource("status") === "default") {
         try {
-          const snoozed = await fetchSnoozed(client);
-          const items = mergeOverdueWakes(listed.items, snoozed, today);
-          data = { items, count: items.length, snooze_summary: summarizeSnoozed(snoozed, today) };
+          const fetched = await fetchSnoozed(client);
+          const items = mergeOverdueWakes(listed.items, fetched.items, today);
+          data = { items, count: items.length, snooze_summary: summarizeSnoozed(fetched.items, today, fetched.truncated) };
         } catch (snoozeErr) {
           const reason = snoozeErr instanceof ApiError ? `API ${snoozeErr.status}` : "request failed";
           data = { ...listed, snooze_summary: snoozeCheckFailedSummary(reason) };

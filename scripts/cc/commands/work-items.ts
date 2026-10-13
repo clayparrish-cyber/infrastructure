@@ -141,11 +141,13 @@ export interface SnoozeSummary {
   overdue_count: number;
   /** False when the snoozed items could not be fetched: the check did not run. */
   checked: boolean;
+  /** True when the API sent back a full page, so more snoozed items may exist than were seen. */
+  truncated: boolean;
   /** The one line printed under every default `cc wi list`. */
   line: string;
 }
 
-export function summarizeSnoozed(snoozedItems: WorkItem[], today: string): SnoozeSummary {
+export function summarizeSnoozed(snoozedItems: WorkItem[], today: string, truncated = false): SnoozeSummary {
   const snoozed = sortBySnoozeWake(snoozedItems);
   const overdue = snoozed.filter((i) => isOverdueWake(i, today));
   const upcoming = snoozed.map(snoozeUntil).filter((d): d is string => d !== null && d > today);
@@ -157,7 +159,10 @@ export function summarizeSnoozed(snoozedItems: WorkItem[], today: string): Snooz
   if (overdue.length) {
     line += `. ${overdue.length} OVERDUE WAKE (date passed, wake job has not run): shown above`;
   }
-  return { count: snoozed.length, next_wake, overdue_count: overdue.length, checked: true, line };
+  if (truncated) {
+    line += `. WARNING: the API sent its ${SNOOZED_FETCH_LIMIT}-item maximum, so more snoozed items may exist than are listed. Overdue tripwires may be missing`;
+  }
+  return { count: snoozed.length, next_wake, overdue_count: overdue.length, checked: true, truncated, line };
 }
 
 /** Summary used when the snoozed fetch failed. Loud on purpose. */
@@ -167,6 +172,7 @@ export function snoozeCheckFailedSummary(reason: string): SnoozeSummary {
     next_wake: null,
     overdue_count: 0,
     checked: false,
+    truncated: false,
     line: `Snoozed: CHECK FAILED (${reason}). Overdue tripwires may be missing. Run \`cc wi list --snoozed\``,
   };
 }
@@ -187,15 +193,32 @@ export function mergeOverdueWakes(listItems: WorkItem[], snoozedItems: WorkItem[
 }
 
 /**
+ * The most items GET /api/work-items returns in one call. The Command Center
+ * route clamps `limit` to 200 and has no offset or cursor, so one call is all
+ * the CLI can get. (The app's daily wake job reads the table directly, up to
+ * 1000, so it sees more than this.) Asking for more changes nothing.
+ */
+export const SNOOZED_FETCH_LIMIT = 200;
+
+/**
+ * A page that came back full may have been cut off. The API sorts newest
+ * first, so a cut-off page drops the oldest items, which are often the
+ * longest-running tripwires.
+ */
+export function isTruncatedPage(returned: number): boolean {
+  return returned >= SNOOZED_FETCH_LIMIT;
+}
+
+/**
  * Every snoozed item the key can see. `snoozed=true` is filtered by the
  * server; the result is filtered again here so an older deploy that ignores
  * the param (and returns every deferred item) still yields only snoozed ones.
  * Deliberately not narrowed by --project/--assigned-to/--rock: an overdue
  * tripwire should surface whatever view was asked for.
  */
-async function fetchSnoozed(client: ReturnType<typeof createClient>): Promise<WorkItem[]> {
-  const data = await client.get<ListResponse>('/api/work-items?status=deferred&snoozed=true&limit=200');
-  return sortBySnoozeWake(data.items);
+async function fetchSnoozed(client: ReturnType<typeof createClient>): Promise<{ items: WorkItem[]; truncated: boolean }> {
+  const data = await client.get<ListResponse>(`/api/work-items?status=deferred&snoozed=true&limit=${SNOOZED_FETCH_LIMIT}`);
+  return { items: sortBySnoozeWake(data.items), truncated: isTruncatedPage(data.items.length) };
 }
 
 interface SnoozeResponse {
@@ -406,11 +429,12 @@ export function registerWorkItems(program: Command) {
         const today = chicagoToday();
 
         if (opts.snoozed) {
-          let snoozed = await fetchSnoozed(client);
+          const fetched = await fetchSnoozed(client);
+          let snoozed = fetched.items;
           if (opts.project) snoozed = snoozed.filter(i => i.project === opts.project);
           if (opts.assignedTo) snoozed = snoozed.filter(i => i.assigned_to === opts.assignedTo);
           if (opts.rock) snoozed = snoozed.filter(i => (i.rock || 'none') === opts.rock);
-          const summary = summarizeSnoozed(snoozed, today);
+          const summary = summarizeSnoozed(snoozed, today, fetched.truncated);
           const items = snoozed.map(i => (isOverdueWake(i, today) ? { ...i, overdue_wake: true } : i));
 
           respond('cc work-items list --snoozed', { items, count: items.length, snooze_summary: summary }, [
@@ -454,9 +478,9 @@ export function registerWorkItems(program: Command) {
         let data: ListResponse & { snooze_summary?: SnoozeSummary } = listed;
         if (cmd.getOptionValueSource('status') === 'default') {
           try {
-            const snoozed = await fetchSnoozed(client);
-            const items = mergeOverdueWakes(listed.items, snoozed, today);
-            data = { items, count: items.length, snooze_summary: summarizeSnoozed(snoozed, today) };
+            const fetched = await fetchSnoozed(client);
+            const items = mergeOverdueWakes(listed.items, fetched.items, today);
+            data = { items, count: items.length, snooze_summary: summarizeSnoozed(fetched.items, today, fetched.truncated) };
           } catch (snoozeErr) {
             const reason = snoozeErr instanceof ApiError ? `API ${snoozeErr.status}` : 'request failed';
             data = { ...listed, snooze_summary: snoozeCheckFailedSummary(reason) };
