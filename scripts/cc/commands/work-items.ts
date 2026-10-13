@@ -37,11 +37,172 @@ export interface WorkItem {
    * explicit default for untagged items, not an absence of the field.
    */
   rock?: string;
+  metadata?: Record<string, unknown> | null;
+  /**
+   * Set by `cc wi list` on a snoozed item whose wake date has passed but
+   * which the daily wake job has not put back yet. See mergeOverdueWakes.
+   */
+  overdue_wake?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 const UUID_LENGTH = 36;
+
+// ---------------------------------------------------------------------------
+// Snooze until a date, then wake (2026-10-13).
+//
+// A tripwire item has nothing to do until a date. `cc wi snooze` parks it off
+// the open list (status deferred + metadata.snooze.until); the Command Center
+// app's daily job (/api/cron/wake-snoozed) puts it back on its date.
+//
+// A missed tripwire is the one failure that matters, so the CLI does not
+// trust the job: every default `cc wi list` also asks for the snoozed items
+// and prints any whose date has passed as OVERDUE WAKE.
+// ---------------------------------------------------------------------------
+
+export const SNOOZE_TIME_ZONE = 'America/Chicago';
+
+/** Today's calendar date in Chicago as YYYY-MM-DD (same rule as the wake job). */
+export function chicagoToday(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: SNOOZE_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** True only for a real calendar date written exactly as YYYY-MM-DD. */
+export function isValidSnoozeDate(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+/**
+ * Parse `cc wi snooze --until <date>`. Pure, so the rules are unit-tested.
+ * Throws on a missing date, anything that is not a real YYYY-MM-DD date, and
+ * any date that is not after today in Chicago. Today itself is refused: the
+ * wake job may already have run today.
+ */
+export function parseSnoozeUntilFlag(raw: string | undefined, today: string = chicagoToday()): string {
+  const value = (raw ?? '').trim();
+  if (!value) throw new Error('--until is required (YYYY-MM-DD)');
+  if (!isValidSnoozeDate(value)) {
+    throw new Error(`--until must be a real date written YYYY-MM-DD (got "${value}")`);
+  }
+  if (value <= today) {
+    throw new Error(`--until must be after today (${today}, Chicago); got ${value}`);
+  }
+  return value;
+}
+
+/** True when the item is snoozed: deferred and carrying metadata.snooze. */
+export function isSnoozed(item: WorkItem): boolean {
+  const snooze = item.metadata?.snooze;
+  return item.status === 'deferred' && !!snooze && typeof snooze === 'object' && !Array.isArray(snooze);
+}
+
+/** The wake date of a snoozed item, or null if it has none that can be read. */
+export function snoozeUntil(item: WorkItem): string | null {
+  if (!isSnoozed(item)) return null;
+  const until = (item.metadata!.snooze as Record<string, unknown>).until;
+  return isValidSnoozeDate(until) ? until : null;
+}
+
+/**
+ * A snoozed item is overdue when its wake date is today or earlier, or when
+ * its wake date cannot be read at all (it could never come due on its own).
+ */
+export function isOverdueWake(item: WorkItem, today: string): boolean {
+  if (!isSnoozed(item)) return false;
+  const until = snoozeUntil(item);
+  return until === null || until <= today;
+}
+
+/** Snoozed items only, soonest wake first; unreadable dates sort to the top. */
+export function sortBySnoozeWake(items: WorkItem[]): WorkItem[] {
+  return items
+    .filter(isSnoozed)
+    .sort((a, b) => (snoozeUntil(a) ?? '').localeCompare(snoozeUntil(b) ?? '') || a.id.localeCompare(b.id));
+}
+
+export interface SnoozeSummary {
+  /** How many items are snoozed right now. */
+  count: number;
+  /** Earliest wake date still ahead, or null. */
+  next_wake: string | null;
+  overdue_count: number;
+  /** False when the snoozed items could not be fetched: the check did not run. */
+  checked: boolean;
+  /** The one line printed under every default `cc wi list`. */
+  line: string;
+}
+
+export function summarizeSnoozed(snoozedItems: WorkItem[], today: string): SnoozeSummary {
+  const snoozed = sortBySnoozeWake(snoozedItems);
+  const overdue = snoozed.filter((i) => isOverdueWake(i, today));
+  const upcoming = snoozed.map(snoozeUntil).filter((d): d is string => d !== null && d > today);
+  const next_wake = upcoming.length ? upcoming[0] : null;
+
+  let line = snoozed.length === 0
+    ? 'Snoozed: 0 items'
+    : `Snoozed: ${snoozed.length} item${snoozed.length === 1 ? '' : 's'}, next wake ${next_wake ?? 'none ahead'}`;
+  if (overdue.length) {
+    line += `. ${overdue.length} OVERDUE WAKE (date passed, wake job has not run): shown above`;
+  }
+  return { count: snoozed.length, next_wake, overdue_count: overdue.length, checked: true, line };
+}
+
+/** Summary used when the snoozed fetch failed. Loud on purpose. */
+export function snoozeCheckFailedSummary(reason: string): SnoozeSummary {
+  return {
+    count: 0,
+    next_wake: null,
+    overdue_count: 0,
+    checked: false,
+    line: `Snoozed: CHECK FAILED (${reason}). Overdue tripwires may be missing. Run \`cc wi list --snoozed\``,
+  };
+}
+
+/**
+ * Put overdue snoozed items at the top of a list, each flagged
+ * `overdue_wake: true`. An item already in the list is flagged in place
+ * rather than added twice.
+ */
+export function mergeOverdueWakes(listItems: WorkItem[], snoozedItems: WorkItem[], today: string): WorkItem[] {
+  const overdue = sortBySnoozeWake(snoozedItems).filter((i) => isOverdueWake(i, today));
+  if (overdue.length === 0) return listItems;
+  const overdueIds = new Set(overdue.map((i) => i.id));
+  return [
+    ...overdue.map((i) => ({ ...i, overdue_wake: true })),
+    ...listItems.filter((i) => !overdueIds.has(i.id)),
+  ];
+}
+
+/**
+ * Every snoozed item the key can see. `snoozed=true` is filtered by the
+ * server; the result is filtered again here so an older deploy that ignores
+ * the param (and returns every deferred item) still yields only snoozed ones.
+ * Deliberately not narrowed by --project/--assigned-to/--rock: an overdue
+ * tripwire should surface whatever view was asked for.
+ */
+async function fetchSnoozed(client: ReturnType<typeof createClient>): Promise<WorkItem[]> {
+  const data = await client.get<ListResponse>('/api/work-items?status=deferred&snoozed=true&limit=200');
+  return sortBySnoozeWake(data.items);
+}
+
+interface SnoozeResponse {
+  item?: { id: string; status: string; metadata?: Record<string, unknown> | null };
+  snooze?: { until?: string; from_status?: string; by?: string; at?: string } | null;
+  woke?: boolean;
+}
 
 /**
  * Resolve a short ID prefix (e.g. "5d5bf4fe") to a full UUID by fetching
@@ -238,9 +399,39 @@ export function registerWorkItems(program: Command) {
     .option('--rock <rock>', 'Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none')
     .option('--assigned-to <who>', 'Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)')
     .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
-    .action(async (opts) => {
+    .option('--snoozed', 'List snoozed items only (parked until a date), soonest wake first')
+    .action(async (opts, cmd: Command) => {
       try {
         const client = createClient(program.opts().url);
+        const today = chicagoToday();
+
+        if (opts.snoozed) {
+          let snoozed = await fetchSnoozed(client);
+          if (opts.project) snoozed = snoozed.filter(i => i.project === opts.project);
+          if (opts.assignedTo) snoozed = snoozed.filter(i => i.assigned_to === opts.assignedTo);
+          if (opts.rock) snoozed = snoozed.filter(i => (i.rock || 'none') === opts.rock);
+          const summary = summarizeSnoozed(snoozed, today);
+          const items = snoozed.map(i => (isOverdueWake(i, today) ? { ...i, overdue_wake: true } : i));
+
+          respond('cc work-items list --snoozed', { items, count: items.length, snooze_summary: summary }, [
+            { command: `cc wi wake -i <id>`, description: 'Wake one now, before its date' },
+            { command: `cc wi snooze -i <id> --until YYYY-MM-DD`, description: 'Move a wake date' },
+          ]);
+
+          if (!isAgent) {
+            console.log(`\n${items.length} snoozed item(s), soonest wake first:\n`);
+            table(items.map(i => ({
+              id: i.id.slice(0, 8),
+              wake: i.overdue_wake ? `${snoozeUntil(i) ?? 'unreadable'} OVERDUE WAKE` : snoozeUntil(i),
+              back_to: String((i.metadata?.snooze as Record<string, unknown>)?.from_status ?? 'triaged'),
+              project: i.project || '-',
+              title: i.title.slice(0, 60),
+            })), ['id', 'wake', 'back_to', 'project', 'title']);
+            console.log(`\n${summary.line.replace(': shown above', '')}`);
+          }
+          return;
+        }
+
         const params = new URLSearchParams();
         if (opts.project) params.set('project', opts.project);
         if (opts.status) params.set('status', opts.status);
@@ -253,18 +444,36 @@ export function registerWorkItems(program: Command) {
           params.set('exclude_type', 'initiative');
         }
 
-        const data = await client.get<ListResponse>(`/api/work-items?${params}`);
+        const listed = await client.get<ListResponse>(`/api/work-items?${params}`);
+
+        // Fail-safe for snoozed tripwires. Runs on the default open list (no
+        // explicit --status): a snoozed item whose date has passed is added
+        // back at the top, marked OVERDUE WAKE, even if the daily wake job
+        // never ran. If this check itself fails the list still prints, and
+        // says loudly that the check did not run.
+        let data: ListResponse & { snooze_summary?: SnoozeSummary } = listed;
+        if (cmd.getOptionValueSource('status') === 'default') {
+          try {
+            const snoozed = await fetchSnoozed(client);
+            const items = mergeOverdueWakes(listed.items, snoozed, today);
+            data = { items, count: items.length, snooze_summary: summarizeSnoozed(snoozed, today) };
+          } catch (snoozeErr) {
+            const reason = snoozeErr instanceof ApiError ? `API ${snoozeErr.status}` : 'request failed';
+            data = { ...listed, snooze_summary: snoozeCheckFailedSummary(reason) };
+          }
+        }
 
         respond('cc work-items list', data, [
           { command: `cc wi list --status=done --limit=10`, description: 'View completed items' },
           { command: `cc wi create --title "New task" --project mainline-apps`, description: 'Create a new work item' },
+          { command: `cc wi list --snoozed`, description: 'View snoozed items and their wake dates' },
         ]);
 
         if (!isAgent) {
           console.log(`\n${data.count} work items:\n`);
           table(data.items.map(i => ({
             id: i.id.slice(0, 8),
-            status: i.status,
+            status: i.overdue_wake ? 'OVERDUE WAKE' : i.status,
             priority: i.priority || '-',
             project: i.project || '-',
             rock: i.rock || 'none',
@@ -283,6 +492,8 @@ export function registerWorkItems(program: Command) {
               console.log(`  ${i.id.slice(0, 8)} [${n.created_at.slice(0, 10)}] ${n.note.slice(0, 160)}${n.note.length > 160 ? '…' : ''}`);
             }
           }
+
+          if (data.snooze_summary) console.log(`\n${data.snooze_summary.line}`);
         }
       } catch (e) {
         if (e instanceof ApiError) {
@@ -511,6 +722,110 @@ export function registerWorkItems(program: Command) {
         if (e instanceof ApiError) {
           respondError('cc work-items update', e.body, String(e.status),
             e.status === 404 ? 'Check work item ID' : 'Check allowed status values');
+        }
+        throw e;
+      }
+    });
+
+  wi.command('snooze')
+    .description(
+      'Park a work item until a date. It leaves the open list (status deferred) and the ' +
+        'daily wake job puts it back on that date. Use for tripwires: nothing to do until then.',
+    )
+    .requiredOption('-i, --id <id>', 'Work item ID (full UUID or short prefix)')
+    .requiredOption('--until <date>', 'Wake date, YYYY-MM-DD, after today (Chicago)')
+    .option('--notes <notes>', 'Why it is snoozed (added to the "Snoozed until" note)')
+    .option('--actor <actor>', 'Actor name', 'clay')
+    .action(async (opts) => {
+      try {
+        let until: string;
+        try {
+          until = parseSnoozeUntilFlag(opts.until);
+        } catch (parseErr) {
+          const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+          respondError('cc work-items snooze', msg, '400', 'Pass a future date, e.g. --until 2027-01-29');
+          return;
+        }
+
+        const client = createClient(program.opts().url);
+        const fullId = await resolveId(client, opts.id);
+
+        // `reason`, not `notes`: a Command Center deploy that predates the
+        // snooze operation then rejects this request (400) instead of
+        // accepting it as a notes-only update and snoozing nothing.
+        const body: Record<string, unknown> = { id: fullId, operation: 'snooze', until };
+        if (opts.notes) body.reason = opts.notes;
+        if (opts.actor) body.actor = opts.actor;
+
+        const data = await client.patch<SnoozeResponse>('/api/work-items', body);
+
+        // Do not report a snooze the server did not confirm.
+        if (data.item?.status !== 'deferred' || data.snooze?.until !== until) {
+          respondError(
+            'cc work-items snooze',
+            `Server did not confirm the snooze of ${fullId} until ${until}. The item was NOT snoozed.`,
+            '502',
+            'Check that the Command Center deploy includes the snooze operation, then run `cc wi get <id>`',
+          );
+          return;
+        }
+
+        respond('cc work-items snooze', data, [
+          { command: `cc wi list --snoozed`, description: 'View snoozed items and their wake dates' },
+          { command: `cc wi wake -i ${fullId.slice(0, 8)}`, description: 'Wake it now, before its date' },
+        ]);
+
+        if (!isAgent) {
+          console.log(`Snoozed: ${fullId.slice(0, 8)} until ${until} (wakes to ${data.snooze?.from_status || 'triaged'})`);
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          respondError('cc work-items snooze', e.body, String(e.status),
+            e.status === 404 ? 'Check work item ID' :
+            e.status === 422 ? 'The date must be after today, and the item must not be done or rejected' :
+            'Check the date is YYYY-MM-DD and the Command Center deploy includes the snooze operation');
+        }
+        throw e;
+      }
+    });
+
+  wi.command('wake')
+    .description('Wake a snoozed work item now, before its date. It returns to the status it had.')
+    .requiredOption('-i, --id <id>', 'Work item ID (full UUID or short prefix)')
+    .option('--actor <actor>', 'Actor name', 'clay')
+    .action(async (opts) => {
+      try {
+        const client = createClient(program.opts().url);
+        const fullId = await resolveId(client, opts.id);
+
+        const body: Record<string, unknown> = { id: fullId, operation: 'wake' };
+        if (opts.actor) body.actor = opts.actor;
+
+        const data = await client.patch<SnoozeResponse>('/api/work-items', body);
+
+        if (data.woke !== true || !data.item || data.item.status === 'deferred') {
+          respondError(
+            'cc work-items wake',
+            `Server did not confirm the wake of ${fullId}. The item was NOT woken.`,
+            '502',
+            'Check that the Command Center deploy includes the wake operation, then run `cc wi get <id>`',
+          );
+          return;
+        }
+
+        respond('cc work-items wake', data, [
+          { command: `cc wi get ${fullId.slice(0, 8)}`, description: 'Read the woken item' },
+        ]);
+
+        if (!isAgent) {
+          console.log(`Woke: ${fullId.slice(0, 8)} → ${data.item.status}`);
+        }
+      } catch (e) {
+        if (e instanceof ApiError) {
+          respondError('cc work-items wake', e.body, String(e.status),
+            e.status === 404 ? 'Check work item ID' :
+            e.status === 422 ? 'Only a snoozed item can be woken. See `cc wi list --snoozed`' :
+            'Check the Command Center deploy includes the wake operation');
         }
         throw e;
       }
