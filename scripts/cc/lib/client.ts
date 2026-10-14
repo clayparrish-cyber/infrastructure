@@ -15,10 +15,22 @@ import { readFileSync } from 'node:fs';
  */
 export const DEFAULT_CC_API_KEY_SECRET_FILE = '/run/secrets/cc-api-key';
 
+/**
+ * Read-only fallback key (2026-10-14). Command Center accepts it for GET only;
+ * every write gets 403. Used when COMMAND_CENTER_API_KEY is absent, e.g. in the
+ * Codex sandbox, which must never hold the write key.
+ */
+export const READONLY_KEY_ENV = 'COMMAND_CENTER_READONLY_API_KEY';
+
+/** The one-line message for a write attempted with only the read-only key. */
+export const READONLY_WRITE_MESSAGE = 'read-only key: writes not allowed';
+
 interface ClientConfig {
   apiKey: string;
   baseUrl: string;
   timeout?: number;
+  /** True when apiKey is the read-only key: refuse writes before any request. */
+  readOnly?: boolean;
 }
 
 export class ApiError extends Error {
@@ -28,18 +40,34 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Thrown before any network call when a write is attempted with only the
+ * read-only key. cc.ts prints it as one line and exits 1.
+ */
+export class ReadOnlyKeyError extends Error {
+  constructor() {
+    super(READONLY_WRITE_MESSAGE);
+    this.name = 'ReadOnlyKeyError';
+  }
+}
+
 export class CommandCenterClient {
   private apiKey: string;
   private baseUrl: string;
   private timeout: number;
+  readonly readOnly: boolean;
 
   constructor(config: ClientConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
     this.timeout = config.timeout ?? 30000;
+    this.readOnly = config.readOnly ?? false;
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    if (this.readOnly && method !== 'GET') {
+      throw new ReadOnlyKeyError();
+    }
     const url = `${this.baseUrl}${path}`;
     const response = await fetch(url, {
       method,
@@ -118,11 +146,27 @@ export function resolveApiKey(
   return null;
 }
 
+/**
+ * The key the CLI should use. The full key (env or secret file, see
+ * resolveApiKey) always wins; the read-only key is only a fallback when no
+ * full key is found.
+ */
+export function resolveClientKey(
+  pathOverride?: string,
+): { apiKey: string; readOnly: boolean } | null {
+  const full = resolveApiKey(pathOverride);
+  if (full) return { apiKey: full, readOnly: false };
+  const readOnly = process.env[READONLY_KEY_ENV];
+  if (readOnly && readOnly.trim() !== '') return { apiKey: readOnly.trim(), readOnly: true };
+  return null;
+}
+
 export function createClient(urlOverride?: string): CommandCenterClient {
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
+  const resolved = resolveClientKey();
+  if (!resolved) {
     console.error('Error: COMMAND_CENTER_API_KEY environment variable not set.');
     console.error('Fix: export COMMAND_CENTER_API_KEY=your-key-here');
+    console.error(`     (For read-only access, ${READONLY_KEY_ENV} also works.)`);
     console.error(
       '     (In Managed Agents sessions, mount the key as a file resource ' +
         `at ${DEFAULT_CC_API_KEY_SECRET_FILE}.)`,
@@ -132,5 +176,5 @@ export function createClient(urlOverride?: string): CommandCenterClient {
 
   const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || 'https://cc.gallanttiger.com';
 
-  return new CommandCenterClient({ apiKey, baseUrl });
+  return new CommandCenterClient({ apiKey: resolved.apiKey, readOnly: resolved.readOnly, baseUrl });
 }
