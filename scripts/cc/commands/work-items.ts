@@ -228,23 +228,47 @@ interface SnoozeResponse {
 }
 
 /**
- * Resolve a short ID prefix (e.g. "5d5bf4fe") to a full UUID by fetching
- * the work item list and matching by prefix. Returns the ID unchanged if
- * it's already a full UUID.
+ * A short ID that matches no item, or more than one. cc.ts prints the message
+ * as a clean error instead of a stack trace.
+ */
+export class ShortIdError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ShortIdError';
+  }
+}
+
+/**
+ * Pick the one item a short ID names from the server's prefix matches. Pure,
+ * so the 0 / 1 / many rules are unit-tested. Matches are re-checked against
+ * the prefix here so an older server that ignores `id_prefix` (and returns the
+ * plain list) can never resolve to the wrong item.
+ */
+export function pickShortIdMatch(shortId: string, items: Pick<WorkItem, 'id' | 'title' | 'status'>[]): string {
+  const prefix = shortId.toLowerCase();
+  const matches = items.filter(i => i.id.toLowerCase().startsWith(prefix));
+  if (matches.length === 0) {
+    throw new ShortIdError(`No work item found matching short ID "${shortId}"`);
+  }
+  if (matches.length > 1) {
+    const lines = matches.map(i => `  ${i.id}  [${i.status}]  ${i.title}`).join('\n');
+    throw new ShortIdError(`Ambiguous short ID "${shortId}" matches ${matches.length} items. Use a longer prefix:\n${lines}`);
+  }
+  return matches[0].id;
+}
+
+/**
+ * Resolve a short ID prefix (e.g. "5d5bf4fe") to a full UUID. The server
+ * matches the prefix across every status, snoozed and done included
+ * (`GET /api/work-items?id_prefix=`, command-center 2026-10-14). Before that
+ * the CLI matched only the newest 200 items, so older items failed. Returns
+ * the ID unchanged if it's already a full UUID.
  */
 async function resolveId(client: ReturnType<typeof createClient>, shortId: string): Promise<string> {
   if (shortId.length >= UUID_LENGTH) return shortId;
 
-  const data = await client.get<ListResponse>('/api/work-items?limit=200');
-  const matches = data.items.filter(i => i.id.startsWith(shortId));
-
-  if (matches.length === 0) {
-    throw new Error(`No work item found matching short ID "${shortId}"`);
-  }
-  if (matches.length > 1) {
-    throw new Error(`Ambiguous short ID "${shortId}" — matches ${matches.length} items. Use a longer prefix.`);
-  }
-  return matches[0].id;
+  const data = await client.get<ListResponse>(`/api/work-items?id_prefix=${encodeURIComponent(shortId)}`);
+  return pickShortIdMatch(shortId, data.items);
 }
 
 /**
@@ -300,17 +324,11 @@ export function parseExitCodeFlag(raw: string): number {
 }
 
 async function resolveIds(client: ReturnType<typeof createClient>, ids: string[]): Promise<string[]> {
-  const needsResolve = ids.some(id => id.length < UUID_LENGTH);
-  if (!needsResolve) return ids;
-
-  const data = await client.get<ListResponse>('/api/work-items?limit=200');
-  return ids.map(shortId => {
-    if (shortId.length >= UUID_LENGTH) return shortId;
-    const matches = data.items.filter(i => i.id.startsWith(shortId));
-    if (matches.length === 0) throw new Error(`No work item found matching short ID "${shortId}"`);
-    if (matches.length > 1) throw new Error(`Ambiguous short ID "${shortId}" — matches ${matches.length} items.`);
-    return matches[0].id;
-  });
+  const resolved: string[] = [];
+  for (const id of ids) {
+    resolved.push(await resolveId(client, id));
+  }
+  return resolved;
 }
 
 interface ListResponse {

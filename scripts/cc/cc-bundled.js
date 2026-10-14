@@ -34,9 +34,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/commander/lib/error.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/error.js
 var require_error = __commonJS({
-  "node_modules/commander/lib/error.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/error.js"(exports2) {
     var CommanderError2 = class extends Error {
       static {
         __name(this, "CommanderError");
@@ -75,9 +75,9 @@ var require_error = __commonJS({
   }
 });
 
-// node_modules/commander/lib/argument.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/argument.js
 var require_argument = __commonJS({
-  "node_modules/commander/lib/argument.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/argument.js"(exports2) {
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error();
     var Argument2 = class {
       static {
@@ -207,9 +207,9 @@ var require_argument = __commonJS({
   }
 });
 
-// node_modules/commander/lib/help.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/help.js
 var require_help = __commonJS({
-  "node_modules/commander/lib/help.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/help.js"(exports2) {
     var { humanReadableArgName } = require_argument();
     var Help2 = class {
       static {
@@ -814,9 +814,9 @@ ${itemIndentStr}`);
   }
 });
 
-// node_modules/commander/lib/option.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/option.js
 var require_option = __commonJS({
-  "node_modules/commander/lib/option.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/option.js"(exports2) {
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error();
     var Option2 = class {
       static {
@@ -1135,9 +1135,9 @@ var require_option = __commonJS({
   }
 });
 
-// node_modules/commander/lib/suggestSimilar.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/suggestSimilar.js
 var require_suggestSimilar = __commonJS({
-  "node_modules/commander/lib/suggestSimilar.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/suggestSimilar.js"(exports2) {
     var maxDistance = 3;
     function editDistance(a, b) {
       if (Math.abs(a.length - b.length) > maxDistance)
@@ -1217,9 +1217,9 @@ var require_suggestSimilar = __commonJS({
   }
 });
 
-// node_modules/commander/lib/command.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/command.js
 var require_command = __commonJS({
-  "node_modules/commander/lib/command.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/command.js"(exports2) {
     var EventEmitter = require("node:events").EventEmitter;
     var childProcess = require("node:child_process");
     var path = require("node:path");
@@ -3470,9 +3470,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
   }
 });
 
-// node_modules/commander/index.js
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/index.js
 var require_commander = __commonJS({
-  "node_modules/commander/index.js"(exports2) {
+  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/index.js"(exports2) {
     var { Argument: Argument2 } = require_argument();
     var { Command: Command2 } = require_command();
     var { CommanderError: CommanderError2, InvalidArgumentError: InvalidArgumentError2 } = require_error();
@@ -3492,7 +3492,7 @@ var require_commander = __commonJS({
   }
 });
 
-// node_modules/commander/esm.mjs
+// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
 var {
   program,
@@ -3512,6 +3512,8 @@ var {
 // scripts/cc/lib/client.ts
 var import_node_fs = require("node:fs");
 var DEFAULT_CC_API_KEY_SECRET_FILE = "/run/secrets/cc-api-key";
+var READONLY_KEY_ENV = "COMMAND_CENTER_READONLY_API_KEY";
+var READONLY_WRITE_MESSAGE = "read-only key: writes not allowed";
 var ApiError = class extends Error {
   constructor(status, body) {
     super(`API ${status}: ${body}`);
@@ -3525,6 +3527,15 @@ var ApiError = class extends Error {
     __name(this, "ApiError");
   }
 };
+var ReadOnlyKeyError = class extends Error {
+  static {
+    __name(this, "ReadOnlyKeyError");
+  }
+  constructor() {
+    super(READONLY_WRITE_MESSAGE);
+    this.name = "ReadOnlyKeyError";
+  }
+};
 var CommandCenterClient = class {
   static {
     __name(this, "CommandCenterClient");
@@ -3532,12 +3543,17 @@ var CommandCenterClient = class {
   apiKey;
   baseUrl;
   timeout;
+  readOnly;
   constructor(config) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.timeout = config.timeout ?? 3e4;
+    this.readOnly = config.readOnly ?? false;
   }
   async request(method, path, body) {
+    if (this.readOnly && method !== "GET") {
+      throw new ReadOnlyKeyError();
+    }
     const url = `${this.baseUrl}${path}`;
     const response = await fetch(url, {
       method,
@@ -3577,18 +3593,27 @@ function resolveApiKey(pathOverride) {
   return null;
 }
 __name(resolveApiKey, "resolveApiKey");
+function resolveClientKey(pathOverride) {
+  const full = resolveApiKey(pathOverride);
+  if (full) return { apiKey: full, readOnly: false };
+  const readOnly = process.env[READONLY_KEY_ENV];
+  if (readOnly && readOnly.trim() !== "") return { apiKey: readOnly.trim(), readOnly: true };
+  return null;
+}
+__name(resolveClientKey, "resolveClientKey");
 function createClient(urlOverride) {
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
+  const resolved = resolveClientKey();
+  if (!resolved) {
     console.error("Error: COMMAND_CENTER_API_KEY environment variable not set.");
     console.error("Fix: export COMMAND_CENTER_API_KEY=your-key-here");
+    console.error(`     (For read-only access, ${READONLY_KEY_ENV} also works.)`);
     console.error(
       `     (In Managed Agents sessions, mount the key as a file resource at ${DEFAULT_CC_API_KEY_SECRET_FILE}.)`
     );
     process.exit(1);
   }
   const baseUrl = urlOverride || process.env.COMMAND_CENTER_URL || "https://cc.gallanttiger.com";
-  return new CommandCenterClient({ apiKey, baseUrl });
+  return new CommandCenterClient({ apiKey: resolved.apiKey, readOnly: resolved.readOnly, baseUrl });
 }
 __name(createClient, "createClient");
 
@@ -3732,17 +3757,33 @@ async function fetchSnoozed(client) {
   return { items: sortBySnoozeWake(data.items), truncated: isTruncatedPage(data.items.length) };
 }
 __name(fetchSnoozed, "fetchSnoozed");
-async function resolveId(client, shortId) {
-  if (shortId.length >= UUID_LENGTH) return shortId;
-  const data = await client.get("/api/work-items?limit=200");
-  const matches = data.items.filter((i) => i.id.startsWith(shortId));
+var ShortIdError = class extends Error {
+  static {
+    __name(this, "ShortIdError");
+  }
+  constructor(message) {
+    super(message);
+    this.name = "ShortIdError";
+  }
+};
+function pickShortIdMatch(shortId, items) {
+  const prefix = shortId.toLowerCase();
+  const matches = items.filter((i) => i.id.toLowerCase().startsWith(prefix));
   if (matches.length === 0) {
-    throw new Error(`No work item found matching short ID "${shortId}"`);
+    throw new ShortIdError(`No work item found matching short ID "${shortId}"`);
   }
   if (matches.length > 1) {
-    throw new Error(`Ambiguous short ID "${shortId}" \u2014 matches ${matches.length} items. Use a longer prefix.`);
+    const lines = matches.map((i) => `  ${i.id}  [${i.status}]  ${i.title}`).join("\n");
+    throw new ShortIdError(`Ambiguous short ID "${shortId}" matches ${matches.length} items. Use a longer prefix:
+${lines}`);
   }
   return matches[0].id;
+}
+__name(pickShortIdMatch, "pickShortIdMatch");
+async function resolveId(client, shortId) {
+  if (shortId.length >= UUID_LENGTH) return shortId;
+  const data = await client.get(`/api/work-items?id_prefix=${encodeURIComponent(shortId)}`);
+  return pickShortIdMatch(shortId, data.items);
 }
 __name(resolveId, "resolveId");
 function parseMetadataFlag(raw) {
@@ -3769,16 +3810,11 @@ function parseExitCodeFlag(raw) {
 }
 __name(parseExitCodeFlag, "parseExitCodeFlag");
 async function resolveIds(client, ids) {
-  const needsResolve = ids.some((id) => id.length < UUID_LENGTH);
-  if (!needsResolve) return ids;
-  const data = await client.get("/api/work-items?limit=200");
-  return ids.map((shortId) => {
-    if (shortId.length >= UUID_LENGTH) return shortId;
-    const matches = data.items.filter((i) => i.id.startsWith(shortId));
-    if (matches.length === 0) throw new Error(`No work item found matching short ID "${shortId}"`);
-    if (matches.length > 1) throw new Error(`Ambiguous short ID "${shortId}" \u2014 matches ${matches.length} items.`);
-    return matches[0].id;
-  });
+  const resolved = [];
+  for (const id of ids) {
+    resolved.push(await resolveId(client, id));
+  }
+  return resolved;
 }
 __name(resolveIds, "resolveIds");
 var ROCK_DISPLAY_NAMES = {
@@ -4508,4 +4544,12 @@ program2.name("cc").description("Command Center CLI \u2014 manage work items, co
 registerWorkItems(program2);
 registerContextItems(program2);
 registerSync(program2);
-program2.parse();
+program2.parseAsync(process.argv).catch((err) => {
+  if (err instanceof ReadOnlyKeyError) {
+    respondError("cc", err.message, "READ_ONLY_KEY", "");
+  }
+  if (err instanceof ShortIdError) {
+    respondError("cc", err.message, "SHORT_ID", "");
+  }
+  throw err;
+});

@@ -9,11 +9,15 @@
 //   npx tsx cc.ts sync app-store
 //
 // Environment:
-//   COMMAND_CENTER_API_KEY  — Required. Bearer token for API auth.
+//   COMMAND_CENTER_API_KEY  — Bearer token for API auth (read and write).
+//   COMMAND_CENTER_READONLY_API_KEY — Fallback when the above is absent.
+//                             Reads only; writes fail with "read-only key: writes not allowed".
 //   COMMAND_CENTER_URL      — Optional. Defaults to https://cc.gallanttiger.com
 
 import { Command } from 'commander';
-import { registerWorkItems } from './commands/work-items.js';
+import { registerWorkItems, ShortIdError } from './commands/work-items.js';
+import { ReadOnlyKeyError } from './lib/client.js';
+import { respondError } from './lib/envelope.js';
 import { registerContextItems } from './commands/context-items.js';
 import { registerSync } from './commands/sync.js';
 
@@ -64,4 +68,16 @@ registerWorkItems(program);
 registerContextItems(program);
 registerSync(program);
 
-program.parse();
+// parseAsync so errors thrown by async actions land here. A write attempted
+// with only the read-only key, and a short ID that names no item or several,
+// print as one clean error (JSON envelope when piped) and exit 1. Anything
+// else is rethrown unchanged.
+program.parseAsync(process.argv).catch((err: unknown) => {
+  if (err instanceof ReadOnlyKeyError) {
+    respondError('cc', err.message, 'READ_ONLY_KEY', '');
+  }
+  if (err instanceof ShortIdError) {
+    respondError('cc', err.message, 'SHORT_ID', '');
+  }
+  throw err;
+});
