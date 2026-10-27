@@ -38,6 +38,10 @@ export interface WorkItem {
    */
   rock?: string;
   metadata?: Record<string, unknown> | null;
+  /** True while the item waits in a weekly "Agent inbox" (2026-10-27). */
+  in_agent_inbox?: boolean;
+  /** On an inbox container row: how many items are still waiting in it. */
+  inbox_count?: number;
   /**
    * Set by `cc wi list` on a snoozed item whose wake date has passed but
    * which the daily wake job has not put back yet. See mergeOverdueWakes.
@@ -441,6 +445,8 @@ export function registerWorkItems(program: Command) {
     .option('--assigned-to <who>', 'Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)')
     .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
     .option('--snoozed', 'List snoozed items only (parked until a date), soonest wake first')
+    .option('--inbox', 'List only the items waiting in the weekly agent inbox (agent-filed, not yet promoted)')
+    .option('--include-inbox', 'Include items waiting in the agent inbox (hidden by default, like initiatives)')
     .action(async (opts, cmd: Command) => {
       try {
         const client = createClient(program.opts().url);
@@ -485,6 +491,15 @@ export function registerWorkItems(program: Command) {
         } else if (!opts.includeInitiatives) {
           params.set('exclude_type', 'initiative');
         }
+        // Agent inbox (2026-10-27): items agents filed wait in a weekly inbox
+        // and stay off the default list until promoted. --inbox shows only
+        // them; --include-inbox shows everything. Closed ones are never hidden.
+        if (opts.inbox) {
+          params.set('inbox', 'only');
+          params.delete('exclude_type');
+        } else if (!opts.includeInbox) {
+          params.set('exclude_inbox', 'true');
+        }
 
         const listed = await client.get<ListResponse>(`/api/work-items?${params}`);
 
@@ -519,9 +534,14 @@ export function registerWorkItems(program: Command) {
             priority: i.priority || '-',
             project: i.project || '-',
             rock: i.rock || 'none',
-            title: i.title.slice(0, 60),
+            title: (i.title.slice(0, 60) + (i.inbox_count !== undefined ? ` [${i.inbox_count === 1 ? '1 item' : `${i.inbox_count} items`}]` : '')),
             notes: i.recent_notes?.length ? String(i.recent_notes.length) : '-',
           })), ['id', 'status', 'priority', 'project', 'rock', 'title', 'notes']);
+
+          const waiting = data.items.reduce((n, i) => n + (i.inbox_count ?? 0), 0);
+          if (waiting > 0 && !opts.inbox) {
+            console.log(`\n${waiting} agent-filed item(s) waiting in the inbox: \`cc wi list --inbox\` (keep one: \`cc wi promote -i <id>\`, drop one: \`cc wi reject -i <id> --notes "why"\`)`);
+          }
 
           // A note is usually a CORRECTION to the description above it. Surface
           // the newest one inline so a human skimming the table sees that the
@@ -768,6 +788,89 @@ export function registerWorkItems(program: Command) {
         throw e;
       }
     });
+
+  wi.command('promote')
+    .description(
+      'Take an item out of the weekly agent inbox. It leaves the inbox (unparented) and, if it was ' +
+        'discovered, becomes triaged, so it shows on your open list. Comma-separate ids to promote several.',
+    )
+    .requiredOption('-i, --id <ids>', 'Work item ID (full UUID or short prefix); comma-separated for several')
+    .option('--notes <notes>', 'Why it is worth keeping (added to the item history)')
+    .option('--actor <actor>', 'Actor name', 'clay')
+    .action(async (opts) => {
+      await runInboxOperation('inbox_promote', 'promote', opts);
+    });
+
+  wi.command('reject')
+    .description(
+      'Reject an item waiting in the weekly agent inbox (closes it rejected, outcome declined). ' +
+        'A reason is required. Comma-separate ids to reject several.',
+    )
+    .requiredOption('-i, --id <ids>', 'Work item ID (full UUID or short prefix); comma-separated for several')
+    .requiredOption('--notes <notes>', 'Why it is not needed')
+    .option('--actor <actor>', 'Actor name', 'clay')
+    .action(async (opts) => {
+      await runInboxOperation('inbox_reject', 'reject', opts);
+    });
+
+  async function runInboxOperation(
+    operation: 'inbox_promote' | 'inbox_reject',
+    verb: 'promote' | 'reject',
+    opts: { id: string; notes?: string; actor?: string },
+  ) {
+    const command = `cc work-items ${verb}`;
+    const ids = String(opts.id).split(',').map((s) => s.trim()).filter(Boolean);
+    const done: Array<{ id: string; status: string }> = [];
+    const failed: Array<{ id: string; error: string }> = [];
+    try {
+      const client = createClient(program.opts().url);
+      for (const raw of ids) {
+        try {
+          const fullId = await resolveId(client, raw);
+          const body: Record<string, unknown> = { id: fullId, operation };
+          if (opts.notes) body.notes = opts.notes;
+          if (opts.actor) body.actor = opts.actor;
+          const data = await client.patch<UpdateResponse>('/api/work-items', body);
+          // Do not report what the server did not confirm.
+          const status = data.item?.status;
+          const confirmed = verb === 'promote'
+            ? data.item?.id === fullId && (data as { promoted?: boolean }).promoted === true
+            : status === 'rejected';
+          if (!confirmed) {
+            failed.push({ id: fullId, error: `Server did not confirm the ${verb}. Check that the Command Center deploy includes the agent inbox, then run \`cc wi get ${fullId.slice(0, 8)}\`.` });
+            continue;
+          }
+          done.push({ id: fullId, status: status ?? '-' });
+        } catch (e) {
+          if (e instanceof ApiError) {
+            failed.push({ id: raw, error: `${e.status}: ${e.body}` });
+          } else {
+            failed.push({ id: raw, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        respondError(command, e.body, String(e.status), 'Check COMMAND_CENTER_API_KEY');
+        return;
+      }
+      throw e;
+    }
+
+    if (failed.length > 0 && done.length === 0) {
+      respondError(command, failed.map((f) => `${f.id.slice(0, 8)}: ${f.error}`).join(' | '), '422',
+        'The item must be waiting in an agent inbox (`cc wi list --inbox`); a reject also needs --notes');
+      return;
+    }
+
+    respond(command, { updated: done, failed, summary: { requested: ids.length, succeeded: done.length, failed: failed.length } }, [
+      { command: 'cc wi list --inbox', description: 'See what is still waiting in the agent inbox' },
+    ]);
+    if (!isAgent) {
+      for (const d of done) console.log(`${verb === 'promote' ? 'Promoted' : 'Rejected'}: ${d.id.slice(0, 8)} -> ${d.status}`);
+      for (const f of failed) console.error(`Failed: ${f.id.slice(0, 8)} - ${f.error}`);
+    }
+  }
 
   wi.command('snooze')
     .description(
