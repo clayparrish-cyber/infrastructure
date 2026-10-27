@@ -34,9 +34,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/error.js
+// node_modules/commander/lib/error.js
 var require_error = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/error.js"(exports2) {
+  "node_modules/commander/lib/error.js"(exports2) {
     var CommanderError2 = class extends Error {
       static {
         __name(this, "CommanderError");
@@ -75,9 +75,9 @@ var require_error = __commonJS({
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/argument.js
+// node_modules/commander/lib/argument.js
 var require_argument = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/argument.js"(exports2) {
+  "node_modules/commander/lib/argument.js"(exports2) {
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error();
     var Argument2 = class {
       static {
@@ -207,9 +207,9 @@ var require_argument = __commonJS({
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/help.js
+// node_modules/commander/lib/help.js
 var require_help = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/help.js"(exports2) {
+  "node_modules/commander/lib/help.js"(exports2) {
     var { humanReadableArgName } = require_argument();
     var Help2 = class {
       static {
@@ -814,9 +814,9 @@ ${itemIndentStr}`);
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/option.js
+// node_modules/commander/lib/option.js
 var require_option = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/option.js"(exports2) {
+  "node_modules/commander/lib/option.js"(exports2) {
     var { InvalidArgumentError: InvalidArgumentError2 } = require_error();
     var Option2 = class {
       static {
@@ -1135,9 +1135,9 @@ var require_option = __commonJS({
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/suggestSimilar.js
+// node_modules/commander/lib/suggestSimilar.js
 var require_suggestSimilar = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/suggestSimilar.js"(exports2) {
+  "node_modules/commander/lib/suggestSimilar.js"(exports2) {
     var maxDistance = 3;
     function editDistance(a, b) {
       if (Math.abs(a.length - b.length) > maxDistance)
@@ -1217,9 +1217,9 @@ var require_suggestSimilar = __commonJS({
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/command.js
+// node_modules/commander/lib/command.js
 var require_command = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/lib/command.js"(exports2) {
+  "node_modules/commander/lib/command.js"(exports2) {
     var EventEmitter = require("node:events").EventEmitter;
     var childProcess = require("node:child_process");
     var path = require("node:path");
@@ -3470,9 +3470,9 @@ Expecting one of '${allowedValues.join("', '")}'`);
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/index.js
+// node_modules/commander/index.js
 var require_commander = __commonJS({
-  "../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/index.js"(exports2) {
+  "node_modules/commander/index.js"(exports2) {
     var { Argument: Argument2 } = require_argument();
     var { Command: Command2 } = require_command();
     var { CommanderError: CommanderError2, InvalidArgumentError: InvalidArgumentError2 } = require_error();
@@ -3492,7 +3492,7 @@ var require_commander = __commonJS({
   }
 });
 
-// ../../../Volumes/Lexar/Projects/infrastructure/node_modules/commander/esm.mjs
+// node_modules/commander/esm.mjs
 var import_index = __toESM(require_commander(), 1);
 var {
   program,
@@ -3840,7 +3840,7 @@ function filterPrioritiesByAssignee(data, assignedTo) {
 __name(filterPrioritiesByAssignee, "filterPrioritiesByAssignee");
 function registerWorkItems(program3) {
   const wi = program3.command("work-items").alias("wi").description("Manage work items");
-  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--assigned-to <who>", "Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").option("--snoozed", "List snoozed items only (parked until a date), soonest wake first").action(async (opts, cmd) => {
+  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--assigned-to <who>", "Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").option("--snoozed", "List snoozed items only (parked until a date), soonest wake first").option("--inbox", "List only the items waiting in the weekly agent inbox (agent-filed, not yet promoted)").option("--include-inbox", "Include items waiting in the agent inbox (hidden by default, like initiatives)").action(async (opts, cmd) => {
     try {
       const client = createClient(program3.opts().url);
       const today = chicagoToday();
@@ -3883,6 +3883,12 @@ ${summary.line.replace(": shown above", "")}`);
       } else if (!opts.includeInitiatives) {
         params.set("exclude_type", "initiative");
       }
+      if (opts.inbox) {
+        params.set("inbox", "only");
+        params.delete("exclude_type");
+      } else if (!opts.includeInbox) {
+        params.set("exclude_inbox", "true");
+      }
       const listed = await client.get(`/api/work-items?${params}`);
       let data = listed;
       if (cmd.getOptionValueSource("status") === "default") {
@@ -3910,9 +3916,14 @@ ${data.count} work items:
           priority: i.priority || "-",
           project: i.project || "-",
           rock: i.rock || "none",
-          title: i.title.slice(0, 60),
+          title: i.title.slice(0, 60) + (i.inbox_count !== void 0 ? ` [${i.inbox_count === 1 ? "1 item" : `${i.inbox_count} items`}]` : ""),
           notes: i.recent_notes?.length ? String(i.recent_notes.length) : "-"
         })), ["id", "status", "priority", "project", "rock", "title", "notes"]);
+        const waiting = data.items.reduce((n, i) => n + (i.inbox_count ?? 0), 0);
+        if (waiting > 0 && !opts.inbox) {
+          console.log(`
+${waiting} agent-filed item(s) waiting in the inbox: \`cc wi list --inbox\` (keep one: \`cc wi promote -i <id>\`, drop one: \`cc wi reject -i <id> --notes "why"\`)`);
+        }
         const amended = data.items.filter((i) => i.recent_notes?.length);
         if (amended.length) {
           console.log(`
@@ -4108,6 +4119,70 @@ ${i.description || "(no description)"}
       throw e;
     }
   });
+  wi.command("promote").description(
+    "Take an item out of the weekly agent inbox. It leaves the inbox (unparented) and, if it was discovered, becomes triaged, so it shows on your open list. Comma-separate ids to promote several."
+  ).requiredOption("-i, --id <ids>", "Work item ID (full UUID or short prefix); comma-separated for several").option("--notes <notes>", "Why it is worth keeping (added to the item history)").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+    await runInboxOperation("inbox_promote", "promote", opts);
+  });
+  wi.command("reject").description(
+    "Reject an item waiting in the weekly agent inbox (closes it rejected, outcome declined). A reason is required. Comma-separate ids to reject several."
+  ).requiredOption("-i, --id <ids>", "Work item ID (full UUID or short prefix); comma-separated for several").requiredOption("--notes <notes>", "Why it is not needed").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+    await runInboxOperation("inbox_reject", "reject", opts);
+  });
+  async function runInboxOperation(operation, verb, opts) {
+    const command = `cc work-items ${verb}`;
+    const ids = String(opts.id).split(",").map((s) => s.trim()).filter(Boolean);
+    const done = [];
+    const failed = [];
+    try {
+      const client = createClient(program3.opts().url);
+      for (const raw of ids) {
+        try {
+          const fullId = await resolveId(client, raw);
+          const body = { id: fullId, operation };
+          if (opts.notes) body.notes = opts.notes;
+          if (opts.actor) body.actor = opts.actor;
+          const data = await client.patch("/api/work-items", body);
+          const status = data.item?.status;
+          const confirmed = verb === "promote" ? data.item?.id === fullId && data.promoted === true : status === "rejected";
+          if (!confirmed) {
+            failed.push({ id: fullId, error: `Server did not confirm the ${verb}. Check that the Command Center deploy includes the agent inbox, then run \`cc wi get ${fullId.slice(0, 8)}\`.` });
+            continue;
+          }
+          done.push({ id: fullId, status: status ?? "-" });
+        } catch (e) {
+          if (e instanceof ApiError) {
+            failed.push({ id: raw, error: `${e.status}: ${e.body}` });
+          } else {
+            failed.push({ id: raw, error: e instanceof Error ? e.message : String(e) });
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof ApiError) {
+        respondError(command, e.body, String(e.status), "Check COMMAND_CENTER_API_KEY");
+        return;
+      }
+      throw e;
+    }
+    if (failed.length > 0 && done.length === 0) {
+      respondError(
+        command,
+        failed.map((f) => `${f.id.slice(0, 8)}: ${f.error}`).join(" | "),
+        "422",
+        "The item must be waiting in an agent inbox (`cc wi list --inbox`); a reject also needs --notes"
+      );
+      return;
+    }
+    respond(command, { updated: done, failed, summary: { requested: ids.length, succeeded: done.length, failed: failed.length } }, [
+      { command: "cc wi list --inbox", description: "See what is still waiting in the agent inbox" }
+    ]);
+    if (!isAgent) {
+      for (const d of done) console.log(`${verb === "promote" ? "Promoted" : "Rejected"}: ${d.id.slice(0, 8)} -> ${d.status}`);
+      for (const f of failed) console.error(`Failed: ${f.id.slice(0, 8)} - ${f.error}`);
+    }
+  }
+  __name(runInboxOperation, "runInboxOperation");
   wi.command("snooze").description(
     "Park a work item until a date. It leaves the open list (status deferred) and the daily wake job puts it back on that date. Use for tripwires: nothing to do until then."
   ).requiredOption("-i, --id <id>", "Work item ID (full UUID or short prefix)").requiredOption("--until <date>", "Wake date, YYYY-MM-DD, after today (Chicago)").option("--notes <notes>", 'Why it is snoozed (added to the "Snoozed until" note)').option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
