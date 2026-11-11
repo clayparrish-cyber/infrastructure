@@ -1,5 +1,7 @@
 // Command Center API Client
 import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 /**
  * Path to the mounted secret file in Managed Agents sessions.
@@ -147,6 +149,31 @@ export function resolveApiKey(
 }
 
 /**
+ * Last-resort local fallback: read COMMAND_CENTER_API_KEY from a dotenv file
+ * ($CC_DOTENV_FILE, default ~/.claude/.env, where Clay's machines keep it).
+ * Lets `npx tsx .../cc.ts ...` run as a single plain command, so a Claude Code
+ * allow rule on that prefix matches instead of every call needing an
+ * `export ... &&` prefix (which made each call a permission prompt).
+ */
+export function readDotenvKey(
+  path: string = process.env.CC_DOTENV_FILE ?? join(homedir(), '.claude', '.env'),
+): string | null {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+  for (const raw of text.split('\n')) {
+    const m = raw.trim().match(/^(?:export\s+)?COMMAND_CENTER_API_KEY\s*=\s*(.*)$/);
+    if (!m) continue;
+    const value = m[1].trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+    if (value !== '') return value;
+  }
+  return null;
+}
+
+/**
  * The key the CLI should use. The full key (env or secret file, see
  * resolveApiKey) always wins; the read-only key is only a fallback when no
  * full key is found.
@@ -154,7 +181,7 @@ export function resolveApiKey(
 export function resolveClientKey(
   pathOverride?: string,
 ): { apiKey: string; readOnly: boolean } | null {
-  const full = resolveApiKey(pathOverride);
+  const full = resolveApiKey(pathOverride) ?? readDotenvKey();
   if (full) return { apiKey: full, readOnly: false };
   const readOnly = process.env[READONLY_KEY_ENV];
   if (readOnly && readOnly.trim() !== '') return { apiKey: readOnly.trim(), readOnly: true };

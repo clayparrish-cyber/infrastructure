@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { resolveApiKey } from '../client.js';
+import { resolveApiKey, readDotenvKey, resolveClientKey } from '../client.js';
 
 // ---------------------------------------------------------------------------
 // resolveApiKey — 3-step precedence chain used by createClient().
@@ -169,5 +169,48 @@ test('resolveApiKey: explicit path override wins over CC_API_KEY_SECRET_FILE env
         },
       );
     });
+  });
+});
+
+test('readDotenvKey: reads the key from a dotenv file (quotes, export prefix)', () => {
+  withScratchKeyFile('OTHER=1\nexport COMMAND_CENTER_API_KEY="dot_key"\n', (path) => {
+    assert.equal(readDotenvKey(path), 'dot_key');
+  });
+  withScratchKeyFile('COMMAND_CENTER_API_KEY=plain_key\n', (path) => {
+    assert.equal(readDotenvKey(path), 'plain_key');
+  });
+});
+
+test('readDotenvKey: null when file missing or key absent/empty', () => {
+  assert.equal(readDotenvKey('/nonexistent/path/.env'), null);
+  withScratchKeyFile('COMMAND_CENTER_READONLY_API_KEY=ro\nCOMMAND_CENTER_API_KEY=\n', (path) => {
+    assert.equal(readDotenvKey(path), null);
+  });
+});
+
+test('resolveClientKey: falls back to the dotenv file after env and secret file', () => {
+  withScratchKeyFile('COMMAND_CENTER_API_KEY=dot_key\n', (dotPath) => {
+    withEnv(
+      {
+        COMMAND_CENTER_API_KEY: undefined,
+        CC_API_KEY_SECRET_FILE: '/nonexistent/path/nope.key',
+        CC_DOTENV_FILE: dotPath,
+        COMMAND_CENTER_READONLY_API_KEY: 'ro_key',
+      },
+      () => {
+        assert.deepEqual(resolveClientKey(), { apiKey: 'dot_key', readOnly: false });
+      },
+    );
+  });
+});
+
+test('resolveClientKey: env var still wins over the dotenv file', () => {
+  withScratchKeyFile('COMMAND_CENTER_API_KEY=dot_key\n', (dotPath) => {
+    withEnv(
+      { COMMAND_CENTER_API_KEY: 'env_key', CC_DOTENV_FILE: dotPath },
+      () => {
+        assert.deepEqual(resolveClientKey(), { apiKey: 'env_key', readOnly: false });
+      },
+    );
   });
 });

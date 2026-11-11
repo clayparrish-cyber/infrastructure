@@ -37,25 +37,25 @@ function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
 }
 
 test('resolveClientKey: the full key wins when both are set', () => {
-  withEnv({ [FULL]: 'full_fixture', [READ]: 'read_fixture', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE }, () => {
+  withEnv({ [FULL]: 'full_fixture', [READ]: 'read_fixture', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, CC_DOTENV_FILE: MISSING_SECRET_FILE }, () => {
     assert.deepEqual(resolveClientKey(), { apiKey: 'full_fixture', readOnly: false });
   });
 });
 
 test('resolveClientKey: falls back to the read-only key when the full key is absent', () => {
-  withEnv({ [FULL]: undefined, [READ]: ' read_fixture \n', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE }, () => {
+  withEnv({ [FULL]: undefined, [READ]: ' read_fixture \n', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, CC_DOTENV_FILE: MISSING_SECRET_FILE }, () => {
     assert.deepEqual(resolveClientKey(), { apiKey: 'read_fixture', readOnly: true });
   });
 });
 
 test('resolveClientKey: blank full key does not block the read-only fallback', () => {
-  withEnv({ [FULL]: '   ', [READ]: 'read_fixture', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE }, () => {
+  withEnv({ [FULL]: '   ', [READ]: 'read_fixture', CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, CC_DOTENV_FILE: MISSING_SECRET_FILE }, () => {
     assert.deepEqual(resolveClientKey(), { apiKey: 'read_fixture', readOnly: true });
   });
 });
 
 test('resolveClientKey: null when neither key is present', () => {
-  withEnv({ [FULL]: undefined, [READ]: undefined, CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE }, () => {
+  withEnv({ [FULL]: undefined, [READ]: undefined, CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, CC_DOTENV_FILE: MISSING_SECRET_FILE }, () => {
     assert.equal(resolveClientKey(), null);
   });
 });
@@ -84,7 +84,7 @@ test('full-key client: writes are sent as before', async (t) => {
 
 test('cc CLI: a write with only the read-only key prints one line and exits 1', () => {
   const ccPath = join(__dirname, '..', '..', 'cc.ts');
-  const env: NodeJS.ProcessEnv = { ...process.env, CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, COMMAND_CENTER_URL: 'https://cc.invalid' };
+  const env: NodeJS.ProcessEnv = { ...process.env, CC_API_KEY_SECRET_FILE: MISSING_SECRET_FILE, CC_DOTENV_FILE: MISSING_SECRET_FILE, COMMAND_CENTER_URL: 'https://cc.invalid' };
   delete env[FULL];
   env[READ] = 'read_fixture';
   let stdout = '';
