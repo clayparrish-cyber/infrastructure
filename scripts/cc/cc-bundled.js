@@ -3511,6 +3511,8 @@ var {
 
 // scripts/cc/lib/client.ts
 var import_node_fs = require("node:fs");
+var import_node_os = require("node:os");
+var import_node_path = require("node:path");
 var DEFAULT_CC_API_KEY_SECRET_FILE = "/run/secrets/cc-api-key";
 var READONLY_KEY_ENV = "COMMAND_CENTER_READONLY_API_KEY";
 var READONLY_WRITE_MESSAGE = "read-only key: writes not allowed";
@@ -3593,8 +3595,24 @@ function resolveApiKey(pathOverride) {
   return null;
 }
 __name(resolveApiKey, "resolveApiKey");
+function readDotenvKey(path = process.env.CC_DOTENV_FILE ?? (0, import_node_path.join)((0, import_node_os.homedir)(), ".claude", ".env")) {
+  let text;
+  try {
+    text = (0, import_node_fs.readFileSync)(path, "utf8");
+  } catch {
+    return null;
+  }
+  for (const raw of text.split("\n")) {
+    const m = raw.trim().match(/^(?:export\s+)?COMMAND_CENTER_API_KEY\s*=\s*(.*)$/);
+    if (!m) continue;
+    const value = m[1].trim().replace(/^(['"])(.*)\1$/, "$2").trim();
+    if (value !== "") return value;
+  }
+  return null;
+}
+__name(readDotenvKey, "readDotenvKey");
 function resolveClientKey(pathOverride) {
-  const full = resolveApiKey(pathOverride);
+  const full = resolveApiKey(pathOverride) ?? readDotenvKey();
   if (full) return { apiKey: full, readOnly: false };
   const readOnly = process.env[READONLY_KEY_ENV];
   if (readOnly && readOnly.trim() !== "") return { apiKey: readOnly.trim(), readOnly: true };
