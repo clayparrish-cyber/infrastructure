@@ -130,6 +130,18 @@ export function isOverdueWake(item: WorkItem, today: string): boolean {
   return until === null || until <= today;
 }
 
+/**
+ * The 90-day expiry shown in `cc wi list --snoozed` (Clay 2026-11-19):
+ * "deadline" for a real obligation date, else the snooze's expires_on.
+ */
+export function snoozeExpiryLabel(item: WorkItem): string {
+  const wait = item.metadata?.wait as Record<string, unknown> | undefined;
+  if (wait?.deadline === true) return 'deadline';
+  const snooze = item.metadata?.snooze as Record<string, unknown> | undefined;
+  const expires = snooze?.expires_on ?? wait?.expires_on;
+  return isValidSnoozeDate(expires) ? expires : '-';
+}
+
 /** Snoozed items only, soonest wake first; unreadable dates sort to the top. */
 export function sortBySnoozeWake(items: WorkItem[]): WorkItem[] {
   return items
@@ -227,7 +239,8 @@ async function fetchSnoozed(client: ReturnType<typeof createClient>): Promise<{ 
 
 interface SnoozeResponse {
   item?: { id: string; status: string; metadata?: Record<string, unknown> | null };
-  snooze?: { until?: string; from_status?: string; by?: string; at?: string } | null;
+  snooze?: { until?: string; from_status?: string; by?: string; at?: string; expires_on?: string | null } | null;
+  wait?: { expires_on?: string | null; deadline?: boolean; resnoozes?: number } | null;
   woke?: boolean;
 }
 
@@ -445,12 +458,44 @@ export function registerWorkItems(program: Command) {
     .option('--assigned-to <who>', 'Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)')
     .option('--include-initiatives', 'Include initiative/sprint container items (excluded by default)')
     .option('--snoozed', 'List snoozed items only (parked until a date), soonest wake first')
+    .option('--expiring', 'List items on the 90-day expiry hold. An agent may re-snooze each ONCE (cc wi snooze); the rest close on their own')
     .option('--inbox', 'List only the items waiting in the weekly agent inbox (agent-filed, not yet promoted)')
     .option('--include-inbox', 'Include items waiting in the agent inbox (hidden by default, like initiatives)')
     .action(async (opts, cmd: Command) => {
       try {
         const client = createClient(program.opts().url);
         const today = chicagoToday();
+
+        if (opts.expiring) {
+          // 2026-11-19 (Clay): waiting items expire after 90 days. Items that
+          // reached the limit sit on a 7-day hold before closing rejected.
+          const data = await client.get<ListResponse>(`/api/work-items?status=deferred&expiring=true&limit=${SNOOZED_FETCH_LIMIT}`);
+          const truncated = isTruncatedPage(data.items.length);
+          let items = data.items;
+          if (opts.project) items = items.filter(i => i.project === opts.project);
+          if (opts.assignedTo) items = items.filter(i => i.assigned_to === opts.assignedTo);
+          if (opts.rock) items = items.filter(i => (i.rock || 'none') === opts.rock);
+          const holdUntil = (i: WorkItem) => String((i.metadata?.wait as Record<string, unknown> | undefined)?.hold_until ?? '');
+          items = [...items].sort((a, b) => holdUntil(a).localeCompare(holdUntil(b)));
+          const warning = truncated
+            ? `WARNING: the API sent its ${SNOOZED_FETCH_LIMIT}-item maximum, so more items may be on the expiry hold than are listed`
+            : null;
+          respond('cc work-items list --expiring', { items, count: items.length, truncated, warning }, [
+            { command: 'cc wi snooze -i <id> --until YYYY-MM-DD', description: 'Use its one re-snooze (new 90-day window)' },
+            { command: 'cc wi snooze -i <id> --until YYYY-MM-DD --deadline', description: 'It is a real obligation date: no expiry' },
+          ]);
+          if (!isAgent) {
+            console.log(`\n${items.length} item(s) on the 90-day expiry hold, closing soonest first:\n`);
+            table(items.map(i => ({
+              id: i.id.slice(0, 8),
+              closes: holdUntil(i) || '-',
+              project: i.project || '-',
+              title: i.title.slice(0, 60),
+            })), ['id', 'closes', 'project', 'title']);
+            if (warning) console.log(`\n${warning}`);
+          }
+          return;
+        }
 
         if (opts.snoozed) {
           const fetched = await fetchSnoozed(client);
@@ -472,9 +517,10 @@ export function registerWorkItems(program: Command) {
               id: i.id.slice(0, 8),
               wake: i.overdue_wake ? `${snoozeUntil(i) ?? 'unreadable'} OVERDUE WAKE` : snoozeUntil(i),
               back_to: String((i.metadata?.snooze as Record<string, unknown>)?.from_status ?? 'triaged'),
+              expires: snoozeExpiryLabel(i),
               project: i.project || '-',
               title: i.title.slice(0, 60),
-            })), ['id', 'wake', 'back_to', 'project', 'title']);
+            })), ['id', 'wake', 'back_to', 'expires', 'project', 'title']);
             console.log(`\n${summary.line.replace(': shown above', '')}`);
           }
           return;
@@ -880,6 +926,8 @@ export function registerWorkItems(program: Command) {
     .requiredOption('-i, --id <id>', 'Work item ID (full UUID or short prefix)')
     .requiredOption('--until <date>', 'Wake date, YYYY-MM-DD, after today (Chicago)')
     .option('--notes <notes>', 'Why it is snoozed (added to the "Snoozed until" note)')
+    .option('--deadline', 'Real obligation date (renewal, filing, lease, event): exempt from the 90-day expiry')
+    .option('--no-deadline', 'Clear the deadline flag: the item gets a normal 90-day expiry')
     .option('--actor <actor>', 'Actor name', 'clay')
     .action(async (opts) => {
       try {
@@ -901,6 +949,7 @@ export function registerWorkItems(program: Command) {
         const body: Record<string, unknown> = { id: fullId, operation: 'snooze', until };
         if (opts.notes) body.reason = opts.notes;
         if (opts.actor) body.actor = opts.actor;
+        if (typeof opts.deadline === 'boolean') body.deadline = opts.deadline;
 
         const data = await client.patch<SnoozeResponse>('/api/work-items', body);
 
@@ -921,13 +970,16 @@ export function registerWorkItems(program: Command) {
         ]);
 
         if (!isAgent) {
-          console.log(`Snoozed: ${fullId.slice(0, 8)} until ${until} (wakes to ${data.snooze?.from_status || 'triaged'})`);
+          const expiry = data.wait?.deadline
+            ? 'deadline item, no expiry'
+            : `expires ${data.snooze?.expires_on ?? 'unknown'}${data.wait?.resnoozes ? ', re-snooze used' : ''}`;
+          console.log(`Snoozed: ${fullId.slice(0, 8)} until ${until} (wakes to ${data.snooze?.from_status || 'triaged'}; ${expiry})`);
         }
       } catch (e) {
         if (e instanceof ApiError) {
           respondError('cc work-items snooze', e.body, String(e.status),
             e.status === 404 ? 'Check work item ID' :
-            e.status === 422 ? 'The date must be after today, and the item must not be done or rejected' :
+            e.status === 422 ? 'The date must be after today, the item must not be done or rejected, and an item past its 90-day limit gets only one re-snooze' :
             'Check the date is YYYY-MM-DD and the Command Center deploy includes the snooze operation');
         }
         throw e;
