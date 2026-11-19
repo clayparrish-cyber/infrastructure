@@ -3725,6 +3725,14 @@ function isOverdueWake(item, today) {
   return until === null || until <= today;
 }
 __name(isOverdueWake, "isOverdueWake");
+function snoozeExpiryLabel(item) {
+  const wait = item.metadata?.wait;
+  if (wait?.deadline === true) return "deadline";
+  const snooze = item.metadata?.snooze;
+  const expires = snooze?.expires_on ?? wait?.expires_on;
+  return isValidSnoozeDate(expires) ? expires : "-";
+}
+__name(snoozeExpiryLabel, "snoozeExpiryLabel");
 function sortBySnoozeWake(items) {
   return items.filter(isSnoozed).sort((a, b) => (snoozeUntil(a) ?? "").localeCompare(snoozeUntil(b) ?? "") || a.id.localeCompare(b.id));
 }
@@ -3858,10 +3866,33 @@ function filterPrioritiesByAssignee(data, assignedTo) {
 __name(filterPrioritiesByAssignee, "filterPrioritiesByAssignee");
 function registerWorkItems(program3) {
   const wi = program3.command("work-items").alias("wi").description("Manage work items");
-  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--assigned-to <who>", "Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").option("--snoozed", "List snoozed items only (parked until a date), soonest wake first").option("--inbox", "List only the items waiting in the weekly agent inbox (agent-filed, not yet promoted)").option("--include-inbox", "Include items waiting in the agent inbox (hidden by default, like initiatives)").action(async (opts, cmd) => {
+  wi.command("list").description("List work items").option("-p, --project <project>", "Filter by project").option("-s, --status <status>", "Filter by status (comma-separated)", "discovered,triaged,approved,in_progress,review").option("-l, --limit <n>", "Max results", "50").option("--type <type>", "Filter by type (comma-separated)").option("--rock <rock>", "Filter by rock: prepare-gt-2027, raise-capital, 500-doors, national-brand, third-flavor, none").option("--assigned-to <who>", "Filter by assignee (server-side: /api/work-items already supports this param, verified 2026-09-16)").option("--include-initiatives", "Include initiative/sprint container items (excluded by default)").option("--snoozed", "List snoozed items only (parked until a date), soonest wake first").option("--expiring", "List items on the 90-day expiry hold. An agent may re-snooze each ONCE (cc wi snooze); the rest close on their own").option("--inbox", "List only the items waiting in the weekly agent inbox (agent-filed, not yet promoted)").option("--include-inbox", "Include items waiting in the agent inbox (hidden by default, like initiatives)").action(async (opts, cmd) => {
     try {
       const client = createClient(program3.opts().url);
       const today = chicagoToday();
+      if (opts.expiring) {
+        const data2 = await client.get(`/api/work-items?status=deferred&expiring=true&limit=${SNOOZED_FETCH_LIMIT}`);
+        let items = data2.items;
+        if (opts.project) items = items.filter((i) => i.project === opts.project);
+        const holdUntil = /* @__PURE__ */ __name((i) => String(i.metadata?.wait?.hold_until ?? ""), "holdUntil");
+        items = [...items].sort((a, b) => holdUntil(a).localeCompare(holdUntil(b)));
+        respond("cc work-items list --expiring", { items, count: items.length }, [
+          { command: "cc wi snooze -i <id> --until YYYY-MM-DD", description: "Use its one re-snooze (new 90-day window)" },
+          { command: "cc wi snooze -i <id> --until YYYY-MM-DD --deadline", description: "It is a real obligation date: no expiry" }
+        ]);
+        if (!isAgent) {
+          console.log(`
+${items.length} item(s) on the 90-day expiry hold, closing soonest first:
+`);
+          table(items.map((i) => ({
+            id: i.id.slice(0, 8),
+            closes: holdUntil(i) || "-",
+            project: i.project || "-",
+            title: i.title.slice(0, 60)
+          })), ["id", "closes", "project", "title"]);
+        }
+        return;
+      }
       if (opts.snoozed) {
         const fetched = await fetchSnoozed(client);
         let snoozed = fetched.items;
@@ -3882,9 +3913,10 @@ ${items.length} snoozed item(s), soonest wake first:
             id: i.id.slice(0, 8),
             wake: i.overdue_wake ? `${snoozeUntil(i) ?? "unreadable"} OVERDUE WAKE` : snoozeUntil(i),
             back_to: String(i.metadata?.snooze?.from_status ?? "triaged"),
+            expires: snoozeExpiryLabel(i),
             project: i.project || "-",
             title: i.title.slice(0, 60)
-          })), ["id", "wake", "back_to", "project", "title"]);
+          })), ["id", "wake", "back_to", "expires", "project", "title"]);
           console.log(`
 ${summary.line.replace(": shown above", "")}`);
         }
@@ -4203,7 +4235,7 @@ ${i.description || "(no description)"}
   __name(runInboxOperation, "runInboxOperation");
   wi.command("snooze").description(
     "Park a work item until a date. It leaves the open list (status deferred) and the daily wake job puts it back on that date. Use for tripwires: nothing to do until then."
-  ).requiredOption("-i, --id <id>", "Work item ID (full UUID or short prefix)").requiredOption("--until <date>", "Wake date, YYYY-MM-DD, after today (Chicago)").option("--notes <notes>", 'Why it is snoozed (added to the "Snoozed until" note)').option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
+  ).requiredOption("-i, --id <id>", "Work item ID (full UUID or short prefix)").requiredOption("--until <date>", "Wake date, YYYY-MM-DD, after today (Chicago)").option("--notes <notes>", 'Why it is snoozed (added to the "Snoozed until" note)').option("--deadline", "Real obligation date (renewal, filing, lease, event): exempt from the 90-day expiry").option("--no-deadline", "Clear the deadline flag: the item gets a normal 90-day expiry").option("--actor <actor>", "Actor name", "clay").action(async (opts) => {
     try {
       let until;
       try {
@@ -4218,6 +4250,7 @@ ${i.description || "(no description)"}
       const body = { id: fullId, operation: "snooze", until };
       if (opts.notes) body.reason = opts.notes;
       if (opts.actor) body.actor = opts.actor;
+      if (typeof opts.deadline === "boolean") body.deadline = opts.deadline;
       const data = await client.patch("/api/work-items", body);
       if (data.item?.status !== "deferred" || data.snooze?.until !== until) {
         respondError(
@@ -4233,7 +4266,8 @@ ${i.description || "(no description)"}
         { command: `cc wi wake -i ${fullId.slice(0, 8)}`, description: "Wake it now, before its date" }
       ]);
       if (!isAgent) {
-        console.log(`Snoozed: ${fullId.slice(0, 8)} until ${until} (wakes to ${data.snooze?.from_status || "triaged"})`);
+        const expiry = data.wait?.deadline ? "deadline item, no expiry" : `expires ${data.snooze?.expires_on ?? "unknown"}${data.wait?.resnoozes ? ", re-snooze used" : ""}`;
+        console.log(`Snoozed: ${fullId.slice(0, 8)} until ${until} (wakes to ${data.snooze?.from_status || "triaged"}; ${expiry})`);
       }
     } catch (e) {
       if (e instanceof ApiError) {
@@ -4241,7 +4275,7 @@ ${i.description || "(no description)"}
           "cc work-items snooze",
           e.body,
           String(e.status),
-          e.status === 404 ? "Check work item ID" : e.status === 422 ? "The date must be after today, and the item must not be done or rejected" : "Check the date is YYYY-MM-DD and the Command Center deploy includes the snooze operation"
+          e.status === 404 ? "Check work item ID" : e.status === 422 ? "The date must be after today, the item must not be done or rejected, and an item past its 90-day limit gets only one re-snooze" : "Check the date is YYYY-MM-DD and the Command Center deploy includes the snooze operation"
         );
       }
       throw e;

@@ -12,6 +12,7 @@ import {
   parseSnoozeUntilFlag,
   registerWorkItems,
   snoozeCheckFailedSummary,
+  snoozeExpiryLabel,
   snoozeUntil,
   sortBySnoozeWake,
   summarizeSnoozed,
@@ -384,6 +385,33 @@ test('cc wi snooze: sends the snooze operation with the date, and the reason und
   assert.deepEqual(calls[0].body, { id: ID_OPEN, operation: 'snooze', until: '2999-01-29', reason: 'Publix review opens', actor: 'clay' });
   assert.equal(envelope.ok, true);
   assert.equal(envelope.result.snooze.until, '2999-01-29');
+});
+
+test('cc wi snooze: --deadline / --no-deadline send deadline true/false; omitted sends nothing (Clay 11/19 90-day rule)', async (t) => {
+  const reply = () => ({ json: { item: { id: ID_OPEN, status: 'deferred' }, snooze: { until: '2999-01-29', expires_on: null }, wait: { deadline: true } } });
+  const yes = await runWi(t, ['snooze', '-i', ID_OPEN, '--until', '2999-01-29', '--deadline'], reply);
+  assert.equal(yes.calls[0].body.deadline, true);
+  const no = await runWi(t, ['snooze', '-i', ID_OPEN, '--until', '2999-01-29', '--no-deadline'], reply);
+  assert.equal(no.calls[0].body.deadline, false);
+  const omitted = await runWi(t, ['snooze', '-i', ID_OPEN, '--until', '2999-01-29'], reply);
+  assert.equal('deadline' in omitted.calls[0].body, false);
+});
+
+test('cc wi list --expiring: asks for the expiry hold and sorts by close date', async (t) => {
+  const held = (id: string, hold: string) => item({ id, status: 'deferred', metadata: { wait: { expires_on: '2027-02-17', hold_until: hold } } });
+  const { calls, envelope, exitCode } = await runWi(t, ['list', '--expiring'], () => ({
+    json: { items: [held(ID_FUTURE, '2027-02-26'), held(ID_SOONER, '2027-02-24')] },
+  }));
+  assert.equal(exitCode, null);
+  assert.equal(calls[0].search.get('expiring'), 'true');
+  assert.equal(calls[0].search.get('status'), 'deferred');
+  assert.deepEqual(envelope.result.items.map((i: WorkItem) => i.id), [ID_SOONER, ID_FUTURE]);
+});
+
+test('snoozeExpiryLabel: deadline, the snooze expiry, or a dash', () => {
+  assert.equal(snoozeExpiryLabel(item({ status: 'deferred', metadata: { wait: { deadline: true }, snooze: { until: '2029-02-20' } } })), 'deadline');
+  assert.equal(snoozeExpiryLabel(item({ status: 'deferred', metadata: { wait: { expires_on: '2027-02-17' }, snooze: { until: '2027-03-19', expires_on: '2027-02-17' } } })), '2027-02-17');
+  assert.equal(snoozeExpiryLabel(item({ status: 'deferred', metadata: { snooze: { until: '2027-03-19' } } })), '-');
 });
 
 test('cc wi snooze: a past, malformed or impossible date exits 1 before any request is made', async (t) => {
