@@ -408,6 +408,19 @@ test('cc wi list --expiring: asks for the expiry hold and sorts by close date', 
   assert.deepEqual(envelope.result.items.map((i: WorkItem) => i.id), [ID_SOONER, ID_FUTURE]);
 });
 
+test('cc wi list --expiring: honors --project, --assigned-to and --rock like --snoozed', async (t) => {
+  const held = (id: string, over: Partial<WorkItem>) =>
+    item({ id, status: 'deferred', metadata: { wait: { hold_until: '2027-02-24' } }, ...over });
+  const { envelope } = await runWi(t, ['list', '--expiring', '--assigned-to', 'charlie', '--rock', 'raise-capital'], () => ({
+    json: { items: [
+      held(ID_FUTURE, { assigned_to: 'charlie', rock: 'raise-capital' }),
+      held(ID_SOONER, { assigned_to: 'clay', rock: 'raise-capital' }),
+      held(ID_OVERDUE, { assigned_to: 'charlie', rock: 'none' }),
+    ] },
+  }));
+  assert.deepEqual(envelope.result.items.map((i: WorkItem) => i.id), [ID_FUTURE]);
+});
+
 test('snoozeExpiryLabel: deadline, the snooze expiry, or a dash', () => {
   assert.equal(snoozeExpiryLabel(item({ status: 'deferred', metadata: { wait: { deadline: true }, snooze: { until: '2029-02-20' } } })), 'deadline');
   assert.equal(snoozeExpiryLabel(item({ status: 'deferred', metadata: { wait: { expires_on: '2027-02-17' }, snooze: { until: '2027-03-19', expires_on: '2027-02-17' } } })), '2027-02-17');

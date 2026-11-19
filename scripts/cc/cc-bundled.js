@@ -3874,6 +3874,8 @@ function registerWorkItems(program3) {
         const data2 = await client.get(`/api/work-items?status=deferred&expiring=true&limit=${SNOOZED_FETCH_LIMIT}`);
         let items = data2.items;
         if (opts.project) items = items.filter((i) => i.project === opts.project);
+        if (opts.assignedTo) items = items.filter((i) => i.assigned_to === opts.assignedTo);
+        if (opts.rock) items = items.filter((i) => (i.rock || "none") === opts.rock);
         const holdUntil = /* @__PURE__ */ __name((i) => String(i.metadata?.wait?.hold_until ?? ""), "holdUntil");
         items = [...items].sort((a, b) => holdUntil(a).localeCompare(holdUntil(b)));
         respond("cc work-items list --expiring", { items, count: items.length }, [
