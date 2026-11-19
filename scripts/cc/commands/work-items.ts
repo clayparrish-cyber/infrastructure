@@ -470,13 +470,17 @@ export function registerWorkItems(program: Command) {
           // 2026-11-19 (Clay): waiting items expire after 90 days. Items that
           // reached the limit sit on a 7-day hold before closing rejected.
           const data = await client.get<ListResponse>(`/api/work-items?status=deferred&expiring=true&limit=${SNOOZED_FETCH_LIMIT}`);
+          const truncated = isTruncatedPage(data.items.length);
           let items = data.items;
           if (opts.project) items = items.filter(i => i.project === opts.project);
           if (opts.assignedTo) items = items.filter(i => i.assigned_to === opts.assignedTo);
           if (opts.rock) items = items.filter(i => (i.rock || 'none') === opts.rock);
           const holdUntil = (i: WorkItem) => String((i.metadata?.wait as Record<string, unknown> | undefined)?.hold_until ?? '');
           items = [...items].sort((a, b) => holdUntil(a).localeCompare(holdUntil(b)));
-          respond('cc work-items list --expiring', { items, count: items.length }, [
+          const warning = truncated
+            ? `WARNING: the API sent its ${SNOOZED_FETCH_LIMIT}-item maximum, so more items may be on the expiry hold than are listed`
+            : null;
+          respond('cc work-items list --expiring', { items, count: items.length, truncated, warning }, [
             { command: 'cc wi snooze -i <id> --until YYYY-MM-DD', description: 'Use its one re-snooze (new 90-day window)' },
             { command: 'cc wi snooze -i <id> --until YYYY-MM-DD --deadline', description: 'It is a real obligation date: no expiry' },
           ]);
@@ -488,6 +492,7 @@ export function registerWorkItems(program: Command) {
               project: i.project || '-',
               title: i.title.slice(0, 60),
             })), ['id', 'closes', 'project', 'title']);
+            if (warning) console.log(`\n${warning}`);
           }
           return;
         }

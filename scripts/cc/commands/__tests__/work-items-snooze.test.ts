@@ -408,6 +408,17 @@ test('cc wi list --expiring: asks for the expiry hold and sorts by close date', 
   assert.deepEqual(envelope.result.items.map((i: WorkItem) => i.id), [ID_SOONER, ID_FUTURE]);
 });
 
+test('cc wi list --expiring: a full page from the API is flagged truncated with a warning', async (t) => {
+  const many = Array.from({ length: SNOOZED_FETCH_LIMIT }, (_, n) =>
+    item({ id: `40000000-0000-4000-8000-${String(n).padStart(12, '0')}`, status: 'deferred', metadata: { wait: { hold_until: '2027-02-24' } } }));
+  const full = await runWi(t, ['list', '--expiring'], () => ({ json: { items: many } }));
+  assert.equal(full.envelope.result.truncated, true);
+  assert.match(full.envelope.result.warning, /maximum/);
+  const small = await runWi(t, ['list', '--expiring'], () => ({ json: { items: many.slice(0, 3) } }));
+  assert.equal(small.envelope.result.truncated, false);
+  assert.equal(small.envelope.result.warning, null);
+});
+
 test('cc wi list --expiring: honors --project, --assigned-to and --rock like --snoozed', async (t) => {
   const held = (id: string, over: Partial<WorkItem>) =>
     item({ id, status: 'deferred', metadata: { wait: { hold_until: '2027-02-24' } }, ...over });
